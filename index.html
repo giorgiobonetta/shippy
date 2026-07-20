@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="SHIPPY — simulatore globale di physical commodity trading, shipping, risk e fleet management." />
+  <title>SHIPPY — Physical Commodity Trading Simulator</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand-block">
+        <div class="brand-mark">S</div>
+        <div>
+          <div class="brand-name">SHIPPY</div>
+          <div class="brand-subtitle">Physical Trading Command · Geneva HQ</div>
+        </div>
+      </div>
+
+      <div class="top-metrics" aria-label="Metriche principali">
+        <div class="top-metric"><span>Portfolio NAV</span><strong id="navMetric">$1.00M</strong><small id="navDelta">Base 100</small></div>
+        <div class="top-metric"><span>Cash</span><strong id="cashMetric">$1.00M</strong><small id="cashDelta">Disponibile</small></div>
+        <div class="top-metric"><span>Credit</span><strong id="creditMetric">$0</strong><small id="creditSub">di $6.00M</small></div>
+        <div class="top-metric"><span>Reputation</span><strong id="repMetric">50</strong><small id="rankMetric">Junior Trader</small></div>
+      </div>
+
+      <div class="top-actions">
+        <button class="icon-button" id="resetButton" title="Nuova carriera" aria-label="Nuova carriera">↻</button>
+        <button class="profile-button" aria-label="Profilo giocatore">GB</button>
+      </div>
+    </header>
+
+    <main class="game-layout">
+      <aside class="left-panel glass-panel">
+        <div class="panel-tabs" role="tablist">
+          <button class="panel-tab active" data-left-tab="portfolio">Desk</button>
+          <button class="panel-tab" data-left-tab="inventory">Inventory</button>
+          <button class="panel-tab" data-left-tab="operations">Operations</button>
+          <button class="panel-tab" data-left-tab="fleet">Fleet</button>
+          <button class="panel-tab" data-left-tab="risk">Risk</button>
+          <button class="panel-tab" data-left-tab="opportunities">Market</button>
+          <button class="panel-tab" data-left-tab="counterparties">Network</button>
+          <button class="panel-tab" data-left-tab="events">World</button>
+          <button class="panel-tab" data-left-tab="finance">Treasury</button>
+          <button class="panel-tab" data-left-tab="academy">Academy</button>
+          <button class="panel-tab empire-tab" data-left-tab="empire">Empire</button>
+          <button class="panel-tab" data-left-tab="hq">HQ</button>
+          <button class="panel-tab" data-left-tab="career">Career</button>
+          <button class="panel-tab leaderboard-tab" data-left-tab="leaderboard">Ranking</button>
+        </div>
+
+        <section id="left-portfolio" class="left-section active">
+          <div class="portfolio-hero">
+            <span class="eyebrow">Equity curve</span>
+            <div class="portfolio-value" id="portfolioValue">$1,000,000</div>
+            <div class="portfolio-return" id="portfolioReturn">0.0% dalla partenza</div>
+            <svg id="equityChart" viewBox="0 0 260 72" preserveAspectRatio="none" aria-label="Andamento del portafoglio"><path id="equityArea" d=""/><polyline id="equityLine" points=""/></svg>
+          </div>
+          <div class="mini-stats">
+            <div><span>Investito</span><strong id="investedMetric">$0</strong></div>
+            <div><span>P&amp;L attivo</span><strong id="activePnlMetric">$0</strong></div>
+            <div><span>Deal chiusi</span><strong id="completedMetric">0</strong></div>
+            <div><span>Credit available</span><strong id="creditAvailableMetric">$6.00M</strong></div>
+          </div>
+          <div class="section-head"><div><span class="eyebrow">Deal book</span><h2>Operazioni attive</h2></div><span class="count-chip" id="activeCount">0</span></div>
+          <div id="activeDealsList" class="deal-list"></div>
+          <div class="section-head history-head"><div><span class="eyebrow">Track record</span><h2>Ultimi risultati</h2></div></div>
+          <div id="historyList" class="history-list"></div>
+        </section>
+
+        <section id="left-inventory" class="left-section">
+          <div class="section-copy"><span class="eyebrow">Physical inventory</span><h2>Merce sotto controllo</h2><p>Segui quantità, valore, posizione e fase operativa di ogni carico fisico.</p></div>
+          <div class="inventory-summary" id="inventorySummary"></div><div id="inventoryList" class="inventory-list"></div>
+        </section>
+
+        <section id="left-operations" class="left-section">
+          <div class="section-copy"><span class="eyebrow">Operations center</span><h2>Contratti, trasporti e documenti</h2><p>Controlla execution, carrier, storage, document readiness e blocchi operativi.</p></div>
+          <div class="operations-summary" id="operationsSummary"></div><div id="operationsList" class="operations-list"></div>
+        </section>
+
+        <section id="left-fleet" class="left-section">
+          <div class="section-copy"><span class="eyebrow">Fleet desk</span><h2>Navi e chartering</h2><p>Noleggia asset logistici, assegnali ai deal e controlla capacità, posizione e giorni residui.</p></div>
+          <div class="fleet-summary" id="fleetSummary"></div><div id="fleetList" class="fleet-list"></div>
+          <div class="section-head history-head"><div><span class="eyebrow">Charter market</span><h2>Asset disponibili</h2></div></div>
+          <div id="charterMarketList" class="fleet-list charter-market-list"></div>
+        </section>
+
+        <section id="left-risk" class="left-section">
+          <div class="section-copy"><span class="eyebrow">Risk dashboard</span><h2>Esposizioni del desk</h2><p>Controlla flat-price risk, FX, concentrazione, liquidità e utilizzo del credito.</p></div>
+          <div id="riskDashboard" class="risk-dashboard"></div>
+        </section>
+
+        <section id="left-opportunities" class="left-section">
+          <div class="section-copy"><span class="eyebrow">Opportunity market</span><h2>Scegli dove fare affari</h2><p>Confronta rendimento, capitale, durata e rischio. Le offerte si aggiornano ogni settimana.</p></div>
+          <div id="marketCycleSummary" class="market-cycle-summary"></div><div id="opportunityList" class="opportunity-list"></div>
+        </section>
+
+        <section id="left-counterparties" class="left-section">
+          <div class="section-copy"><span class="eyebrow">Commercial network</span><h2>Buyer e supplier</h2><p>Le relazioni commerciali cambiano con puntualità, claims, execution e risultati.</p></div>
+          <div id="counterpartySummary" class="network-summary"></div><div id="counterpartyList" class="counterparty-list"></div>
+        </section>
+
+        <section id="left-events" class="left-section">
+          <div class="section-copy"><span class="eyebrow">Global intelligence</span><h2>Crisi e dislocazioni</h2><p>Eventi geopolitici, logistici e finanziari modificano mercati e cargo in viaggio.</p></div>
+          <div id="worldSummary" class="world-summary"></div><div id="worldEventList" class="world-event-list"></div>
+        </section>
+
+        <section id="left-finance" class="left-section">
+          <div class="section-copy"><span class="eyebrow">Treasury desk</span><h2>Funding e collateral</h2><p>Gestisci credito, trade finance, futures collateral, interessi e margin calls.</p></div>
+          <div id="financeSummary" class="finance-summary"></div><div id="financeDealList" class="finance-list"></div>
+          <div class="section-head history-head"><div><span class="eyebrow">Banking network</span><h2>Linee disponibili</h2></div></div><div id="bankingList" class="finance-list"></div>
+        </section>
+
+        <section id="left-academy" class="left-section">
+          <div class="section-copy"><span class="eyebrow">SHIPPY Academy</span><h2>Impara facendo trading</h2><p>Lezioni brevi, quiz e glossario collegati alle operazioni reali.</p></div>
+          <div id="academySummary" class="academy-summary"></div><div id="academyLessonList" class="academy-list"></div>
+          <div class="section-head history-head"><div><span class="eyebrow">Glossary</span><h2>Concetti chiave</h2></div></div><div id="glossaryList" class="glossary-list"></div>
+        </section>
+
+
+        <section id="left-empire" class="left-section empire-section">
+          <div class="section-copy"><span class="eyebrow">Vertical integration</span><h2>Build your trading empire</h2><p>Investi in upstream, midstream e downstream. Ogni asset richiede capitale e giorni di costruzione, poi genera reddito e vantaggi permanenti.</p></div>
+          <div id="investmentSummary" class="investment-summary"></div>
+          <div id="builderQueue" class="builder-queue"></div>
+          <div class="empire-chain-tabs" id="empireChainTabs">
+            <button class="active" data-empire-chain="all">All</button><button data-empire-chain="upstream">Upstream</button><button data-empire-chain="midstream">Midstream</button><button data-empire-chain="downstream">Downstream</button>
+          </div>
+          <div id="investmentList" class="investment-list"></div>
+        </section>
+
+        <section id="left-hq" class="left-section">
+          <div class="section-copy"><span class="eyebrow">Trading house</span><h2>HQ management</h2><p>Apri uffici regionali e assumi specialisti con benefici e costi giornalieri.</p></div>
+          <div id="hqSummary" class="management-summary"></div><div id="officeList" class="management-list"></div>
+          <div class="section-head history-head"><div><span class="eyebrow">Team</span><h2>Specialisti</h2></div></div><div id="staffList" class="management-list"></div>
+        </section>
+
+        <section id="left-career" class="left-section">
+          <div class="section-copy"><span class="eyebrow">Career progression</span><h2>Ruolo e missioni</h2><p>Sviluppa il track record e scala da Junior Trader a Global Desk Head.</p></div>
+          <div id="careerSummary" class="management-summary"></div><div id="missionList" class="mission-list"></div>
+        </section>
+
+        <section id="left-leaderboard" class="left-section leaderboard-section">
+          <div class="section-copy"><span class="eyebrow">Career League</span><h2>Classifica SHIPPY</h2><p>Confronta la tua trading house per rating, P&amp;L, operations e disciplina di rischio.</p></div>
+          <div id="leaderboardSummary" class="leaderboard-summary"></div>
+          <div id="leaderboardProfile" class="leaderboard-profile"></div>
+          <div id="leaderboardTable" class="leaderboard-table"></div>
+          <div class="section-head history-head"><div><span class="eyebrow">Season archive</span><h2>Storico stagioni</h2></div></div>
+          <div id="seasonHistory" class="season-history"></div>
+        </section>
+      </aside>
+
+      <section class="globe-stage" id="globeStage">
+        <canvas id="earthCanvas" aria-hidden="true"></canvas>
+        <canvas id="globeCanvas" aria-label="Globo interattivo del trading mondiale"></canvas>
+        <div class="earth-loading" id="earthLoading"><span></span><strong>Loading realistic Earth</strong></div>
+
+        <div class="globe-header">
+          <div><span class="eyebrow">Global operations view</span><h1>SHIPPY · Global trade command <span class="version-badge">v11</span></h1></div>
+          <div class="market-strip" aria-label="Mercati">
+            <div class="market-ticker"><span>Copper</span><strong id="copperPrice">$9,500/t</strong><small id="copperMove">+0.0%</small></div>
+            <div class="market-ticker"><span>Aluminium</span><strong id="aluminiumPrice">$2,450/t</strong><small id="aluminiumMove">+0.0%</small></div>
+            <div class="market-ticker"><span>Urea</span><strong id="ureaPrice">$360/t</strong><small id="ureaMove">+0.0%</small></div>
+            <div class="market-ticker"><span>Crude</span><strong id="crudePrice">$78.50/bbl</strong><small id="crudeMove">+0.0%</small></div>
+            <div class="market-ticker"><span>Wheat</span><strong id="wheatPrice">$245/t</strong><small id="wheatMove">+0.0%</small></div>
+            <div class="market-ticker"><span>Iron ore</span><strong id="ironorePrice">$108/t</strong><small id="ironoreMove">+0.0%</small></div>
+            <div class="market-ticker"><span>Coffee</span><strong id="coffeePrice">$4,200/t</strong><small id="coffeeMove">+0.0%</small></div>
+            <div class="market-ticker"><span>EUR/USD</span><strong id="eurusdPrice">1.1000</strong><small id="eurusdMove">+0.0%</small></div>
+            <div class="market-ticker"><span>Freight</span><strong id="freightPrice">100.0</strong><small id="freightMove">+0.0%</small></div>
+          </div>
+        </div>
+
+        <div class="world-event-ticker hidden" id="worldEventTicker"><span>Global alert</span><strong id="worldEventTickerText"></strong><button id="openWorldEventsButton">Open intelligence</button></div>
+
+        <div class="layer-controls" aria-label="Livelli del globo">
+          <button class="layer-button active" data-layer="opportunities"><span class="layer-icon">◎</span>Opportunities</button>
+          <button class="layer-button active" data-layer="portfolio"><span class="layer-icon">↗</span>Portfolio</button>
+          <button class="layer-button" data-layer="risk"><span class="layer-icon">!</span>Risk</button>
+          <button class="layer-button active" data-layer="logistics"><span class="layer-icon">⌁</span>Logistics</button>
+        </div>
+
+        <div class="globe-hint" id="globeHint"><span class="mouse-icon">↔</span>Trascina per ruotare · usa la rotella per lo zoom · clicca un hub</div>
+        <div class="globe-legend"><span><i class="legend-dot hq"></i>HQ</span><span><i class="legend-dot supplier"></i>Supplier</span><span><i class="legend-dot customer"></i>Customer</span><span><i class="legend-dot port"></i>Port</span><span><i class="legend-dot shipment"></i>Moving cargo</span><span><i class="legend-dot investment"></i>Owned asset</span></div>
+
+        <div class="event-banner hidden" id="eventBanner"><div class="event-pulse"></div><div><span>Decisione richiesta</span><strong id="eventBannerText">Evento operativo</strong></div><button id="openEventButton">Apri</button></div>
+
+        <div class="time-control glass-panel">
+          <div class="game-date"><span>Data di gioco</span><strong id="gameDate">01 settembre 2026</strong></div>
+          <div class="time-buttons"><button class="time-button active" id="pauseButton" title="Pausa">Ⅱ</button><button class="time-button" data-speed="1">1×</button><button class="time-button" data-speed="5">5×</button><button class="time-button next" id="nextDayButton">+1 giorno</button><button class="time-button next" id="nextEventButton">Prossimo evento</button></div>
+          <div class="clock-status"><span id="clockDot"></span><strong id="clockStatus">In pausa</strong></div>
+        </div>
+      </section>
+
+      <aside class="right-panel glass-panel">
+        <div class="inspector-topline"><span class="eyebrow" id="inspectorEyebrow">Headquarters</span><button class="icon-button small" id="closeInspector" aria-label="Chiudi dettaglio">×</button></div>
+        <div id="inspectorContent" class="inspector-content"></div>
+      </aside>
+    </main>
+  </div>
+
+  <div class="toast hidden" id="toast" role="status"></div>
+
+  <dialog id="confirmDialog" class="confirm-dialog">
+    <form method="dialog"><span class="eyebrow">Nuova carriera</span><h2>Azzerare la carriera SHIPPY?</h2><p>Portafoglio, deal, investimenti, classifica e reputazione torneranno ai valori iniziali.</p><div class="dialog-actions"><button value="cancel" class="button secondary">Annulla</button><button value="confirm" class="button danger">Azzera carriera</button></div></form>
+  </dialog>
+
+  <dialog id="onboardingDialog" class="confirm-dialog onboarding-dialog">
+    <form method="dialog"><span class="eyebrow">New career</span><h2>Start your SHIPPY trading career</h2><p>Scegli la difficoltà. Potrai costruire un portafoglio, una trading house e scalare la Career League.</p><label class="difficulty-field">Difficulty<select id="difficultySelect"><option value="guided">Guided · più capitale e supporto</option><option value="standard" selected>Standard · esperienza bilanciata</option><option value="expert">Expert · capitale e liquidità ridotti</option></select></label><div class="dialog-actions"><button value="start" class="button primary">Start career</button></div></form>
+  </dialog>
+
+  <script src="app.bundle.js" defer></script>
+</body>
+</html>
