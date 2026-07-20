@@ -1,28 +1,21 @@
-# SHIPPY Changelog
+# Changelog
+
+## v12 — Earth First Edition
+
+- Rebuilt the main layout around a nearly full-screen globe.
+- Added on-demand left command drawer and right contextual inspector.
+- Hidden portfolio overview, market strip, globe layers and legend by default.
+- Added compact Desk, Overview, Markets and Layers commands.
+- Added a Full Globe action that appears only while an overlay is open.
+- Replaced the orthographic Earth camera with a perspective camera.
+- Added physically informed day/night blending and city lights.
+- Added ocean highlights, subtler atmosphere and higher-resolution sphere geometry.
+- Added seasonal solar declination based on the in-game date.
+- Kept route, hub, investment and moving-vehicle projection synchronized with the 3D Earth.
+- Added save migration from v11.
 
 ## v11 — Trading Empire Edition
 
-- Added continuously animated cargo movement between daily simulation ticks.
-- Added transport-specific visuals for ships, tankers, bulk carriers, barges, trains and trucks.
-- Added route heading, wakes, trails and live progress labels.
-- Added the Empire management section.
-- Added upstream, midstream and downstream investment trees.
-- Added twelve upgradeable industrial assets located on the globe.
-- Added construction timers, project-team slots and escalating upgrade economics.
-- Added passive industrial income and asset book value.
-- Integrated owned assets into deal P&L, duration, buyer acceptance and equity requirements.
-- Added interactive investment markers and asset inspectors on the globe.
-- Added Vertical Pioneer and Industrial Empire career missions.
-- Added save migration from v10.
-
-## v10 — Career League Edition
-
-- Added offline Career League rankings, seasonal progression and player identity.
-
-## v9 — Realistic Earth Edition
-
-- Added WebGL Earth, satellite textures, atmosphere, moving clouds and dynamic lighting.
-
-## v8
-
-- Added multi-commodity career mode, Treasury, trade finance, insurance, inspections, margin calls, Academy and P&L attribution.
+- Added animated multimodal vehicles.
+- Added upstream, midstream and downstream investments.
+- Added construction timers, asset levels, passive income and vertical-integration bonuses.

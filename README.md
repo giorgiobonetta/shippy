@@ -1,47 +1,48 @@
-# SHIPPY v11 — Trading Empire Edition
+# SHIPPY v12 — Earth First Edition
 
-SHIPPY is a browser-based physical commodity trading simulator built around a realistic interactive globe. The player sources commodities, negotiates physical contracts, manages finance and hedging, controls cargoes in motion, charters transport and expands a vertically integrated trading group.
+SHIPPY è un simulatore web di physical commodity trading con globo interattivo, deal book, shipping, risk, trade finance, classifica e investimenti upstream/midstream/downstream.
 
-## New in v11
+## Novità v12
 
-- Cargoes now move continuously along their routes while game time is running.
-- Vehicle type changes with the logistics chain: ocean vessel, tanker, bulk carrier, barge, train or truck.
-- Vehicles show direction, wake/trail and live route progress on the globe.
-- New **Empire** section inspired by base-building progression games.
-- Investments across **upstream, midstream and downstream**.
-- Twelve industrial assets across mining, production, terminals, storage, logistics, manufacturing and distribution.
-- Three upgrade levels per asset, escalating costs and construction times.
-- Project-team construction slots and persistent build timers.
-- Owned assets appear as interactive markers on the globe.
-- Investments generate daily income and permanent deal advantages.
-- Upstream assets improve sourcing margin and reduce equity needs.
-- Midstream assets improve freight, storage, demurrage and transit times.
-- Downstream assets create captive demand, improve acceptance and add conversion margin.
-- Asset book value is included in portfolio NAV.
-- New career missions for vertical integration and industrial expansion.
-- Automatic migration from SHIPPY v10 and earlier saves.
+- Interfaccia **Earth-first**: il globo occupa quasi tutto lo schermo.
+- Tutti i moduli sono nascosti di default e si aprono solo su richiesta.
+- Command Center laterale a comparsa con Desk, Inventory, Operations, Fleet, Risk, Market, Network, World, Treasury, Academy, Empire, HQ, Career e Ranking.
+- Inspector delle città, rotte, navi e deal aperto soltanto quando viene selezionato un elemento.
+- Overview, mercati, livelli e legenda trasformati in pannelli temporanei.
+- Vista `Full globe` per chiudere immediatamente tutte le sovrapposizioni.
+- Nuova camera prospettica per il pianeta.
+- Texture satellitari reali, nuvole, atmosfera e riflessi oceanici.
+- Transizione giorno/notte con luci urbane sul lato notturno.
+- Illuminazione solare coerente con la data di gioco e declinazione stagionale.
+- Globo ingrandito e proiezione di marker, rotte e mezzi sincronizzata con la camera 3D.
+- Migrazione automatica dei salvataggi dalla v11 e precedenti.
 
-All previous systems remain available: realistic Earth, opportunity market, negotiation, multi-commodity portfolio, inventory, operations, fleet, risk, counterparties, global events, Treasury, Academy, HQ, career progression and Career League.
+## Avvio
 
-## Run the game
+Il progetto è statico. Può essere pubblicato direttamente su Vercel o Netlify.
 
-Upload the entire `SHIPPY` folder to Netlify. No build command or environment variable is required.
-
-For local use:
+Per lo sviluppo locale è consigliato un server HTTP:
 
 ```bash
 python -m http.server 8000
 ```
 
-Then open `http://localhost:8000`.
+Poi apri `http://localhost:8000`.
 
-## Files
+## Deploy su Vercel
 
-- `index.html` — application structure;
-- `styles.css` — command-center interface;
-- `app.bundle.js` — browser-ready game bundle;
-- `app.js` — readable development source;
-- `assets/` — Earth textures;
-- `vendor/` — pinned Three.js source.
+- Framework preset: `Other`
+- Build command: vuoto
+- Output directory: `.`
+- Root directory: la cartella che contiene `index.html`
 
-This remains a front-end prototype. A commercial online release will require authentication, a database, server-authoritative simulation, anti-cheat controls and online leaderboard infrastructure.
+## File principali
+
+- `index.html` — struttura dell'interfaccia
+- `styles.css` — UI e pannelli a comparsa
+- `app.js` — sorgente leggibile
+- `app.bundle.js` — bundle browser senza dipendenze esterne
+- `assets/` — texture del pianeta
+- `vendor/` — Three.js incluso localmente
+
+I salvataggi restano nel browser tramite `localStorage`.

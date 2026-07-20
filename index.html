@@ -18,7 +18,7 @@
         </div>
       </div>
 
-      <div class="top-metrics" aria-label="Metriche principali">
+      <div class="top-metrics" id="overviewPanel" aria-label="Metriche principali" aria-hidden="true">
         <div class="top-metric"><span>Portfolio NAV</span><strong id="navMetric">$1.00M</strong><small id="navDelta">Base 100</small></div>
         <div class="top-metric"><span>Cash</span><strong id="cashMetric">$1.00M</strong><small id="cashDelta">Disponibile</small></div>
         <div class="top-metric"><span>Credit</span><strong id="creditMetric">$0</strong><small id="creditSub">di $6.00M</small></div>
@@ -32,7 +32,8 @@
     </header>
 
     <main class="game-layout">
-      <aside class="left-panel glass-panel">
+      <aside class="left-panel glass-panel" id="leftDrawer" aria-hidden="true">
+        <div class="drawer-head"><div><span class="eyebrow">Command center</span><strong id="drawerTitle">Trading desk</strong></div><button class="icon-button small" id="closeLeftPanel" aria-label="Chiudi menu">×</button></div>
         <div class="panel-tabs" role="tablist">
           <button class="panel-tab active" data-left-tab="portfolio">Desk</button>
           <button class="panel-tab" data-left-tab="inventory">Inventory</button>
@@ -155,9 +156,18 @@
         <canvas id="globeCanvas" aria-label="Globo interattivo del trading mondiale"></canvas>
         <div class="earth-loading" id="earthLoading"><span></span><strong>Loading realistic Earth</strong></div>
 
+        <nav class="command-dock" aria-label="Comandi principali">
+          <button class="command-button primary" id="openDeskButton" aria-label="Apri command center"><span>☰</span><b>Desk</b></button>
+          <button class="command-button" id="toggleOverviewButton" aria-label="Mostra portafoglio"><span>◇</span><b>Overview</b></button>
+          <button class="command-button" id="toggleMarketsButton" aria-label="Mostra mercati"><span>⌁</span><b>Markets</b></button>
+          <button class="command-button" id="toggleLayersButton" aria-label="Mostra livelli"><span>◎</span><b>Layers</b></button>
+        </nav>
+        <button class="map-clean-button" id="cleanViewButton" aria-label="Nascondi tutti i pannelli">Full globe</button>
+        <div class="drawer-backdrop" id="drawerBackdrop" aria-hidden="true"></div>
+
         <div class="globe-header">
-          <div><span class="eyebrow">Global operations view</span><h1>SHIPPY · Global trade command <span class="version-badge">v11</span></h1></div>
-          <div class="market-strip" aria-label="Mercati">
+          <div><span class="eyebrow">Global operations view</span><h1>SHIPPY · Global trade command <span class="version-badge">v12</span></h1></div>
+          <div class="market-strip" id="marketStrip" aria-label="Mercati" aria-hidden="true">
             <div class="market-ticker"><span>Copper</span><strong id="copperPrice">$9,500/t</strong><small id="copperMove">+0.0%</small></div>
             <div class="market-ticker"><span>Aluminium</span><strong id="aluminiumPrice">$2,450/t</strong><small id="aluminiumMove">+0.0%</small></div>
             <div class="market-ticker"><span>Urea</span><strong id="ureaPrice">$360/t</strong><small id="ureaMove">+0.0%</small></div>
@@ -172,7 +182,7 @@
 
         <div class="world-event-ticker hidden" id="worldEventTicker"><span>Global alert</span><strong id="worldEventTickerText"></strong><button id="openWorldEventsButton">Open intelligence</button></div>
 
-        <div class="layer-controls" aria-label="Livelli del globo">
+        <div class="layer-controls" id="layerControls" aria-label="Livelli del globo" aria-hidden="true">
           <button class="layer-button active" data-layer="opportunities"><span class="layer-icon">◎</span>Opportunities</button>
           <button class="layer-button active" data-layer="portfolio"><span class="layer-icon">↗</span>Portfolio</button>
           <button class="layer-button" data-layer="risk"><span class="layer-icon">!</span>Risk</button>
@@ -180,7 +190,7 @@
         </div>
 
         <div class="globe-hint" id="globeHint"><span class="mouse-icon">↔</span>Trascina per ruotare · usa la rotella per lo zoom · clicca un hub</div>
-        <div class="globe-legend"><span><i class="legend-dot hq"></i>HQ</span><span><i class="legend-dot supplier"></i>Supplier</span><span><i class="legend-dot customer"></i>Customer</span><span><i class="legend-dot port"></i>Port</span><span><i class="legend-dot shipment"></i>Moving cargo</span><span><i class="legend-dot investment"></i>Owned asset</span></div>
+        <div class="globe-legend" id="globeLegend" aria-hidden="true"><span><i class="legend-dot hq"></i>HQ</span><span><i class="legend-dot supplier"></i>Supplier</span><span><i class="legend-dot customer"></i>Customer</span><span><i class="legend-dot port"></i>Port</span><span><i class="legend-dot shipment"></i>Moving cargo</span><span><i class="legend-dot investment"></i>Owned asset</span></div>
 
         <div class="event-banner hidden" id="eventBanner"><div class="event-pulse"></div><div><span>Decisione richiesta</span><strong id="eventBannerText">Evento operativo</strong></div><button id="openEventButton">Apri</button></div>
 
@@ -191,7 +201,7 @@
         </div>
       </section>
 
-      <aside class="right-panel glass-panel">
+      <aside class="right-panel glass-panel" id="rightInspector" aria-hidden="true">
         <div class="inspector-topline"><span class="eyebrow" id="inspectorEyebrow">Headquarters</span><button class="icon-button small" id="closeInspector" aria-label="Chiudi dettaglio">×</button></div>
         <div id="inspectorContent" class="inspector-content"></div>
       </aside>
