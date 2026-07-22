@@ -1,0 +1,19 @@
+{
+  "name": "SHIPPY \u2014 Physical Commodity Trading Simulator",
+  "short_name": "SHIPPY",
+  "description": "Build a global physical commodity trading house and compete against simulated rival desks.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#061019",
+  "theme_color": "#071923",
+  "orientation": "landscape",
+  "icons": [
+    {
+      "src": "./assets/shippy-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
