@@ -1,21 +1,30 @@
-# Changelog
+# World of Trade v22 — Performance & Scenario Lab
 
-## v12 — Earth First Edition
+## Added
 
-- Rebuilt the main layout around a nearly full-screen globe.
-- Added on-demand left command drawer and right contextual inspector.
-- Hidden portfolio overview, market strip, globe layers and legend by default.
-- Added compact Desk, Overview, Markets and Layers commands.
-- Added a Full Globe action that appears only while an overlay is open.
-- Replaced the orthographic Earth camera with a perspective camera.
-- Added physically informed day/night blending and city lights.
-- Added ocean highlights, subtler atmosphere and higher-resolution sphere geometry.
-- Added seasonal solar declination based on the in-game date.
-- Kept route, hub, investment and moving-vehicle projection synchronized with the 3D Earth.
-- Added save migration from v11.
+- New hidden-on-demand **Performance Office** module.
+- Board performance score combining profitability, risk resilience, operational execution, cash conversion and compliance.
+- Cumulative P&L attribution for commercial margin, operations, financing, market/basis, FX, storage, credit and demurrage.
+- Three board capital-allocation mandates with different NAV reserve requirements.
+- Capital policy effects on equity usage, expected deal margin, financing rates and risk score.
+- Minimum liquidity-reserve approval check before opening a deal.
+- Five portfolio stress scenarios covering commodities, freight, FX, buyer defaults and liquidity.
+- Stress output with loss, collateral call, cash impact, post-stress NAV, credit headroom and limit-breach warnings.
+- Persistent stress-test history and Trade Journal entries.
+- Mission **Scenario Ready** and achievement **Scenario Planner**.
+- Academy lesson on stress testing and liquidity, plus two glossary definitions.
+- Keyboard shortcut `P` for the Performance Office.
+- Local Earth textures and local low-resolution country geometry.
+- Full PWA caching of globe assets.
 
-## v11 — Trading Empire Edition
+## Improved
 
-- Added animated multimodal vehicles.
-- Added upstream, midstream and downstream investments.
-- Added construction timers, asset levels, passive income and vertical-integration bonuses.
+- Trade history now retains 60 settlements for meaningful management reporting while the Desk still shows the latest eight.
+- Deal approval messages distinguish liquidity-reserve breaches from ordinary cash or bank-credit shortages.
+- Export/import and migration updated to the `wot-v22` schema.
+- Removed duplicate external TopoJSON script references and all runtime CDN dependencies.
+
+## Compatibility
+
+- Automatically migrates v21 and earlier careers.
+- Remains a static deployment with no build step.

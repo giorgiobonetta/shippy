@@ -1,48 +1,68 @@
-# SHIPPY v12 — Earth First Edition
+# World of Trade v22 — Performance & Scenario Lab
 
-SHIPPY è un simulatore web di physical commodity trading con globo interattivo, deal book, shipping, risk, trade finance, classifica e investimenti upstream/midstream/downstream.
+World of Trade is a browser-based physical commodity trading simulator. The v22 release extends the v21 supply-chain and contracts engine with management accounting, board capital allocation and portfolio stress testing.
 
-## Novità v12
+## v22 highlights
 
-- Interfaccia **Earth-first**: il globo occupa quasi tutto lo schermo.
-- Tutti i moduli sono nascosti di default e si aprono solo su richiesta.
-- Command Center laterale a comparsa con Desk, Inventory, Operations, Fleet, Risk, Market, Network, World, Treasury, Academy, Empire, HQ, Career e Ranking.
-- Inspector delle città, rotte, navi e deal aperto soltanto quando viene selezionato un elemento.
-- Overview, mercati, livelli e legenda trasformati in pannelli temporanei.
-- Vista `Full globe` per chiudere immediatamente tutte le sovrapposizioni.
-- Nuova camera prospettica per il pianeta.
-- Texture satellitari reali, nuvole, atmosfera e riflessi oceanici.
-- Transizione giorno/notte con luci urbane sul lato notturno.
-- Illuminazione solare coerente con la data di gioco e declinazione stagionale.
-- Globo ingrandito e proiezione di marker, rotte e mezzi sincronizzata con la camera 3D.
-- Migrazione automatica dei salvataggi dalla v11 e precedenti.
+### Performance Office
 
-## Avvio
+The new **Performance** module explains how the trading house is performing rather than showing only total P&L. It includes:
 
-Il progetto è statico. Può essere pubblicato direttamente su Vercel o Netlify.
+- board performance score;
+- realized P&L and profitable-settlement rate;
+- operational execution, resilience, cash conversion and compliance indicators;
+- cumulative P&L attribution by commercial margin, operations, financing, market/basis, FX, storage and credit.
 
-Per lo sviluppo locale è consigliato un server HTTP:
+### Capital allocation policies
+
+The board can select one of three capital mandates:
+
+- **Capital Preservation** — retains a 35% NAV liquidity reserve and reduces funding cost and risk;
+- **Balanced Mandate** — retains a 20% reserve;
+- **Growth Allocation** — retains a 10% reserve and deploys more capital, with higher funding and risk.
+
+The selected policy changes deal equity, expected margin, financing rates, risk score and whether a new transaction can be approved without breaching the minimum cash reserve.
+
+### Scenario Lab
+
+Five portfolio-wide stress tests are available:
+
+- commodity sell-off;
+- freight capacity shock;
+- EUR/USD dislocation;
+- buyer default wave;
+- global liquidity crisis.
+
+Each test estimates projected loss, collateral needs, cash impact, post-stress NAV, remaining credit capacity and possible limit breaches. Results are stored in the career and written to the Trade Journal.
+
+### Local globe assets
+
+Earth textures and low-resolution country geometry are included inside the project. The globe no longer depends on external CDN requests and the service worker caches these assets for offline use after the first visit.
+
+## Running locally
+
+Serve the folder through a local HTTP server rather than opening `index.html` directly:
 
 ```bash
-python -m http.server 8000
+python3 -m http.server 8000
 ```
 
-Poi apri `http://localhost:8000`.
+Then open `http://localhost:8000`.
 
-## Deploy su Vercel
+## Deployment
 
-- Framework preset: `Other`
-- Build command: vuoto
-- Output directory: `.`
-- Root directory: la cartella che contiene `index.html`
+The project is static and ready for Vercel, Netlify or GitHub Pages. Upload the contents of this folder to the repository root. `vercel.json` and the PWA service worker are already included.
 
-## File principali
+## Saves
 
-- `index.html` — struttura dell'interfaccia
-- `styles.css` — UI e pannelli a comparsa
-- `app.js` — sorgente leggibile
-- `app.bundle.js` — bundle browser senza dipendenze esterne
-- `assets/` — texture del pianeta
-- `vendor/` — Three.js incluso localmente
+Career data is stored locally under the `wot-v22` schema. v21 and earlier World of Trade or SHIPPY careers are migrated automatically. Career backup export/import remains available from the player profile.
 
-I salvataggi restano nel browser tramite `localStorage`.
+## Main files
+
+- `index.html` — interface and panels
+- `styles.css` — visual system and responsive layout
+- `app.js` — simulation, globe and game logic
+- `vendor/three.module.min.js` — local Three.js module
+- `assets/earth/` — local Earth textures
+- `assets/data/countries-lowres.geojson` — local country geometry
+- `sw.js` — offline asset cache
