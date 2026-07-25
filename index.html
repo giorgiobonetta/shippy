@@ -4,33 +4,54 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="description" content="World of Trade — the global physical commodity trading, shipping, supply-chain, risk and industrial strategy simulator." />
-  <meta name="theme-color" content="#061019" />
+  <meta name="theme-color" content="#1f6fe0" />
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="icon" href="assets/world-of-trade-icon.svg" type="image/svg+xml" />
+  <link rel="preload" as="image" href="assets/earth/earth_atmos_2048.jpg" fetchpriority="high" />
   <title>World of Trade — Physical Commodity Trading Simulator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Baloo+2:wght@600;700;800&display=swap" />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
+  <div class="wot-splash" id="wotSplash" aria-hidden="true">
+    <div class="wot-splash-inner">
+      <div class="wot-splash-crest">W<span class="wot-splash-shine"></span></div>
+      <div class="wot-splash-title">World of Trade</div>
+      <div class="wot-splash-sub">Physical Commodity Trading</div>
+      <div class="wot-splash-loader"><span></span></div>
+    </div>
+  </div>
   <div class="app-shell">
     <header class="topbar">
       <div class="brand-block">
         <div class="brand-mark">W</div>
         <div>
-          <div class="brand-name">World of Trade</div>
-          <div class="brand-subtitle">Physical Trading Command · Geneva HQ</div>
+          <div class="brand-name">World of Trade <span class="prestige-badge hidden" id="prestigeBadge" title="Prestige level"></span></div>
+          <div class="brand-subtitle" data-i18n="brand.subtitle">Physical Trading Command · Geneva HQ</div>
         </div>
       </div>
 
       <div class="top-metrics" id="overviewPanel" aria-label="Key metrics" aria-hidden="true">
-        <div class="top-metric"><span>Portfolio NAV</span><strong id="navMetric">$1.00M</strong><small id="navDelta">Base 100</small></div>
-        <div class="top-metric"><span>Cash</span><strong id="cashMetric">$1.00M</strong><small id="cashDelta">Available</small></div>
-        <div class="top-metric"><span>Credit</span><strong id="creditMetric">$0</strong><small id="creditSub">of $6.00M</small></div>
-        <div class="top-metric"><span>Reputation</span><strong id="repMetric">50</strong><small id="rankMetric">Junior Trader</small></div>
+        <div class="top-metric"><span data-term="nav" data-i18n="metric.nav">Portfolio NAV</span><strong id="navMetric">$1.00M</strong><small id="navDelta">Base 100</small></div>
+        <div class="top-metric"><span data-i18n="metric.cash">Cash</span><strong id="cashMetric">$1.00M</strong><small id="cashDelta">Available</small></div>
+        <div class="top-metric"><span data-term="creditline" data-i18n="metric.credit">Credit</span><strong id="creditMetric">$0</strong><small id="creditSub">of $6.00M</small></div>
+        <div class="top-metric"><span data-i18n="metric.reputation">Reputation</span><strong id="repMetric">50</strong><small id="rankMetric">Junior Trader</small></div>
       </div>
 
       <div class="top-actions">
         <div class="save-status" id="saveStatus" role="status" aria-live="polite"><span></span><b>Saved</b></div>
-        <button class="icon-button" id="resetButton" title="New career" aria-label="New career">↻</button>
+        <button class="icon-button install-button hidden" id="installButton" data-i18n-title="btn.install" title="Install World of Trade" aria-label="Install app">⬇</button>
+        <button class="icon-button notif-button" id="openNotificationsButton" data-i18n-title="btn.notifications" title="Notifications" aria-label="Notifications">🔔<em class="notif-badge hidden" id="notificationsBadge">0</em></button>
+        <button class="icon-button" id="resetButton" data-i18n-title="btn.newCareer" title="New career" aria-label="New career">↻</button>
+        <div class="gold-chip" id="goldChip" title="Lingotti d'oro">
+          <span class="gold-ic"></span><b id="goldBarsLabel">0</b>
+        </div>
+        <div class="xp-chip" id="xpChip" title="Experience level">
+          <span class="xp-star"><b id="xpLevelLabel">1</b></span>
+          <div class="xp-bar"><span id="xpFill"></span></div>
+        </div>
         <button class="profile-button" id="profileButton" aria-label="Open player profile">GB</button>
       </div>
     </header>
@@ -56,6 +77,7 @@
           <button class="panel-tab performance-tab" data-left-tab="performance">Performance</button>
           <button class="panel-tab" data-left-tab="academy">Academy</button>
           <button class="panel-tab empire-tab" data-left-tab="empire">Empire</button>
+          <button class="panel-tab shop-tab" data-left-tab="shop">Shop</button>
           <button class="panel-tab" data-left-tab="hq">HQ</button>
           <button class="panel-tab" data-left-tab="career">Career</button>
           <button class="panel-tab leaderboard-tab" data-left-tab="leaderboard">Ranking</button>
@@ -195,6 +217,23 @@
         </section>
 
 
+        <section id="left-shop" class="left-section shop-section">
+          <div class="shop-hero">
+            <div class="shop-hero-icon">▦</div>
+            <div><span class="eyebrow">Trading empire store</span><h2>Build permanent capacity</h2><p>Purchase vessels, warehouses and logistics infrastructure. Every order occupies a project team until delivery and creates permanent operating advantages.</p></div>
+          </div>
+          <div id="shopSummary" class="shop-summary"></div>
+          <div class="section-head history-head"><div><span class="eyebrow">Project teams</span><h2>Orders under construction</h2></div><span class="count-chip" id="shopQueueCount">0</span></div>
+          <div id="shopBuildQueue" class="shop-build-queue"></div>
+          <div class="shop-category-tabs" id="shopCategoryTabs">
+            <button class="active" data-shop-category="all">All</button>
+            <button data-shop-category="fleet">Ships</button>
+            <button data-shop-category="storage">Warehouses</button>
+            <button data-shop-category="infrastructure">Infrastructure</button>
+          </div>
+          <div id="shopCatalogList" class="shop-catalog-list"></div>
+        </section>
+
         <section id="left-empire" class="left-section empire-section">
           <div class="section-copy"><span class="eyebrow">Vertical integration</span><h2>Build your trading empire</h2><p>Invest in upstream, midstream and downstream. Each asset requires capital and construction time, then generates income and permanent advantages.</p></div>
           <div id="investmentSummary" class="investment-summary"></div>
@@ -233,21 +272,24 @@
       <section class="globe-stage" id="globeStage">
         <canvas id="earthCanvas" aria-hidden="true"></canvas>
         <canvas id="globeCanvas" aria-label="Interactive global-trading globe"></canvas>
-        <div class="earth-loading" id="earthLoading"><span></span><strong>Loading realistic Earth</strong></div>
+        <div class="earth-loading" id="earthLoading"><span></span><strong>Loading world map</strong></div>
 
         <nav class="command-dock" aria-label="Main commands">
-          <button class="command-button primary" id="openDeskButton" aria-label="Open command center"><span>☰</span><b>Desk</b></button>
-          <button class="command-button" id="toggleOverviewButton" aria-label="Show portfolio"><span>◇</span><b>Overview</b></button>
-          <button class="command-button" id="toggleMarketsButton" aria-label="Show markets"><span>⌁</span><b>Markets</b></button>
-          <button class="command-button" id="toggleLayersButton" aria-label="Show layers"><span>◎</span><b>Layers</b></button>
-          <button class="command-button icon-only" id="openSearchButton" aria-label="Search the world" title="Search · Ctrl K"><span>⌕</span><b>Search</b></button>
-          <button class="command-button briefing-command" id="openBriefingButton" aria-label="Open daily briefing" title="Daily briefing · B"><span>☷</span><b>Briefing</b><em class="command-badge hidden" id="briefingBadge">0</em></button>
+          <button class="command-button primary" id="openDeskButton" aria-label="Open command center"><span>☰</span><b data-i18n="dock.desk">Desk</b></button>
+          <button class="command-button shop-command" id="openShopButton" aria-label="Open trading empire shop" title="Trading Empire Shop · S"><span>▦</span><b data-i18n="dock.shop">Shop</b><em class="command-badge hidden" id="shopBadge">0</em></button>
+          <button class="command-button" id="toggleOverviewButton" aria-label="Show portfolio"><span>◇</span><b data-i18n="dock.overview">Overview</b></button>
+          <button class="command-button" id="toggleMarketsButton" aria-label="Show markets"><span>⌁</span><b data-i18n="dock.markets">Markets</b></button>
+          <button class="command-button" id="toggleLayersButton" aria-label="Show layers"><span>◎</span><b data-i18n="dock.layers">Layers</b></button>
+          <button class="command-button icon-only" id="openSearchButton" aria-label="Search the world" title="Search · Ctrl K"><span>⌕</span><b data-i18n="dock.search">Search</b></button>
+          <button class="command-button briefing-command" id="openBriefingButton" aria-label="Open daily briefing" title="Daily briefing · B"><span>☷</span><b data-i18n="dock.briefing">Briefing</b><em class="command-badge hidden" id="briefingBadge">0</em></button>
+          <button class="command-button icon-only" id="openShortcutsButton" aria-label="Keyboard shortcuts" title="Keyboard shortcuts · ?"><span>⌨</span><b data-i18n="dock.keys">Keys</b></button>
+          <button class="command-button icon-only" id="openGlossaryButton" aria-label="Trading glossary" title="Trading glossary · G"><span>📖</span><b data-i18n="dock.glossary">Glossary</b></button>
         </nav>
         <button class="map-clean-button" id="cleanViewButton" aria-label="Hide all panels">Full globe</button>
         <div class="drawer-backdrop" id="drawerBackdrop" aria-hidden="true"></div>
 
         <div class="globe-header">
-          <div><span class="eyebrow">Global operations view</span><h1>World of Trade · Global Trade Command <span class="version-badge">v22</span></h1></div>
+          <div><span class="eyebrow">Global operations view</span><h1>World of Trade · Global Trade Command <span class="version-badge">v32</span></h1></div>
           <div class="market-strip" id="marketStrip" aria-label="Markets" aria-hidden="true">
             <div class="market-ticker"><span>Copper</span><strong id="copperPrice">$9,500/t</strong><small id="copperMove">+0.0%</small><em id="copperTermStructure" class="term-struct"></em></div>
             <div class="market-ticker"><span>Aluminium</span><strong id="aluminiumPrice">$2,450/t</strong><small id="aluminiumMove">+0.0%</small><em id="aluminiumTermStructure" class="term-struct"></em></div>
@@ -318,8 +360,8 @@
         <div class="event-banner hidden" id="eventBanner"><div class="event-pulse"></div><div><span>Decision required</span><strong id="eventBannerText">Operational event</strong></div><button id="openEventButton">Open</button></div>
 
         <div class="time-control glass-panel">
-          <div class="game-date"><span>Game date</span><strong id="gameDate">September 1, 2026</strong></div>
-          <div class="time-buttons"><button class="time-button active" id="pauseButton" title="Pause">Ⅱ</button><button class="time-button" data-speed="1">1×</button><button class="time-button" data-speed="5">5×</button><button class="time-button next" id="nextDayButton">+1 day</button><button class="time-button next" id="nextEventButton">Next event</button></div>
+          <div class="game-date"><span data-i18n="globe.date">Game date</span><strong id="gameDate">September 1, 2026</strong></div>
+          <div class="time-buttons"><button class="time-button active" id="pauseButton" data-i18n-title="time.pause" title="Pause">Ⅱ</button><button class="time-button" data-speed="1">1×</button><button class="time-button" data-speed="5">5×</button><button class="time-button next" id="nextDayButton" data-i18n="time.day">+1 day</button><button class="time-button next" id="nextEventButton" data-i18n="time.event">Next event</button></div>
           <div class="clock-status"><span id="clockDot"></span><strong id="clockStatus">Paused</strong></div>
         </div>
       </section>
@@ -332,6 +374,36 @@
   </div>
 
   <div class="toast hidden" id="toast" role="status"></div>
+  <div class="toast-stack" id="toastStack" aria-live="polite" aria-atomic="false"></div>
+
+  <div class="shortcuts-overlay" id="shortcutsOverlay" aria-hidden="true" role="dialog" aria-label="Keyboard shortcuts">
+    <div class="shortcuts-card">
+      <div class="shortcuts-head">
+        <h2 data-i18n="dlg.shortcuts.title">Keyboard shortcuts</h2>
+        <button class="shortcuts-close" id="shortcutsCloseButton" aria-label="Close">×</button>
+      </div>
+      <div class="shortcuts-grid">
+        <div class="shortcuts-col">
+          <div class="shortcuts-col-title" data-i18n="shortcuts.nav">Navigation</div>
+          <div class="shortcut-row"><span data-i18n="sc.command">Command center</span><kbd>Esc</kbd></div>
+          <div class="shortcut-row"><span data-i18n="sc.search">Global search</span><span><kbd>Ctrl</kbd><kbd>K</kbd></span></div>
+          <div class="shortcut-row"><span data-i18n="sc.market">Opportunity market</span><kbd>M</kbd></div>
+          <div class="shortcut-row"><span data-i18n="sc.risk">Risk dashboard</span><kbd>R</kbd></div>
+          <div class="shortcut-row"><span data-i18n="sc.perf">Performance office</span><kbd>P</kbd></div>
+          <div class="shortcut-row"><span data-i18n="sc.shop">Empire shop</span><kbd>S</kbd></div>
+        </div>
+        <div class="shortcuts-col">
+          <div class="shortcuts-col-title" data-i18n="shortcuts.actions">Actions & view</div>
+          <div class="shortcut-row"><span data-i18n="sc.briefing">Daily briefing</span><kbd>B</kbd></div>
+          <div class="shortcut-row"><span data-i18n="sc.day">Advance one day</span><kbd>N</kbd></div>
+          <div class="shortcut-row"><span data-i18n="sc.cinematic">Cinematic globe</span><kbd>F</kbd></div>
+          <div class="shortcut-row"><span data-i18n="sc.glossary">Trading glossary</span><kbd>G</kbd></div>
+          <div class="shortcut-row"><span data-i18n="sc.help">This help panel</span><kbd>?</kbd></div>
+        </div>
+      </div>
+      <div class="shortcuts-foot">Press <kbd>?</kbd> anytime to toggle this panel</div>
+    </div>
+  </div>
 
   <dialog id="confirmDialog" class="confirm-dialog">
     <form method="dialog"><span class="eyebrow">New career</span><h2>Reset your World of Trade career?</h2><p>Portfolio, deals, investments, ranking and reputation will return to their initial values.</p><div class="dialog-actions"><button value="cancel" class="button secondary">Cancel</button><button value="confirm" class="button danger">Reset career</button></div></form>
@@ -350,23 +422,89 @@
     </form>
   </dialog>
 
+  <dialog id="slotDialog" class="slot-dialog">
+    <form method="dialog">
+      <div class="glossary-head">
+        <div><span class="eyebrow" data-i18n="dlg.slots.eyebrow">Careers</span><h2 data-i18n="dlg.slots.title">Save slots</h2></div>
+        <button value="close" class="glossary-close" aria-label="Close save slots">×</button>
+      </div>
+      <div class="slot-list" id="slotList"></div>
+    </form>
+  </dialog>
+  <dialog id="notificationsDialog" class="notifications-dialog">
+    <form method="dialog">
+      <div class="glossary-head">
+        <div><span class="eyebrow" data-i18n="dlg.notif.eyebrow">Activity</span><h2 data-i18n="dlg.notif.title">Notifications</h2></div>
+        <button value="close" class="glossary-close" aria-label="Close notifications">×</button>
+      </div>
+      <div class="notifications-list" id="notificationsList"></div>
+    </form>
+  </dialog>
+  <dialog id="dailyRewardDialog" class="daily-dialog">
+    <form method="dialog">
+      <div class="daily-glow"></div>
+      <span class="eyebrow">Apertura mercato</span>
+      <h2>Bonus giornaliero</h2>
+      <p class="daily-sub" id="dailyStreakSub">Giorno 1 di fila</p>
+      <div class="daily-days" id="dailyDaysRow"></div>
+      <div class="daily-reward-line" id="dailyRewardLine"></div>
+      <div class="dialog-actions"><button value="claim" class="button primary">Riscuoti</button></div>
+    </form>
+  </dialog>
+  <div class="levelup-overlay" id="levelUpOverlay" aria-hidden="true">
+    <div class="levelup-card">
+      <div class="levelup-burst"></div>
+      <div class="levelup-eyebrow">Level up!</div>
+      <div class="levelup-badge"><span class="levelup-star">★</span><b id="levelUpNumber">2</b></div>
+      <div class="levelup-title">Experience level increased</div>
+      <div class="levelup-reward" id="levelUpReward">+$0 cash bonus</div>
+    </div>
+  </div>
+  <dialog id="glossaryDialog" class="glossary-dialog">
+    <form method="dialog">
+      <div class="glossary-head">
+        <div><span class="eyebrow" data-i18n="dlg.glossary.eyebrow">Reference</span><h2 data-i18n="dlg.glossary.title">Trading glossary</h2></div>
+        <button value="close" class="glossary-close" aria-label="Close glossary">×</button>
+      </div>
+      <div class="glossary-list" id="glossaryList"></div>
+    </form>
+  </dialog>
+  <dialog id="victoryDialog" class="victory-dialog">
+    <form method="dialog">
+      <div class="victory-glow"></div>
+      <div class="victory-crest">★</div>
+      <span class="eyebrow">Integrated Major reached</span>
+      <h2 id="victoryTitle">You've built a global trading house</h2>
+      <p id="victoryCopy">Your enterprise valuation has crossed $50M — the top tier of the industry. Claim prestige to start a new career with permanent advantages, or keep building your empire.</p>
+      <div class="victory-stats" id="victoryStats"></div>
+      <div class="victory-prestige-note" id="victoryPrestigeNote"></div>
+      <div class="dialog-actions">
+        <button value="keep" class="button secondary">Keep playing</button>
+        <button value="prestige" class="button primary">Claim prestige & restart</button>
+      </div>
+    </form>
+  </dialog>
   <dialog id="profileDialog" class="profile-dialog">
     <form method="dialog">
-      <div class="profile-dialog-head"><div><span class="eyebrow">Player profile</span><h2>Career & settings</h2></div><button value="cancel" aria-label="Close profile">×</button></div>
+      <div class="profile-dialog-head"><div><span class="eyebrow" data-i18n="profile.eyebrow">Player profile</span><h2 data-i18n="profile.title">Career & settings</h2></div><button value="cancel" aria-label="Close profile">×</button></div>
       <div class="profile-form-grid">
-        <label><span>Trader name</span><input id="profileNameInput" maxlength="48" autocomplete="name" /></label>
-        <label><span>Trading house</span><input id="companyNameInput" maxlength="48" /></label>
-        <label><span>Graphics quality</span><select id="graphicsQualitySelect"><option value="auto">Auto</option><option value="high">High</option><option value="balanced">Balanced</option><option value="performance">Performance</option></select></label>
-        <label><span>Autosave</span><select id="autosaveSelect"><option value="on">Enabled</option><option value="off">Disabled</option></select></label>
+        <label><span data-i18n="profile.traderName">Trader name</span><input id="profileNameInput" maxlength="48" autocomplete="name" /></label>
+        <label><span data-i18n="profile.house">Trading house</span><input id="companyNameInput" maxlength="48" /></label>
+        <label><span data-i18n="profile.graphics">Graphics quality</span><select id="graphicsQualitySelect"><option value="auto">Auto</option><option value="high">High</option><option value="balanced">Balanced</option><option value="performance">Performance</option></select></label>
+        <label><span data-i18n="profile.autosave">Autosave</span><select id="autosaveSelect"><option value="on">Enabled</option><option value="off">Disabled</option></select></label>
+        <label><span data-i18n="profile.motion">Motion & animations</span><select id="reduceMotionSelect"><option value="on">Full animations</option><option value="off">Reduced motion</option></select></label>
+        <label><span data-i18n="profile.sound">Sound effects</span><select id="soundSelect"><option value="on">Enabled</option><option value="off">Muted</option></select></label>
+        <label><span data-i18n="profile.language">Language</span><select id="languageSelect"><option value="en">English</option><option value="it">Italiano</option></select></label>
       </div>
       <div class="profile-data-actions">
-        <button type="button" class="button secondary" id="exportCareerButton">Export career</button>
-        <button type="button" class="button secondary" id="importCareerButton">Import career</button>
+        <button type="button" class="button secondary" id="exportCareerButton" data-i18n="profile.export">Export career</button>
+        <button type="button" class="button secondary" id="importCareerButton" data-i18n="profile.import">Import career</button>
         <input id="importCareerInput" type="file" accept="application/json,.json" hidden />
-        <button type="button" class="button secondary" id="restartTutorialButton">Restart guided tour</button>
+        <button type="button" class="button secondary" id="manageSlotsButton" data-i18n="profile.manageSlots">Manage save slots</button>
+        <button type="button" class="button secondary" id="restartTutorialButton" data-i18n="profile.restartTour">Restart guided tour</button>
       </div>
-      <div class="profile-storage-note"><strong>Local-first save</strong><span>Your career is stored in this browser. Export a backup before changing device or clearing browser data.</span></div>
-      <div class="dialog-actions"><button value="cancel" class="button secondary">Cancel</button><button value="save" class="button primary">Save changes</button></div>
+      <div class="profile-storage-note"><strong data-i18n="profile.storageTitle">Local-first save</strong><span data-i18n="profile.storageNote">Your career is stored in this browser. Export a backup before changing device or clearing browser data.</span></div>
+      <div class="dialog-actions"><button value="cancel" class="button secondary" data-i18n="btn.cancel">Cancel</button><button value="save" class="button primary" data-i18n="btn.save">Save changes</button></div>
     </form>
   </dialog>
   <script type="module" src="app.js"></script>

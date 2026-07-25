@@ -8,8 +8,53 @@ import * as THREE from './vendor/three.module.min.js';
   const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
   const lerp = (a, b, t) => a + (b - a) * t;
   const deg = Math.PI / 180;
-  const storageKey = 'wot-v22';
-  const legacyStorageKeys = ['wot-v21', 'wot-v20', 'wot-v19', 'wot-v18', 'shippy-v17', 'shippy-v16', 'shippy-v15', 'shippy-v14', 'shippy-v13', 'shippy-v12', 'shippy-v11', 'shippy-v10', 'shippy-v9', 'shippy-v8', 'shippy-v7', 'shippy-v6', 'shippy-v5', 'global-commodity-trader-v3'];
+  const storageKey = 'wot-v32';
+  const legacyStorageKeys = ['wot-v31', 'wot-v30', 'wot-v29', 'wot-v28', 'wot-v27', 'wot-v26', 'wot-v25', 'wot-v24', 'wot-v23', 'wot-v22', 'wot-v21', 'wot-v20', 'wot-v19', 'wot-v18', 'shippy-v17', 'shippy-v16', 'shippy-v15', 'shippy-v14', 'shippy-v13', 'shippy-v12', 'shippy-v11', 'shippy-v10', 'shippy-v9', 'shippy-v8', 'shippy-v7', 'shippy-v6', 'shippy-v5', 'global-commodity-trader-v3'];
+
+  // ── v25 prestige (persists across career resets) ────────────────────────────
+  const prestigeKey = 'wot-prestige';
+  const VICTORY_VALUATION = 50_000_000;
+  function loadPrestige() {
+    try { return Math.max(0, parseInt(localStorage.getItem(prestigeKey) || '0', 10) || 0); } catch (e) { return 0; }
+  }
+  function savePrestige(level) {
+    try { localStorage.setItem(prestigeKey, String(Math.max(0, level|0))); } catch (e) {}
+  }
+  // Each prestige level: +12% starting cash, +8% credit line, +2 starting reputation
+  function prestigeStartCash(base) { return Math.round(base * (1 + 0.12 * loadPrestige())); }
+  function prestigeStartCredit(base) { return Math.round(base * (1 + 0.08 * loadPrestige())); }
+  function prestigeStartReputation(base) { return Math.min(70, base + 2 * loadPrestige()); }
+
+  // ── v27 multiple save slots ────────────────────────────────────────────────
+  const SLOT_COUNT = 3;
+  const activeSlotKey = 'wot-active-slot';
+  let activeSlot = 1;
+  function loadActiveSlot() {
+    try { const n = parseInt(localStorage.getItem(activeSlotKey) || '1', 10); return (n >= 1 && n <= SLOT_COUNT) ? n : 1; } catch (e) { return 1; }
+  }
+  function setActiveSlot(n) {
+    activeSlot = (n >= 1 && n <= SLOT_COUNT) ? n : 1;
+    try { localStorage.setItem(activeSlotKey, String(activeSlot)); } catch (e) {}
+  }
+  function slotKey(n) { return `${storageKey}-slot-${n}`; }
+  function currentStorageKey() { return slotKey(activeSlot); }
+  function readSlotMeta(n) {
+    try {
+      const raw = localStorage.getItem(slotKey(n));
+      if (!raw) return null;
+      const s = JSON.parse(raw);
+      return {
+        empty: false,
+        companyName: s.companyName || 'World of Trade Co.',
+        profileName: s.profileName || 'Trader',
+        completedDeals: s.completedDeals || 0,
+        cash: s.cash || 0,
+        prestigeLevel: s.prestigeLevel || 0,
+        date: s.date || null,
+        lastSavedAt: s.lastSavedAt || null,
+      };
+    } catch (e) { return null; }
+  }
 
   const money = (value, compact = false) => {
     const sign = value < 0 ? '-' : '';
@@ -18,6 +63,274 @@ import * as THREE from './vendor/three.module.min.js';
     if (compact && abs >= 1_000) return `${sign}$${Math.round(abs / 1_000)}K`;
     return `${sign}$${Math.round(abs).toLocaleString('en-US')}`;
   };
+
+  // ── v25 procedural audio (Web Audio API, no external assets) ────────────────
+  const Sound = (() => {
+    let ctx = null;
+    let master = null;
+    let unlocked = false;
+    function ensure() {
+      if (ctx) return ctx;
+      try {
+        const AC = window.AudioContext || window.webkitAudioContext;
+        if (!AC) return null;
+        ctx = new AC();
+        master = ctx.createGain();
+        master.gain.value = 0.5;
+        master.connect(ctx.destination);
+      } catch (e) { ctx = null; }
+      return ctx;
+    }
+    function unlock() {
+      const c = ensure();
+      if (c && c.state === 'suspended') c.resume().catch(() => {});
+      unlocked = true;
+    }
+    function enabled() {
+      return typeof state !== 'undefined' && state && state.soundEnabled !== false;
+    }
+    // A single tone with an ADSR-ish envelope
+    function tone({ freq = 440, type = 'sine', start = 0, dur = 0.15, gain = 0.2, attack = 0.005, release = 0.08, glideTo = null }) {
+      const c = ensure();
+      if (!c) return;
+      const t0 = c.currentTime + start;
+      const osc = c.createOscillator();
+      const g = c.createGain();
+      osc.type = type;
+      osc.frequency.setValueAtTime(freq, t0);
+      if (glideTo) osc.frequency.exponentialRampToValueAtTime(Math.max(1, glideTo), t0 + dur);
+      g.gain.setValueAtTime(0.0001, t0);
+      g.gain.exponentialRampToValueAtTime(gain, t0 + attack);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur + release);
+      osc.connect(g); g.connect(master);
+      osc.start(t0);
+      osc.stop(t0 + dur + release + 0.02);
+    }
+    function chord(freqs, opts = {}) { freqs.forEach((f, i) => tone({ ...opts, freq: f, start: (opts.stagger || 0) * i })); }
+    function play(name) {
+      if (!enabled()) return;
+      if (typeof _soundSuppressed !== 'undefined' && _soundSuppressed) return;
+      const c = ensure();
+      if (!c) return;
+      if (c.state === 'suspended') c.resume().catch(() => {});
+      switch (name) {
+        case 'success': // rising major triad
+          chord([523.25, 659.25, 783.99], { type: 'triangle', dur: 0.16, gain: 0.16, stagger: 0.05, release: 0.12 }); break;
+        case 'deal': // richer success — deal closed
+          chord([392, 523.25, 659.25, 783.99], { type: 'triangle', dur: 0.2, gain: 0.15, stagger: 0.06, release: 0.16 }); break;
+        case 'error': // low descending buzz
+          tone({ freq: 220, type: 'sawtooth', dur: 0.16, gain: 0.14, glideTo: 130, release: 0.1 }); break;
+        case 'warning': // two-tone alert
+          tone({ freq: 480, type: 'square', dur: 0.1, gain: 0.1 });
+          tone({ freq: 360, type: 'square', dur: 0.12, gain: 0.1, start: 0.12 }); break;
+        case 'info': // soft blip
+          tone({ freq: 660, type: 'sine', dur: 0.08, gain: 0.09, release: 0.06 }); break;
+        case 'click': // subtle tick
+          tone({ freq: 900, type: 'sine', dur: 0.03, gain: 0.05, release: 0.03 }); break;
+        case 'day': // soft whoosh tick for day advance
+          tone({ freq: 300, type: 'sine', dur: 0.09, gain: 0.07, glideTo: 520, release: 0.08 }); break;
+        case 'purchase': // cash-register-ish two-note
+          tone({ freq: 784, type: 'triangle', dur: 0.07, gain: 0.13 });
+          tone({ freq: 1046.5, type: 'triangle', dur: 0.12, gain: 0.12, start: 0.07, release: 0.12 }); break;
+        case 'achievement': // fanfare
+          chord([523.25, 659.25, 783.99, 1046.5], { type: 'triangle', dur: 0.26, gain: 0.16, stagger: 0.08, release: 0.22 }); break;
+        case 'victory': // triumphant arpeggio
+          chord([523.25, 659.25, 783.99, 1046.5, 1318.5], { type: 'triangle', dur: 0.32, gain: 0.17, stagger: 0.1, release: 0.3 }); break;
+        default: break;
+      }
+    }
+    return { unlock, play, enabled, ensure };
+  })();
+
+  let _soundSuppressed = false;
+  const notificationHistory = [];
+  let notificationsUnread = 0;
+
+  // ── v26 glossary of trading terms + contextual tooltips ─────────────────────
+  const glossaryTerms = [
+    { key:'contango', term:'Contango', category:'Market structure', def:'When forward prices are higher than the spot price. The market pays you to hold inventory over time — a sign of ample near-term supply.' },
+    { key:'backwardation', term:'Backwardation', category:'Market structure', def:'When forward prices are lower than the spot price. It signals tight near-term supply; holding physical now is more valuable than a future delivery.' },
+    { key:'termstructure', term:'Term structure', category:'Market structure', def:'The shape of prices across delivery months. Contango slopes up, backwardation slopes down. It drives the economics of storage and hedging.' },
+    { key:'forwardcurve', term:'Forward curve', category:'Market structure', def:'The set of prices for delivery at future dates (M1–M6 here). Its slope is the term structure.' },
+    { key:'spot', term:'Spot price', category:'Market structure', def:'The price for immediate (prompt) delivery, as opposed to a future/forward date.' },
+    { key:'basis', term:'Basis', category:'Market structure', def:'The difference between the local physical price at a hub and the benchmark/reference price. Trading basis is a core physical-merchant skill.' },
+    { key:'hedge', term:'Hedge ratio', category:'Risk', def:'The share of a position protected with an offsetting paper trade. A 100% hedge locks the margin and removes flat-price risk; 0% leaves you fully exposed to price moves.' },
+    { key:'margincall', term:'Margin call', category:'Risk', def:'A demand for additional cash collateral when a hedge moves against you. Enough liquidity to meet margin calls is essential to survive volatility.' },
+    { key:'var', term:'Value at Risk (VaR)', category:'Risk', def:'An estimate of the maximum loss expected over a period at a given confidence level. A headline risk metric for the desk.' },
+    { key:'kyc', term:'KYC', category:'Compliance', def:'Know Your Customer — the due-diligence process to verify a counterparty\'s identity, ownership and legitimacy before trading.' },
+    { key:'compliance', term:'Compliance review', category:'Compliance', def:'A check that a route, counterparty or structure meets sanctions, AML and internal-policy requirements before a deal can proceed.' },
+    { key:'demurrage', term:'Demurrage', category:'Logistics', def:'A penalty paid to a vessel owner when loading or discharge takes longer than the agreed laytime. A common cost when ports are congested.' },
+    { key:'laycan', term:'Laycan', category:'Logistics', def:'The window (laydays/cancelling) during which a vessel must arrive to load. Missing it can void the charter.' },
+    { key:'charter', term:'Time charter', category:'Logistics', def:'Hiring a vessel for a period at a daily rate. You control the voyages; the owner runs the ship. Owned vessels avoid the rate but carry maintenance.' },
+    { key:'lc', term:'Letter of credit (L/C)', category:'Finance', def:'A bank guarantee that the buyer will pay once compliant shipping documents are presented. It reduces payment risk in cross-border trade.' },
+    { key:'nav', term:'Net asset value (NAV)', category:'Finance', def:'The total value of the trading house: cash, open-position value and asset book value, net of what you owe.' },
+    { key:'creditline', term:'Credit line', category:'Finance', def:'The revolving financing the bank extends to fund inventory and receivables. Using it costs interest; exceeding it blocks new deals.' },
+    { key:'enterprisevalue', term:'Enterprise valuation', category:'Finance', def:'A forward-looking value of the whole business — NAV plus capitalised earnings, assets, relationships and execution track record. Reaching $50M wins the game.' },
+    { key:'regime', term:'Market regime', category:'Market', def:'The prevailing market mood (balanced, risk-on, soft, freight-driven, squeeze) that shifts volatility, margins and acceptance across all commodities.' },
+    { key:'tender', term:'Tender', category:'Commercial', def:'A competitive bid process where you and AI rivals compete to win a cargo. Conceding margin raises your win probability.' },
+    { key:'prestige', term:'Prestige', category:'Progression', def:'A legacy reset: once you reach the top valuation tier you can restart with permanent bonuses (+12% capital, +8% credit, higher reputation per level).' },
+  ];
+  const glossaryMap = Object.fromEntries(glossaryTerms.map(t => [t.key, t]));
+
+  let _tooltipEl = null;
+  function ensureTooltipEl() {
+    if (_tooltipEl) return _tooltipEl;
+    _tooltipEl = document.createElement('div');
+    _tooltipEl.className = 'term-tooltip';
+    _tooltipEl.setAttribute('role', 'tooltip');
+    document.body.appendChild(_tooltipEl);
+    return _tooltipEl;
+  }
+  function showTermTooltip(target) {
+    const key = target.getAttribute('data-term');
+    const entry = glossaryMap[key];
+    if (!entry) return;
+    const tip = ensureTooltipEl();
+    tip.innerHTML = `<strong>${entry.term}</strong><span>${entry.def}</span>`;
+    tip.classList.add('visible');
+    const r = target.getBoundingClientRect();
+    const tw = Math.min(260, window.innerWidth - 20);
+    tip.style.width = tw + 'px';
+    let left = r.left + r.width/2 - tw/2;
+    left = Math.max(10, Math.min(left, window.innerWidth - tw - 10));
+    tip.style.left = left + 'px';
+    // Place above if room, else below
+    const th = tip.offsetHeight || 90;
+    let top = r.top - th - 8;
+    if (top < 10) top = r.bottom + 8;
+    tip.style.top = top + 'px';
+  }
+  function hideTermTooltip() { if (_tooltipEl) _tooltipEl.classList.remove('visible'); }
+  function bindTermTooltips() {
+    document.addEventListener('mouseover', e => {
+      const t = e.target.closest?.('[data-term]');
+      if (t) showTermTooltip(t);
+    });
+    document.addEventListener('mouseout', e => {
+      if (e.target.closest?.('[data-term]')) hideTermTooltip();
+    });
+    document.addEventListener('focusin', e => {
+      const t = e.target.closest?.('[data-term]');
+      if (t) showTermTooltip(t);
+    });
+    document.addEventListener('focusout', hideTermTooltip);
+    window.addEventListener('scroll', hideTermTooltip, true);
+  }
+  function updateNotificationsBadge() {
+    const badge = $('#notificationsBadge');
+    if (!badge) return;
+    if (notificationsUnread > 0) { badge.textContent = String(notificationsUnread); badge.classList.remove('hidden'); }
+    else badge.classList.add('hidden');
+  }
+  function timeAgo(ts) {
+    const s = Math.floor((Date.now() - ts) / 1000);
+    if (s < 45) return 'just now';
+    if (s < 90) return '1 min ago';
+    if (s < 3600) return `${Math.floor(s/60)} min ago`;
+    if (s < 7200) return '1 hr ago';
+    return `${Math.floor(s/3600)} hr ago`;
+  }
+  function openNotificationsDialog() {
+    const dialog = $('#notificationsDialog');
+    if (!dialog) return;
+    const list = $('#notificationsList');
+    if (list) {
+      if (!notificationHistory.length) {
+        list.innerHTML = '<div class="empty-card">No notifications yet. Your actions and market alerts will be logged here.</div>';
+      } else {
+        const icons = { success:'✓', error:'✕', warning:'!', info:'ℹ' };
+        list.innerHTML = notificationHistory.map(n => `
+          <div class="notif-entry notif-${n.kind}">
+            <span class="notif-icon">${icons[n.kind] || 'ℹ'}</span>
+            <div class="notif-body"><span class="notif-msg">${n.message.replace(/</g,'&lt;')}</span><span class="notif-time">${timeAgo(n.at)}</span></div>
+          </div>`).join('');
+      }
+    }
+    notificationsUnread = 0;
+    updateNotificationsBadge();
+    if (!dialog.open) dialog.showModal();
+  }
+
+  function openGlossaryDialog() {
+    const dialog = $('#glossaryDialog');
+    if (!dialog) return;
+    const list = $('#glossaryList');
+    if (list) {
+      const cats = [...new Set(glossaryTerms.map(t => t.category))];
+      list.innerHTML = cats.map(cat => `
+        <div class="glossary-cat">${cat}</div>
+        ${glossaryTerms.filter(t => t.category === cat).map(t => `
+          <div class="glossary-entry"><strong>${t.term}</strong><p>${t.def}</p></div>`).join('')}
+      `).join('');
+    }
+    if (!dialog.open) dialog.showModal();
+  }
+
+  // ── v28 lightweight i18n (interface chrome) ─────────────────────────────────
+  const translationsIT = {
+    // Topbar & metrics
+    'brand.subtitle': 'Comando Trading Fisico · HQ Ginevra',
+    'metric.nav': 'NAV Portafoglio', 'metric.cash': 'Liquidità', 'metric.credit': 'Credito', 'metric.reputation': 'Reputazione',
+    // Command dock
+    'dock.desk': 'Scrivania', 'dock.shop': 'Negozio', 'dock.overview': 'Panoramica', 'dock.markets': 'Mercati',
+    'dock.layers': 'Livelli', 'dock.search': 'Cerca', 'dock.briefing': 'Briefing', 'dock.keys': 'Tasti', 'dock.glossary': 'Glossario',
+    // Buttons / titles
+    'btn.newCareer': 'Nuova carriera', 'btn.notifications': 'Notifiche', 'btn.install': 'Installa World of Trade', 'btn.profile': 'Profilo giocatore',
+    // Profile dialog
+    'profile.eyebrow': 'Profilo giocatore', 'profile.title': 'Carriera e impostazioni',
+    'profile.traderName': 'Nome trader', 'profile.house': 'Società di trading', 'profile.graphics': 'Qualità grafica',
+    'profile.autosave': 'Salvataggio automatico', 'profile.motion': 'Movimento e animazioni', 'profile.sound': 'Effetti sonori',
+    'profile.language': 'Lingua',
+    'opt.enabled': 'Attivo', 'opt.disabled': 'Disattivato', 'opt.on': 'Attivo', 'opt.muted': 'Muto',
+    'opt.auto': 'Auto', 'opt.high': 'Alta', 'opt.balanced': 'Bilanciata', 'opt.performance': 'Prestazioni',
+    'opt.fullAnim': 'Animazioni complete', 'opt.reducedMotion': 'Movimento ridotto',
+    'profile.export': 'Esporta carriera', 'profile.import': 'Importa carriera', 'profile.manageSlots': 'Gestisci slot',
+    'profile.restartTour': 'Riavvia tour guidato',
+    'profile.storageTitle': 'Salvataggio locale', 'profile.storageNote': 'La tua carriera è salvata in questo browser. Esporta un backup prima di cambiare dispositivo o cancellare i dati del browser.',
+    'btn.cancel': 'Annulla', 'btn.save': 'Salva modifiche',
+    // Dialog headers
+    'dlg.glossary.eyebrow': 'Riferimento', 'dlg.glossary.title': 'Glossario del trading',
+    'dlg.notif.eyebrow': 'Attività', 'dlg.notif.title': 'Notifiche',
+    'dlg.slots.eyebrow': 'Carriere', 'dlg.slots.title': 'Slot di salvataggio',
+    'dlg.shortcuts.title': 'Scorciatoie da tastiera',
+    'shortcuts.nav': 'Navigazione', 'shortcuts.actions': 'Azioni e vista',
+    'sc.command': 'Centro comandi', 'sc.search': 'Ricerca globale', 'sc.market': 'Mercato opportunità',
+    'sc.risk': 'Dashboard rischio', 'sc.perf': 'Ufficio performance', 'sc.shop': 'Negozio impero',
+    'sc.briefing': 'Briefing giornaliero', 'sc.day': 'Avanza di un giorno', 'sc.cinematic': 'Globo cinematografico',
+    'sc.glossary': 'Glossario del trading', 'sc.help': 'Questo pannello',
+    'sc.footer': 'Premi ? in qualsiasi momento per aprire questo pannello',
+    // Time controls
+    'time.pause': 'Pausa', 'time.day': '+1 giorno', 'time.event': 'Prossimo evento',
+    'globe.date': 'Data di gioco',
+    // Layers
+    'layer.opportunities': 'Opportunità', 'layer.portfolio': 'Portafoglio', 'layer.risk': 'Rischio', 'layer.logistics': 'Logistica',
+  };
+  const drawerLabelsIT = {
+    portfolio:'Scrivania trading', inventory:'Inventario fisico', operations:'Centro operazioni', supply:'Controllo supply chain', contracts:'Contratti e credito',
+    fleet:'Ufficio flotta', risk:'Dashboard rischio', opportunities:'Mercato opportunità', rivals:'Intelligence competitiva', strategy:'Strategia del board',
+    counterparties:'Rete commerciale', compliance:'Ufficio compliance', events:'Intelligence globale', finance:'Tesoreria', performance:'Ufficio performance',
+    academy:'WoT Academy', empire:'Impero di trading', shop:'Negozio impero', hq:'Quartier generale',
+    career:'Progressione carriera', leaderboard:'Career League'
+  };
+  function t(key) {
+    if (state && state.language === 'it' && translationsIT[key] != null) return translationsIT[key];
+    return null; // null → keep original
+  }
+  function applyLanguage(lang) {
+    const useIT = lang === 'it';
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+      const key = el.getAttribute('data-i18n');
+      if (el._i18nEn == null) el._i18nEn = el.textContent;
+      el.textContent = (useIT && translationsIT[key] != null) ? translationsIT[key] : el._i18nEn;
+    });
+    document.querySelectorAll('[data-i18n-title]').forEach(el => {
+      const key = el.getAttribute('data-i18n-title');
+      if (el._i18nTitleEn == null) el._i18nTitleEn = el.getAttribute('title') || '';
+      const v = (useIT && translationsIT[key] != null) ? translationsIT[key] : el._i18nTitleEn;
+      if (v) el.setAttribute('title', v);
+    });
+    document.documentElement.setAttribute('lang', useIT ? 'it' : 'en');
+  }
 
   const formatDate = (date) => new Intl.DateTimeFormat('en-GB', {
     day: '2-digit', month: 'long', year: 'numeric'
@@ -629,6 +942,81 @@ import * as THREE from './vendor/three.module.min.js';
     { id:'yangtze-steel-interest', chain:'downstream', name:'Yangtze Steel Mill Interest', hub:'shanghai', icon:'▰', commodity:'Iron ore', destination:'shanghai', maxLevel:3, baseCost:780000, buildDays:16, dailyIncome:5900, pnlBonus:30000, acceptanceBonus:2, minReputation:72, minDeals:6, description:'Steel-industry interest that creates captive demand for large iron ore cargoes.' }
   ];
 
+  const shopCatalog = [
+    {
+      id:'owned-handysize', category:'fleet', name:'Handysize Workhorse', icon:'🚢', vesselCatalogId:'ocean-pioneer',
+      cost:1_150_000, buildDays:8, maxOwned:2, minReputation:54, minDeals:1, maintenance:1_450,
+      description:'Purchase a versatile Handysize vessel instead of relying exclusively on short time-charters.',
+      benefit:'Permanent vessel · 32,000 t capacity · no charter expiry'
+    },
+    {
+      id:'owned-rhine-barge', category:'fleet', name:'Rhine Logistics Barge', icon:'⛴', vesselCatalogId:'rhine-link',
+      cost:640_000, buildDays:6, maxOwned:2, minReputation:58, minDeals:2, requiresOffice:'rotterdam', maintenance:720,
+      description:'Own a shallow-draft barge for metals and warehouse releases across the Rhine corridor.',
+      benefit:'Permanent river capacity · strong European execution edge'
+    },
+    {
+      id:'owned-product-tanker', category:'fleet', name:'MR Product Tanker', icon:'◉', vesselCatalogId:'gulf-product-tanker',
+      cost:2_850_000, buildDays:12, maxOwned:1, minReputation:64, minDeals:3, requiresOffice:'rotterdam', maintenance:3_200,
+      description:'A permanently controlled product tanker for Gulf Coast and ARA distillate flows.',
+      benefit:'47,000 t tanker · +$46K freight edge · no charter expiry'
+    },
+    {
+      id:'owned-panamax', category:'fleet', name:'Panamax Bulk Carrier', icon:'▰', vesselCatalogId:'pilbara-panamax',
+      cost:3_650_000, buildDays:14, maxOwned:1, minReputation:72, minDeals:6, requiresOffice:'singapore', maintenance:4_100,
+      description:'Acquire large dry-bulk capacity for ore, grains and long-haul industrial cargoes.',
+      benefit:'76,000 t capacity · +$62K freight edge · strategic endgame asset'
+    },
+    {
+      id:'genoa-bonded-warehouse', category:'storage', name:'Genoa Bonded Warehouse', icon:'▥', hub:'genova',
+      cost:420_000, buildDays:6, maxOwned:3, minReputation:52, minDeals:1, requiresOffice:'genova', dailyCost:320, dailyIncome:900,
+      matchHubs:['genova','brescia'], storageDiscount:.12, pnlBonus:4_500, equityReduction:.008,
+      description:'Dedicated bonded capacity for metals, fertilizer and food-grade parcels entering Northern Italy.',
+      benefit:'Lower storage cost · +$4.5K route edge per unit · working-capital relief'
+    },
+    {
+      id:'rotterdam-tank-farm', category:'storage', name:'Rotterdam Tank Farm', icon:'▤', hub:'rotterdam',
+      cost:880_000, buildDays:9, maxOwned:2, minReputation:60, minDeals:2, requiresOffice:'rotterdam', dailyCost:650, dailyIncome:2_100,
+      matchHubs:['rotterdam','antwerp'], storageDiscount:.16, pnlBonus:9_000, equityReduction:.012,
+      description:'Independent tankage and blending capacity in the ARA hub for energy and liquid commodities.',
+      benefit:'Storage optionality · +$9K route edge · stronger financing base'
+    },
+    {
+      id:'singapore-bonded-hub', category:'storage', name:'Singapore Bonded Logistics Hub', icon:'▦', hub:'singapore',
+      cost:1_180_000, buildDays:11, maxOwned:2, minReputation:68, minDeals:5, requiresOffice:'singapore', dailyCost:820, dailyIncome:2_700,
+      matchHubs:['singapore','klang'], storageDiscount:.18, pnlBonus:12_000, equityReduction:.014, acceptanceBonus:1,
+      description:'A bonded regional warehouse for metals, energy parcels and high-value Asian cargoes.',
+      benefit:'Asian storage capacity · +$12K route edge · improved buyer service'
+    },
+    {
+      id:'project-office', category:'infrastructure', name:'Capital Projects Office', icon:'⌂', hub:'geneva',
+      cost:520_000, buildDays:7, maxOwned:2, minReputation:56, minDeals:2, dailyCost:480, builderBonus:1,
+      description:'Hire engineers, project managers and procurement specialists dedicated to expansion projects.',
+      benefit:'+1 simultaneous project team per office'
+    },
+    {
+      id:'genoa-handling-system', category:'infrastructure', name:'Genoa Priority Handling System', icon:'⚓', hub:'genova',
+      cost:690_000, buildDays:8, maxOwned:2, minReputation:58, minDeals:2, requiresOffice:'genova', dailyCost:520, dailyIncome:1_100,
+      matchHubs:['genova','brescia'], durationBonus:1, pnlBonus:7_000, acceptanceBonus:1,
+      description:'Dedicated cranes, customs lanes and truck slots protect delivery windows in Northern Italy.',
+      benefit:'-1 transit day · +$7K route edge · stronger execution promise'
+    },
+    {
+      id:'intermodal-truck-fleet', category:'infrastructure', name:'Intermodal Truck Fleet', icon:'▣', hub:'brescia',
+      cost:480_000, buildDays:6, maxOwned:2, minReputation:54, minDeals:1, dailyCost:390, dailyIncome:750,
+      transportClass:'land', durationBonus:1, pnlBonus:5_000, acceptanceBonus:1,
+      description:'Owned last-mile capacity for overland and port-to-customer movements.',
+      benefit:'Faster land execution · +$5K deal edge · lower delivery risk'
+    },
+    {
+      id:'digital-control-tower', category:'infrastructure', name:'Digital Trade Control Tower', icon:'⌁', hub:'geneva',
+      cost:760_000, buildDays:9, maxOwned:1, minReputation:62, minDeals:3, dailyCost:620, dailyIncome:1_500,
+      pnlBonus:4_000, equityReduction:.015, acceptanceBonus:2,
+      description:'Integrates documentation, vessel tracking, inventory and counterparty alerts across the group.',
+      benefit:'Global +$4K execution edge · lower equity · +2 acceptance'
+    }
+  ];
+
   const missionCatalog = [
     { id: 'first-cargo', title: 'First Cargo', description: 'Complete your first physical deal.', target: 1, progress: s => s.completedDeals, achieved: s => s.completedDeals >= 1, cash: 40_000, reputation: 2 },
     { id: 'risk-discipline', title: 'Risk Discipline', description: 'Close a profitable deal with at least an 80% hedge.', target: 1, progress: s => s.history.filter(h => h.pnl > 0 && (h.hedgeRatio || 0) >= 80).length, achieved: s => s.history.some(h => h.pnl > 0 && (h.hedgeRatio || 0) >= 80), cash: 55_000, reputation: 2 },
@@ -642,6 +1030,8 @@ import * as THREE from './vendor/three.module.min.js';
     { id: 'top-ten-merchant', title: 'Top 10 Merchant', description: 'Reach the Career League top 10 after closing at least three deals.', target: 10, progress: s => s.completedDeals < 3 ? 0 : Math.max(0, 11 - leaderboardPosition('overall')), achieved: s => s.completedDeals >= 3 && leaderboardPosition('overall') <= 10, cash: 150_000, reputation: 4 },
     { id: 'vertical-pioneer', title: 'Vertical Pioneer', description: 'Build at least one upstream, one midstream and one downstream asset.', target: 3, progress: s => ['upstream','midstream','downstream'].filter(chain => investmentCatalog.some(asset => asset.chain === chain && investmentLevel(asset.id) > 0)).length, achieved: s => ['upstream','midstream','downstream'].every(chain => investmentCatalog.some(asset => asset.chain === chain && investmentLevel(asset.id) > 0)), cash: 180_000, reputation: 5 },
     { id: 'industrial-empire', title: 'Industrial Empire', description: 'Reach a combined total of 10 industrial asset levels.', target: 10, progress: s => totalInvestmentLevels(), achieved: s => totalInvestmentLevels() >= 10, cash: 300_000, credit: 500_000, reputation: 6 },
+    { id: 'first-owned-asset', title: 'Asset Owner', description: 'Commission your first permanent asset from the Empire Shop.', target: 1, progress: s => s.shopDeliveries||0, achieved: s => (s.shopDeliveries||0)>=1, cash: 100_000, reputation: 3 },
+    { id: 'logistics-magnate', title: 'Logistics Magnate', description: 'Own a vessel, a warehouse and an infrastructure asset.', target: 3, progress: s => ['fleet','storage','infrastructure'].filter(category=>shopCatalog.some(item=>item.category===category&&shopOwnedQuantity(item.id)>0)).length, achieved: s => ['fleet','storage','infrastructure'].every(category=>shopCatalog.some(item=>item.category===category&&shopOwnedQuantity(item.id)>0)), cash: 350_000, credit: 500_000, reputation: 6 },
     { id: 'global-desk', title: 'Global Desk', description: 'Open Singapore and complete at least five deals.', target: 6, progress: s => Math.min(5, s.completedDeals) + (officeOwned('singapore') ? 1 : 0), achieved: s => officeOwned('singapore') && s.completedDeals >= 5, cash: 200_000, reputation: 5 },
     { id: 'energy-diversification', title: 'Energy & Agri Trader', description: 'Close at least one energy deal (Diesel or LNG) and one agricultural deal (Coffee, Wheat, or Palm oil).', target: 2, progress: s => (((s.history||[]).some(d=>['Diesel','LNG'].includes(d.commodity)))?1:0)+(((s.history||[]).some(d=>['Coffee','Wheat','Palm oil'].includes(d.commodity)))?1:0), achieved: s => (s.history||[]).some(d=>['Diesel','LNG'].includes(d.commodity)) && (s.history||[]).some(d=>['Coffee','Wheat','Palm oil'].includes(d.commodity)), cash: 130_000, reputation: 4 },
     { id: 'atlantic-originator', title: 'Atlantic Originator', description: 'Close deals from both the Americas (New Orleans or Santos) and West Africa (Abidjan) in the same career.', target: 2, progress: s => { const origins = new Set((s.history||[]).map(d=>{const o=getOpportunity(d.opportunityId); return o?.origin;})); return (['new-orleans','santos','rosario'].some(h=>origins.has(h))?1:0)+(['abidjan'].some(h=>origins.has(h))?1:0); }, achieved: s => { const origins = new Set((s.history||[]).map(d=>getOpportunity(d.opportunityId)?.origin)); return ['new-orleans','santos','rosario'].some(h=>origins.has(h)) && origins.has('abidjan'); }, cash: 175_000, reputation: 5 },
@@ -667,7 +1057,7 @@ import * as THREE from './vendor/three.module.min.js';
 
   function defaultState() {
     return {
-      version: 22,
+      version: 32,
       profileName: 'Giorgio Bonetta',
       companyName: 'World of Trade Co.',
       leaderboardSnapshots: [],
@@ -675,9 +1065,11 @@ import * as THREE from './vendor/three.module.min.js';
       constructionQueue: [],
       assetIncome: 0,
       date: '2026-09-01T00:00:00.000Z',
-      cash: 1_000_000,
-      creditLimit: 6_000_000,
-      reputation: 50,
+      cash: prestigeStartCash(1_000_000),
+      creditLimit: prestigeStartCredit(6_000_000),
+      reputation: prestigeStartReputation(50),
+      prestigeLevel: loadPrestige(),
+      victoryClaimed: false,
       realizedPnl: 0,
       completedDeals: 0,
       activeDeals: [],
@@ -733,6 +1125,15 @@ import * as THREE from './vendor/three.module.min.js';
       tutorialDismissed: false,
       graphicsQuality: 'auto',
       autosave: true,
+      reduceMotion: false,
+      xp: 0,
+      xpLevel: 1,
+      goldBars: 0,
+      bonusBuilders: 0,
+      loginStreak: 0,
+      lastRewardDay: null,
+      soundEnabled: true,
+      language: 'en',
       lastSavedAt: null,
       briefingViewedDay: -1,
       marketRegime: 'balanced',
@@ -758,6 +1159,7 @@ import * as THREE from './vendor/three.module.min.js';
       quarterBonusPaid: 0,
       quarterMissed: 0,
       forwardCurve: {},
+      priceHistory: {},
       pnlByCommodity: {},
       tradeCountByCommodity: {},
       complianceReviews: {},
@@ -780,23 +1182,31 @@ import * as THREE from './vendor/three.module.min.js';
       capitalPolicyChangedDay: -30,
       stressTestsRun: 0,
       stressTestHistory: [],
-      lastStressTest: null
+      lastStressTest: null,
+      shopAssets: {},
+      shopOrders: [],
+      shopSpent: 0,
+      shopDeliveries: 0
     };
   }
 
   function loadState() {
     try {
-      let raw = localStorage.getItem(storageKey);
+      let raw = localStorage.getItem(currentStorageKey());
       if (!raw) {
-        for (const legacyKey of legacyStorageKeys) {
-          raw = localStorage.getItem(legacyKey);
-          if (raw) break;
+        // One-time migration: adopt a pre-slot save (base key or legacy) into the active slot
+        raw = localStorage.getItem(storageKey);
+        if (!raw) {
+          for (const legacyKey of legacyStorageKeys) {
+            raw = localStorage.getItem(legacyKey);
+            if (raw) break;
+          }
         }
       }
       if (!raw) return defaultState();
       const loaded = JSON.parse(raw);
-      if (![3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22].includes(loaded.version)) return defaultState();
-      const migrated = { ...defaultState(), ...loaded, version: 22 };
+      if (![3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32].includes(loaded.version)) return defaultState();
+      const migrated = { ...defaultState(), ...loaded, version: 32 };
       migrated.offices = [...new Set(['geneva', ...(migrated.offices || [])])];
       migrated.staff = migrated.staff || [];
       migrated.completedMissions = migrated.completedMissions || [];
@@ -826,6 +1236,17 @@ import * as THREE from './vendor/three.module.min.js';
       migrated.tutorialDismissed = migrated.tutorialDismissed ?? false;
       migrated.graphicsQuality = ['auto','high','balanced','performance'].includes(migrated.graphicsQuality) ? migrated.graphicsQuality : 'auto';
       migrated.autosave = migrated.autosave !== false;
+      migrated.reduceMotion = migrated.reduceMotion === true;
+      migrated.xp = Number.isFinite(migrated.xp) ? migrated.xp : 0;
+      migrated.xpLevel = Number.isFinite(migrated.xpLevel) && migrated.xpLevel >= 1 ? migrated.xpLevel : 1;
+      migrated.goldBars = Number.isFinite(migrated.goldBars) ? migrated.goldBars : 0;
+      migrated.bonusBuilders = Number.isFinite(migrated.bonusBuilders) ? migrated.bonusBuilders : 0;
+      migrated.loginStreak = Number.isFinite(migrated.loginStreak) ? migrated.loginStreak : 0;
+      migrated.lastRewardDay = migrated.lastRewardDay || null;
+      migrated.soundEnabled = migrated.soundEnabled !== false;
+      migrated.language = (migrated.language === 'it') ? 'it' : 'en';
+      migrated.prestigeLevel = Number.isFinite(migrated.prestigeLevel) ? migrated.prestigeLevel : loadPrestige();
+      migrated.victoryClaimed = migrated.victoryClaimed === true;
       migrated.marketRegime = marketRegimeCatalog[migrated.marketRegime] ? migrated.marketRegime : 'balanced';
       migrated.rivalMarket = migrated.rivalMarket || {};
       migrated.rivalFeed = migrated.rivalFeed || [];
@@ -843,6 +1264,7 @@ import * as THREE from './vendor/three.module.min.js';
       migrated.cpOutreachDays = migrated.cpOutreachDays || {};
       migrated.termStructure = migrated.termStructure || {};
       migrated.forwardCurve = migrated.forwardCurve || {};
+      migrated.priceHistory = migrated.priceHistory || {};
       migrated.pnlByCommodity = migrated.pnlByCommodity || {};
       migrated.tradeCountByCommodity = migrated.tradeCountByCommodity || {};
       migrated.complianceReviews = migrated.complianceReviews || {};
@@ -866,6 +1288,10 @@ import * as THREE from './vendor/three.module.min.js';
       migrated.stressTestsRun = migrated.stressTestsRun || 0;
       migrated.stressTestHistory = migrated.stressTestHistory || [];
       migrated.lastStressTest = migrated.lastStressTest || null;
+      migrated.shopAssets = migrated.shopAssets || {};
+      migrated.shopOrders = migrated.shopOrders || [];
+      migrated.shopSpent = migrated.shopSpent || 0;
+      migrated.shopDeliveries = migrated.shopDeliveries || 0;
       migrated.hubBasis = migrated.hubBasis || {};
       migrated.quarterNumber   = migrated.quarterNumber  || 1;
       migrated.quarterTarget   = migrated.quarterTarget  || 500000;
@@ -882,6 +1308,7 @@ import * as THREE from './vendor/three.module.min.js';
     }
   }
 
+  activeSlot = loadActiveSlot();
   let state = loadState();
 
   const complianceCountryRisk = {
@@ -1056,7 +1483,7 @@ import * as THREE from './vendor/three.module.min.js';
   function exportCareer() {
     const payload = {
       product: 'World of Trade',
-      schemaVersion: 22,
+      schemaVersion: 23,
       exportedAt: new Date().toISOString(),
       state
     };
@@ -1073,7 +1500,7 @@ import * as THREE from './vendor/three.module.min.js';
       if (!imported || typeof imported !== 'object' || !Array.isArray(imported.activeDeals) || !Array.isArray(imported.history)) {
         throw new Error('Invalid World of Trade career file');
       }
-      const migrated = { ...defaultState(), ...imported, version: 22 };
+      const migrated = { ...defaultState(), ...imported, version: 32 };
       migrated.activeDeals = (migrated.activeDeals || []).map(hydrateDealOperations);
       migrated.fleetAssets = (migrated.fleetAssets || []).filter(asset => vesselCatalog.some(vessel => vessel.id === asset.catalogId));
       migrated.offices = [...new Set(['geneva', ...(migrated.offices || [])])];
@@ -1109,6 +1536,10 @@ import * as THREE from './vendor/three.module.min.js';
       migrated.stressTestsRun = migrated.stressTestsRun || 0;
       migrated.stressTestHistory = migrated.stressTestHistory || [];
       migrated.lastStressTest = migrated.lastStressTest || null;
+      migrated.shopAssets = migrated.shopAssets || {};
+      migrated.shopOrders = migrated.shopOrders || [];
+      migrated.shopSpent = migrated.shopSpent || 0;
+      migrated.shopDeliveries = migrated.shopDeliveries || 0;
       state = migrated;
       initializeCounterparties();
       initializeCompetitiveMarket();
@@ -1138,6 +1569,9 @@ import * as THREE from './vendor/three.module.min.js';
     $('#companyNameInput').value = state.companyName || '';
     $('#graphicsQualitySelect').value = state.graphicsQuality || 'auto';
     $('#autosaveSelect').value = state.autosave === false ? 'off' : 'on';
+    if ($('#reduceMotionSelect')) $('#reduceMotionSelect').value = state.reduceMotion ? 'off' : 'on';
+    if ($('#soundSelect')) $('#soundSelect').value = state.soundEnabled === false ? 'off' : 'on';
+    if ($('#languageSelect')) $('#languageSelect').value = state.language === 'it' ? 'it' : 'en';
     dialog.showModal();
   }
 
@@ -1146,6 +1580,12 @@ import * as THREE from './vendor/three.module.min.js';
     state.companyName = ($('#companyNameInput')?.value || state.companyName || 'World of Trade Co.').trim().slice(0, 48);
     state.graphicsQuality = $('#graphicsQualitySelect')?.value || 'auto';
     state.autosave = $('#autosaveSelect')?.value !== 'off';
+    state.reduceMotion = $('#reduceMotionSelect')?.value === 'off';
+    document.body.classList.toggle('reduce-motion', !!state.reduceMotion);
+    state.soundEnabled = $('#soundSelect')?.value !== 'off';
+    if (state.soundEnabled) { try { Sound.unlock(); Sound.play('success'); } catch (e) {} }
+    state.language = $('#languageSelect')?.value === 'it' ? 'it' : 'en';
+    applyLanguage(state.language);
     dpr = targetPixelRatio();
     resizeCanvas();
     saveState(true);
@@ -1183,7 +1623,8 @@ import * as THREE from './vendor/three.module.min.js';
   }
 
   function createStarField() {
-    const count = 1800;
+    const quality = state?.graphicsQuality || 'auto';
+    const count = quality === 'performance' ? 650 : quality === 'high' ? 1500 : 950;
     const positions = new Float32Array(count * 3);
     for (let i = 0; i < count; i += 1) {
       const radius = 5 + Math.random() * 11;
@@ -1207,6 +1648,32 @@ import * as THREE from './vendor/three.module.min.js';
     return new THREE.Points(geometry, material);
   }
 
+  function createSolidTexture(r, g, b, a = 255) {
+    const texture = new THREE.DataTexture(new Uint8Array([r, g, b, a]), 1, 1, THREE.RGBAFormat);
+    texture.needsUpdate = true;
+    return texture;
+  }
+
+  function earthGeometrySegments() {
+    const quality = state?.graphicsQuality || 'auto';
+    if (quality === 'high') return [144, 96];
+    if (quality === 'balanced') return [112, 72];
+    if (quality === 'performance') return [72, 48];
+    const constrained = (navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 4) || window.matchMedia('(max-width: 900px)').matches;
+    return constrained ? [80, 52] : [112, 72];
+  }
+
+  function prepareEarthTexture(texture, srgb = false) {
+    if (srgb) texture.colorSpace = THREE.SRGBColorSpace;
+    texture.anisotropy = Math.min(4, earthRenderer?.capabilities?.getMaxAnisotropy?.() || 1);
+    return texture;
+  }
+
+  function deferNonCritical(callback, timeout = 900) {
+    if ('requestIdleCallback' in window) window.requestIdleCallback(callback, { timeout });
+    else setTimeout(callback, Math.min(timeout, 240));
+  }
+
   function initEarthRenderer() {
     try {
       earthRenderer = new THREE.WebGLRenderer({ canvas: earthCanvas, antialias: true, alpha: true, powerPreference: 'high-performance' });
@@ -1220,34 +1687,20 @@ import * as THREE from './vendor/three.module.min.js';
       earthScene.fog = new THREE.FogExp2(0x010307, 0.006);
       earthCamera = new THREE.PerspectiveCamera(32, 1, 0.1, 100);
 
-      const manager = new THREE.LoadingManager();
-      manager.onLoad = () => {
-        earthWebGLReady = true;
-        $('#earthLoading')?.classList.add('loaded');
-      };
-      manager.onError = () => {
-        $('#earthLoading strong').textContent = 'Earth texture fallback';
-      };
-      const loader = new THREE.TextureLoader(manager);
-      const dayMap = loader.load('./assets/earth/earth_atmos_2048.jpg');
-      const normalMap = loader.load('./assets/earth/earth_normal_2048.jpg');
-      const specularMap = loader.load('./assets/earth/earth_specular_2048.jpg');
-      const cloudMap = loader.load('./assets/earth/earth_clouds_1024.png');
-      const lightsMap = loader.load('./assets/earth/earth_lights_2048.png');
-      dayMap.colorSpace = THREE.SRGBColorSpace;
-      lightsMap.colorSpace = THREE.SRGBColorSpace;
-      [dayMap, normalMap, specularMap, cloudMap, lightsMap].forEach(texture => {
-        texture.anisotropy = Math.min(8, earthRenderer.capabilities.getMaxAnisotropy());
-      });
+      const placeholderDay = createSolidTexture(20, 58, 76);
+      const placeholderNight = createSolidTexture(0, 0, 0);
+      const placeholderSpecular = createSolidTexture(25, 25, 25);
+      const placeholderNormal = createSolidTexture(128, 128, 255);
+      const [widthSegments, heightSegments] = earthGeometrySegments();
+      const earthGeometry = new THREE.SphereGeometry(1, widthSegments, heightSegments);
 
-      const earthGeometry = new THREE.SphereGeometry(1, 192, 128);
       earthMaterial = new THREE.ShaderMaterial({
         uniforms: {
-          dayMap: { value: dayMap },
-          nightMap: { value: lightsMap },
-          specularMap: { value: specularMap },
-          normalMap: { value: normalMap },
-          nightIntensity: { value: 0.82 },
+          dayMap: { value: placeholderDay },
+          nightMap: { value: placeholderNight },
+          specularMap: { value: placeholderSpecular },
+          normalMap: { value: placeholderNormal },
+          nightIntensity: { value: 0.0 },
           sunDirection: { value: new THREE.Vector3(1, .25, 1).normalize() },
           atmosphereColor: { value: new THREE.Color(0x5faee7) }
         },
@@ -1311,15 +1764,13 @@ import * as THREE from './vendor/three.module.min.js';
       earthScene.add(earthMesh);
 
       const cloudMaterial = new THREE.MeshPhongMaterial({
-        map: cloudMap,
-        alphaMap: cloudMap,
         color: 0xffffff,
         transparent: true,
-        opacity: 0.22,
+        opacity: 0,
         depthWrite: false,
         side: THREE.DoubleSide
       });
-      cloudMesh = new THREE.Mesh(new THREE.SphereGeometry(1.006, 192, 128), cloudMaterial);
+      cloudMesh = new THREE.Mesh(new THREE.SphereGeometry(1.006, widthSegments, heightSegments), cloudMaterial);
       earthScene.add(cloudMesh);
 
       const atmosphereMaterial = new THREE.ShaderMaterial({
@@ -1349,7 +1800,7 @@ import * as THREE from './vendor/three.module.min.js';
           }
         `
       });
-      atmosphereMesh = new THREE.Mesh(new THREE.SphereGeometry(1.022, 192, 128), atmosphereMaterial);
+      atmosphereMesh = new THREE.Mesh(new THREE.SphereGeometry(1.022, Math.max(64, widthSegments), Math.max(42, heightSegments)), atmosphereMaterial);
       earthScene.add(atmosphereMesh);
 
       earthScene.add(new THREE.HemisphereLight(0x9ecbf0, 0x020409, 0.16));
@@ -1362,6 +1813,53 @@ import * as THREE from './vendor/three.module.min.js';
 
       starField = createStarField();
       earthScene.add(starField);
+
+      // Render immediately with a lightweight procedural globe. Real textures arrive progressively.
+      earthWebGLReady = true;
+      const loadingLabel = $('#earthLoading strong');
+      if (loadingLabel) loadingLabel.textContent = 'Loading world map';
+
+      const primaryLoader = new THREE.TextureLoader();
+      primaryLoader.load(
+        './assets/earth/earth_atmos_2048.jpg',
+        texture => {
+          prepareEarthTexture(texture, true);
+          earthMaterial.uniforms.dayMap.value = texture;
+          earthMaterial.needsUpdate = true;
+          $('#earthLoading')?.classList.add('loaded');
+          earthCanvas?.classList.add('earth-map-ready');
+
+          deferNonCritical(() => {
+            const detailLoader = new THREE.TextureLoader();
+            detailLoader.load('./assets/earth/earth_lights_2048.png', value => {
+              prepareEarthTexture(value, true);
+              earthMaterial.uniforms.nightMap.value = value;
+              earthMaterial.uniforms.nightIntensity.value = globeOptions.night ? 0.82 : 0;
+            }, undefined, () => {});
+            detailLoader.load('./assets/earth/earth_normal_2048.jpg', value => {
+              prepareEarthTexture(value, false);
+              earthMaterial.uniforms.normalMap.value = value;
+            }, undefined, () => {});
+            detailLoader.load('./assets/earth/earth_specular_2048.jpg', value => {
+              prepareEarthTexture(value, false);
+              earthMaterial.uniforms.specularMap.value = value;
+            }, undefined, () => {});
+            detailLoader.load('./assets/earth/earth_clouds_1024.png', value => {
+              prepareEarthTexture(value, false);
+              cloudMaterial.map = value;
+              cloudMaterial.alphaMap = value;
+              cloudMaterial.opacity = 0.22;
+              cloudMaterial.needsUpdate = true;
+              earthCanvas?.classList.add('earth-detail-ready');
+            }, undefined, () => {});
+          }, 1200);
+        },
+        undefined,
+        () => {
+          if (loadingLabel) loadingLabel.textContent = 'Fast Earth fallback';
+          setTimeout(() => $('#earthLoading')?.classList.add('loaded'), 700);
+        }
+      );
     } catch (error) {
       console.warn('WebGL Earth fallback', error);
       document.body.classList.add('webgl-fallback');
@@ -1425,6 +1923,7 @@ import * as THREE from './vendor/three.module.min.js';
   let investmentHitboxes = [];
   let simulationDayAnchor = performance.now();
   let selectedEmpireChain = 'all';
+  let selectedShopCategory = 'all';
   let canvasRect = null;
   let animationTime = 0;
   let lastDrawTime = 0;
@@ -1438,8 +1937,108 @@ import * as THREE from './vendor/three.module.min.js';
   function dailyOverhead() {
     const officeCost = officeCatalog.filter(o => officeOwned(o.id)).reduce((sum,o)=>sum+o.dailyCost,0);
     const salaryCost = staffCatalog.filter(member => hasStaff(member.id)).reduce((sum,member)=>sum+member.dailySalary,0);
-    return Math.round((officeCost + salaryCost) * activeDoctrine().overheadFactor);
+    const assetOperatingCost = shopFacilityOperatingCost() + ownedFleetMaintenance();
+    return Math.round((officeCost + salaryCost + assetOperatingCost) * activeDoctrine().overheadFactor);
   }
+  function shopDefinition(id) { return shopCatalog.find(item => item.id === id); }
+  function shopAssetRecord(id) {
+    state.shopAssets = state.shopAssets || {};
+    return state.shopAssets[id] || { quantity:0, totalSpent:0 };
+  }
+  function shopOwnedQuantity(id) { return shopAssetRecord(id).quantity || 0; }
+  function shopPendingQuantity(id) { return (state.shopOrders || []).filter(order => order.itemId === id).length; }
+  function shopUnlocked(item) {
+    return state.reputation >= item.minReputation && state.completedDeals >= item.minDeals && (!item.requiresOffice || officeOwned(item.requiresOffice));
+  }
+  function shopFacilityOperatingCost() {
+    return shopCatalog.filter(item => item.category !== 'fleet').reduce((sum,item)=>sum+(item.dailyCost||0)*shopOwnedQuantity(item.id),0);
+  }
+  function ownedFleetMaintenance() {
+    return (state.fleetAssets || []).filter(asset => asset.ownership === 'owned').reduce((sum,asset)=>sum+(asset.maintenance||0),0);
+  }
+  function shopDailyIncome() {
+    return shopCatalog.reduce((sum,item)=>sum+(item.dailyIncome||0)*shopOwnedQuantity(item.id),0);
+  }
+  function shopBookValue() {
+    return Object.values(state.shopAssets || {}).reduce((sum,record)=>sum+(record.totalSpent||0)*.82,0);
+  }
+  function shopBuilderBonus() {
+    return shopCatalog.reduce((sum,item)=>sum+(item.builderBonus||0)*shopOwnedQuantity(item.id),0);
+  }
+  function activeShopOrders() { return (state.shopOrders || []).length; }
+  function activeProjectCount() { return activeConstructionCount() + activeShopOrders(); }
+  function shopItemMatches(item, opp) {
+    if (item.category === 'fleet') return false;
+    if (item.matchHubs && !item.matchHubs.some(hub => [opp.origin,opp.destination,...(opp.via||[])].includes(hub))) return false;
+    if (item.transportClass && item.transportClass !== transportClassForOpportunity(opp)) return false;
+    if (item.commodity && item.commodity !== opp.commodity) return false;
+    return true;
+  }
+  function shopAdjustments(opp) {
+    return shopCatalog.reduce((acc,item)=>{
+      const quantity=shopOwnedQuantity(item.id);
+      if (!quantity || !shopItemMatches(item,opp)) return acc;
+      acc.pnlBonus += (item.pnlBonus||0)*quantity;
+      acc.durationBonus += (item.durationBonus||0)*quantity;
+      acc.acceptanceBonus += (item.acceptanceBonus||0)*quantity;
+      acc.equityFactor *= Math.max(.75,1-(item.equityReduction||0)*quantity);
+      acc.sources.push(`${item.name} ×${quantity}`);
+      return acc;
+    },{pnlBonus:0,durationBonus:0,acceptanceBonus:0,equityFactor:1,sources:[]});
+  }
+  function storageDiscountForHub(hubId) {
+    return clamp(shopCatalog.reduce((sum,item)=>{
+      const quantity=shopOwnedQuantity(item.id);
+      return sum + (quantity && item.storageDiscount && (!item.matchHubs || item.matchHubs.includes(hubId)) ? item.storageDiscount*quantity : 0);
+    },0),0,.55);
+  }
+  function buyShopItem(id) {
+    const item=shopDefinition(id); if(!item) return;
+    const owned=shopOwnedQuantity(id), pending=shopPendingQuantity(id);
+    if (!shopUnlocked(item)) {
+      const requirement=item.requiresOffice&&!officeOwned(item.requiresOffice)?getOffice(item.requiresOffice)?.name:`reputation ${item.minReputation} and ${item.minDeals} deals`;
+      return showToast(`Locked: requires ${requirement}.`);
+    }
+    if (owned+pending >= item.maxOwned) return showToast('Maximum quantity already owned or under construction.');
+    if (activeProjectCount() >= builderSlots()) return showToast('All project teams are busy. Finish a project or buy another Capital Projects Office.');
+    if (state.cash < item.cost) return showToast('Insufficient liquidity for this purchase.');
+    state.cash -= item.cost;
+    state.shopSpent = (state.shopSpent||0) + item.cost;
+    state.shopOrders = state.shopOrders || [];
+    state.shopOrders.push({ id:`shop-order-${state.sequence++}`, itemId:id, daysRemaining:item.buildDays, totalDays:item.buildDays, orderedAt:state.date, cost:item.cost });
+    recordJournal('Capital project', `${item.name} ordered`, `${item.buildDays}-day construction program started.`, -item.cost, id);
+    activeLeftTab='shop'; saveState(); renderAll();
+    try { Sound.play('purchase'); } catch (e) {}
+    addXp(30, 'shop');
+    showToast(`${item.name} ordered. Delivery in ${item.buildDays} days.`);
+  }
+  function completeShopOrder(order) {
+    const item=shopDefinition(order.itemId); if(!item) return;
+    const record=shopAssetRecord(item.id);
+    state.shopAssets[item.id]={ quantity:(record.quantity||0)+1, totalSpent:(record.totalSpent||0)+order.cost };
+    state.shopDeliveries=(state.shopDeliveries||0)+1;
+    if (item.category === 'fleet') {
+      const vessel=getVesselCatalog(item.vesselCatalogId);
+      if (vessel) state.fleetAssets.push({
+        id:`owned-vessel-${item.vesselCatalogId}-${state.sequence++}`, catalogId:item.vesselCatalogId, name:vessel.name,
+        status:'available', assignedDealId:null, positionHub:vessel.homeHub, ownership:'owned', maintenance:item.maintenance||0,
+        purchaseCost:item.cost, acquired:state.date, daysRemaining:null, charterDays:null, charterCost:0
+      });
+    }
+    state.reputation=clamp(state.reputation+1,0,100);
+    state.worldEventFeed.unshift({type:'investment',title:`${item.name} delivered`,date:state.date,description:`The new ${item.category} asset is operational and its permanent benefits are active.`});
+    recordJournal('Capital project', `${item.name} commissioned`, 'Construction completed and asset entered service.', 0, item.id);
+    evaluateMissions();
+  }
+  function processShopDay() {
+    const income=shopDailyIncome();
+    if (income>0) { state.cash += income; state.assetIncome=(state.assetIncome||0)+income; }
+    (state.shopOrders||[]).forEach(order=>{ order.daysRemaining=Math.max(0,order.daysRemaining-1); });
+    const completed=(state.shopOrders||[]).filter(order=>order.daysRemaining<=0);
+    completed.forEach(completeShopOrder);
+    if (completed.length) state.shopOrders=(state.shopOrders||[]).filter(order=>order.daysRemaining>0);
+  }
+
   function investmentDefinition(id) { return investmentCatalog.find(asset => asset.id === id); }
   function investmentRecord(id) {
     state.investments = state.investments || {};
@@ -1448,7 +2047,20 @@ import * as THREE from './vendor/three.module.min.js';
   function investmentLevel(id) { return investmentRecord(id).level || 0; }
   function totalInvestmentLevels() { return investmentCatalog.reduce((sum,asset)=>sum+investmentLevel(asset.id),0); }
   function activeConstructionCount() { return Object.values(state.investments || {}).filter(record => record.buildingTo && record.daysRemaining > 0).length; }
-  function builderSlots() { return 1 + (officeOwned('rotterdam') ? 1 : 0) + (officeOwned('singapore') ? 1 : 0); }
+  function builderSlots() { return 1 + (officeOwned('rotterdam') ? 1 : 0) + (officeOwned('singapore') ? 1 : 0) + shopBuilderBonus() + (state.bonusBuilders || 0); }
+  function builderGoldCost() { return 8 + (state.bonusBuilders || 0) * 6; }
+  function buyExtraBuilder() {
+    const cost = builderGoldCost();
+    if ((state.goldBars || 0) < cost) { showToast(`Servono ${cost} lingotti d'oro per una nuova squadra.`, 'error'); return; }
+    if ((state.bonusBuilders || 0) >= 4) { showToast('Numero massimo di squadre extra raggiunto.', 'warning'); return; }
+    state.goldBars -= cost;
+    state.bonusBuilders = (state.bonusBuilders || 0) + 1;
+    try { Sound.play('purchase'); } catch (e) {}
+    addXp(25, 'builder');
+    saveState(true);
+    renderAll();
+    showToast(`Nuova squadra di progetto assunta! Ora hai ${builderSlots()} builder.`, 'success');
+  }
   function investmentCost(asset, targetLevel = investmentLevel(asset.id)+1) { return Math.round(asset.baseCost * Math.pow(1.72, targetLevel-1)); }
   function investmentBuildDays(asset, targetLevel = investmentLevel(asset.id)+1) { return Math.round(asset.buildDays * Math.pow(1.38, targetLevel-1)); }
   function investmentUnlocked(asset) { return state.reputation >= asset.minReputation && state.completedDeals >= asset.minDeals; }
@@ -1481,7 +2093,7 @@ import * as THREE from './vendor/three.module.min.js';
     if (record.buildingTo) return showToast('This asset is already under construction.');
     if (record.level >= asset.maxLevel) return showToast('Asset already at maximum level.');
     if (!investmentUnlocked(asset)) return showToast(`You need reputation ${asset.minReputation} and ${asset.minDeals} completed deals.`);
-    if (activeConstructionCount() >= builderSlots()) return showToast('All project teams are busy. Wait for an upgrade to complete.');
+    if (activeProjectCount() >= builderSlots()) return showToast('All project teams are busy. Wait for a project to complete or expand the Projects Office.');
     const target=record.level+1, cost=investmentCost(asset,target), days=investmentBuildDays(asset,target);
     if (state.cash < cost) return showToast('Insufficient liquidity for this investment.');
     state.cash -= cost;
@@ -1489,6 +2101,8 @@ import * as THREE from './vendor/three.module.min.js';
     state.constructionQueue=state.constructionQueue||[];
     if (!state.constructionQueue.includes(id)) state.constructionQueue.push(id);
     activeLeftTab='empire'; selected={type:'investment',id}; focusOnHub(asset.hub); saveState(); renderAll();
+    try { Sound.play('purchase'); } catch (e) {}
+    addXp(30, 'empire');
     showToast(`${asset.name}: level ${target} construction started (${days} days).`);
   }
   function processInvestmentDay() {
@@ -1759,7 +2373,7 @@ import * as THREE from './vendor/three.module.min.js';
       state.achievements.push(item.id);
       unlocked.push(item.title);
     });
-    if (notify && unlocked.length) setTimeout(() => showToast(`Achievement unlocked: ${unlocked.join(', ')}.`), 120);
+    if (notify && unlocked.length) { setTimeout(() => showToast(`Achievement unlocked: ${unlocked.join(', ')}.`), 120); try { Sound.play('achievement'); } catch (e) {} addXp(35 * unlocked.length, 'achievement'); addGold(3 * unlocked.length, 'achievement'); }
   }
 
   function currentSeason() {
@@ -1829,6 +2443,7 @@ import * as THREE from './vendor/three.module.min.js';
     const delivery = negotiationProfiles.delivery[negotiation.delivery];
     const financing = financingProfiles[financingSelection(opp)] || financingProfiles.revolver;
     const vertical = investmentAdjustments(opp);
+    const shop = shopAdjustments(opp);
     const regime = currentMarketRegime();
     const season = seasonalDemand(opp);
     const doctrine = activeDoctrine();
@@ -1838,7 +2453,7 @@ import * as THREE from './vendor/three.module.min.js';
     // Credit rating modifier: A=+3, BBB=0, BB=-4, B=-9
     const _ratingMod = { 'A': 3, 'BBB': 0, 'BB': -4, 'B': -9 };
     const _creditMod = _ratingMod[buyer?.creditRating] ?? 0;
-    return clamp(54 + state.reputation * .18 + (relationship - 50) * .45 + (buyer?.credit || 70) * .08 + commercial.acceptance + payment.acceptance + pricing.acceptance + delivery.acceptance + (financing.acceptance || 0) + vertical.acceptanceBonus + difficultySettings().acceptance + regime.acceptance + season.acceptance + doctrine.acceptance + procurement.acceptance - route.acceptancePenalty - competitionPenalty(opp) + _creditMod, 5, 97);
+    return clamp(54 + state.reputation * .18 + (relationship - 50) * .45 + (buyer?.credit || 70) * .08 + commercial.acceptance + payment.acceptance + pricing.acceptance + delivery.acceptance + (financing.acceptance || 0) + vertical.acceptanceBonus + shop.acceptanceBonus + difficultySettings().acceptance + regime.acceptance + season.acceptance + doctrine.acceptance + procurement.acceptance - route.acceptancePenalty - competitionPenalty(opp) + _creditMod, 5, 97);
   }
   function crisisAdjustments(opp) {
     return activeCrisisDefinitions().filter(event => event.affects?.(opp)).reduce((acc, event) => {
@@ -1858,6 +2473,7 @@ import * as THREE from './vendor/three.module.min.js';
     const office = opportunityOfficeAdjustments(opp);
     const crisis = crisisAdjustments(opp);
     const vertical = investmentAdjustments(opp);
+    const shop = shopAdjustments(opp);
     const structure = structureForOpportunity(opp);
     const regime = currentMarketRegime();
     const doctrine = activeDoctrine();
@@ -1867,14 +2483,14 @@ import * as THREE from './vendor/three.module.min.js';
     const tender = rivalTenderFor(opp.id);
     const competitionCost = Math.round(Math.max(0, (tender?.pressure || 0) - 45) * 240 * procurement.competitionFactor);
     const financeStaffFactor = hasStaff('trade-finance-manager') ? .9 : 1;
-    const equity = Math.min(offer.capital, Math.round(offer.equity * payment.equityFactor * financeStaffFactor * crisis.equityFactor * structure.financing.equityFactor * vertical.equityFactor * regime.equityFactor * doctrine.equityFactor * procurement.equityFactor * capitalPolicy.equityFactor));
+    const equity = Math.min(offer.capital, Math.round(offer.equity * payment.equityFactor * financeStaffFactor * crisis.equityFactor * structure.financing.equityFactor * vertical.equityFactor * shop.equityFactor * regime.equityFactor * doctrine.equityFactor * procurement.equityFactor * capitalPolicy.equityFactor));
     const borrowed = Math.max(0, offer.capital - equity);
     const _carrierStrat = selectedCarrierStrategies[opp.id] || 'spot';
     const _vc = _carrierStrat === 'spot' ? vesselClassFor(opp.id) : vesselClasses.supramax;
     const vesselPnlBonus = Math.round(offer.basePnl * (_vc.pnlMod || 0));
-    const basePnl = Math.round(offer.basePnl * regime.pnlFactor * doctrine.pnlFactor * capitalPolicy.pnlFactor) + commercial.pnl + pricing.pnl + delivery.pnl + office.pnlBonus + crisis.pnl + structure.financing.pnl + structure.insurance.pnl + structure.inspection.pnl + vertical.pnlBonus + procurement.pnlBonus - competitionCost - route.freightCost + vesselPnlBonus;
+    const basePnl = Math.round(offer.basePnl * regime.pnlFactor * doctrine.pnlFactor * capitalPolicy.pnlFactor) + commercial.pnl + pricing.pnl + delivery.pnl + office.pnlBonus + crisis.pnl + structure.financing.pnl + structure.insurance.pnl + structure.inspection.pnl + vertical.pnlBonus + shop.pnlBonus + procurement.pnlBonus - competitionCost - route.freightCost + vesselPnlBonus;
     const financingRate = structure.financing.rate * capitalPolicy.financingRateFactor;
-    const estimatedInterest = borrowed * financingRate * Math.max(10, offer.duration + delivery.duration - office.durationBonus - vertical.durationBonus + crisis.duration + regime.duration) / 360;
+    const estimatedInterest = borrowed * financingRate * Math.max(10, offer.duration + delivery.duration - office.durationBonus - vertical.durationBonus - shop.durationBonus + crisis.duration + regime.duration) / 360;
     const expectedPnl = basePnl - estimatedInterest;
     return {
       ...offer,
@@ -1886,7 +2502,7 @@ import * as THREE from './vendor/three.module.min.js';
       estimatedInterest,
       financingRate,
       expectedPnl,
-      duration: Math.max(10, offer.duration + delivery.duration - office.durationBonus - vertical.durationBonus + crisis.duration + regime.duration + route.delayDays - procurement.durationBonus + (_vc.durationMod || 0)),
+      duration: Math.max(10, offer.duration + delivery.duration - office.durationBonus - vertical.durationBonus - shop.durationBonus + crisis.duration + regime.duration + route.delayDays - procurement.durationBonus + (_vc.durationMod || 0)),
       acceptance: negotiationAcceptance(opp, negotiation),
       crisisLabels: crisis.labels,
       marketRegime: regime,
@@ -1898,6 +2514,7 @@ import * as THREE from './vendor/three.module.min.js';
       procurementBonus: procurement.pnlBonus,
       procurementSavings: procurement.pnlBonus + Math.round(route.freightCost * .15),
       verticalSources: vertical.sources,
+      shopSources: shop.sources,
       structure,
       initialMargin: initialMarginFor(opp, Number(selectedHedgeRatios[opp.id] ?? opp.recommendedHedge ?? 100), offer.quantity, offer.capital),
       pricingProfile: pricing,
@@ -1953,7 +2570,7 @@ import * as THREE from './vendor/three.module.min.js';
       state.reputation = clamp(state.reputation + (mission.reputation || 0), 0, 100);
       unlocked.push(mission.title);
     });
-    if (unlocked.length) setTimeout(() => showToast(`Mission completed: ${unlocked.join(', ')}.`), 80);
+    if (unlocked.length) { setTimeout(() => showToast(`Mission completed: ${unlocked.join(', ')}.`), 80); try { Sound.play('achievement'); } catch (e) {} addXp(50 * unlocked.length, 'mission'); }
   }
 
   function saveState(force = false) {
@@ -1965,9 +2582,10 @@ import * as THREE from './vendor/three.module.min.js';
       markSaveStatus('Saving…', true);
       state.lastSavedAt = new Date().toISOString();
       const serialized = JSON.stringify(state);
-      const previous = localStorage.getItem(storageKey);
-      if (previous && previous !== serialized) localStorage.setItem(`${storageKey}-backup`, previous);
-      localStorage.setItem(storageKey, serialized);
+      const key = currentStorageKey();
+      const previous = localStorage.getItem(key);
+      if (previous && previous !== serialized) localStorage.setItem(`${key}-backup`, previous);
+      localStorage.setItem(key, serialized);
       markSaveStatus('Saved');
     } catch {
       markSaveStatus('Save failed');
@@ -2125,7 +2743,8 @@ import * as THREE from './vendor/three.module.min.js';
   function bookEmergencyStorage(dealId) {
     const deal = getActiveDeal(dealId);
     if (!deal || deal.operations?.storage?.emergency) return;
-    const cost = 8_000;
+    const discount=storageDiscountForHub(deal.operations?.storage?.hubId);
+    const cost = Math.round(8_000*(1-discount));
     deal.pnlAdjustments -= cost;
     deal.operations.storage.emergency = true;
     deal.operations.storage.reserved = true;
@@ -2159,7 +2778,16 @@ import * as THREE from './vendor/three.module.min.js';
 
   function releaseVessel(assetId) {
     const asset = getFleetAsset(assetId);
-    if (!asset || asset.status === 'assigned') return showToast('You cannot terminate a charter while the vessel is assigned to a deal.');
+    if (!asset || asset.status === 'assigned') return showToast('You cannot release a vessel while it is assigned to a deal.');
+    if (asset.ownership === 'owned') {
+      const refund = Math.round((asset.purchaseCost || 0) * .45);
+      state.cash += refund;
+      state.fleetAssets = state.fleetAssets.filter(v => v.id !== assetId);
+      const shopItem=shopCatalog.find(item=>item.vesselCatalogId===asset.catalogId && item.category==='fleet');
+      if (shopItem) { const record=shopAssetRecord(shopItem.id); state.shopAssets[shopItem.id]={...record,quantity:Math.max(0,(record.quantity||0)-1),totalSpent:Math.max(0,(record.totalSpent||0)-(asset.purchaseCost||0))}; }
+      selected={type:'hub',id:'geneva'}; saveState(); renderAll();
+      return showToast(`Vessel sold. ${money(refund)} recovered.`);
+    }
     const refund = Math.round(asset.charterCost * (asset.daysRemaining / asset.charterDays) * .2);
     state.cash += refund;
     state.fleetAssets = state.fleetAssets.filter(v => v.id !== assetId);
@@ -2172,6 +2800,7 @@ import * as THREE from './vendor/three.module.min.js';
   function advanceFleetDay() {
     const expired = [];
     state.fleetAssets.forEach(asset => {
+      if (asset.ownership === 'owned') return;
       asset.daysRemaining = Math.max(0, asset.daysRemaining - 1);
       if (asset.daysRemaining === 0 && asset.status === 'assigned') {
         const vessel = getVesselCatalog(asset.catalogId);
@@ -2545,7 +3174,7 @@ import * as THREE from './vendor/three.module.min.js';
     const marginCollateral = state.activeDeals.reduce((sum, d) => sum + (d.marginCollateral || 0), 0);
     const activePnl = state.activeDeals.reduce((sum, d) => sum + computeUnrealizedPnl(d), 0);
     const creditUsed = state.activeDeals.reduce((sum, d) => sum + d.borrowed, 0);
-    const assetValue = investmentBookValue();
+    const assetValue = investmentBookValue() + shopBookValue();
     const nav = state.cash + invested + marginCollateral + activePnl + assetValue;
     return { invested, marginCollateral, activePnl, creditUsed, creditAvailable: effectiveCreditLimit() - creditUsed, assetValue, nav };
   }
@@ -2559,7 +3188,7 @@ import * as THREE from './vendor/three.module.min.js';
   function tradingHouseValuation() {
     const stats = portfolioStats();
     const earnings = Math.max(0, state.realizedPnl || 0);
-    const assetValue = investmentBookValue();
+    const assetValue = investmentBookValue() + shopBookValue();
     const relationshipValue = Object.values(state.counterparties||{}).reduce((sum,cp)=>sum+Math.max(0,(cp.relationship||50)-45)*4_000,0);
     const executionValue = state.completedDeals * 35_000 + (state.reputation||0)*9_000;
     const value = Math.max(stats.nav, stats.nav + earnings*1.8 + assetValue*.35 + relationshipValue + executionValue);
@@ -3368,17 +3997,22 @@ import * as THREE from './vendor/three.module.min.js';
     portfolio: 'Trading desk', inventory: 'Physical inventory', operations: 'Operations center', supply: 'Supply chain control', contracts: 'Contracts & credit',
     fleet: 'Fleet desk', risk: 'Risk dashboard', opportunities: 'Opportunity market', rivals: 'Competitive intelligence', strategy: 'Board strategy',
     counterparties: 'Commercial network', compliance: 'Compliance desk', events: 'Global intelligence', finance: 'Treasury desk', performance: 'Performance office',
-    academy: 'WoT Academy', empire: 'Trading empire', hq: 'Headquarters',
+    academy: 'WoT Academy', empire: 'Trading empire', shop: 'Empire shop', hq: 'Headquarters',
     career: 'Career progression', leaderboard: 'Career League'
   };
 
+  function drawerLabel(id) {
+    if (state && state.language === 'it' && drawerLabelsIT[id]) return drawerLabelsIT[id];
+    return drawerLabels[id];
+  }
+
   const searchModuleIcons = {
     portfolio:'◇', inventory:'▣', operations:'≋', supply:'⛓', contracts:'§', fleet:'⌁', risk:'!', opportunities:'◎', rivals:'⚔', strategy:'◈',
-    counterparties:'○', compliance:'✓', events:'⚠', finance:'$', performance:'Σ', academy:'A', empire:'▲', hq:'⌂', career:'↗', leaderboard:'#'
+    counterparties:'○', compliance:'✓', events:'⚠', finance:'$', performance:'Σ', academy:'A', empire:'▲', shop:'▦', hq:'⌂', career:'↗', leaderboard:'#'
   };
 
   function buildGlobalSearchItems() {
-    const modules = Object.entries(drawerLabels).map(([id,label]) => ({ type:'module', id, title:label, subtitle:'Open command-center module', icon:searchModuleIcons[id] || '•', group:'Modules' }));
+    const modules = Object.keys(drawerLabels).map((id) => ({ type:'module', id, title:drawerLabel(id), subtitle:'Open command-center module', icon:searchModuleIcons[id] || '•', group:'Modules' }));
     const hubItems = hubs.filter(hub => hubVisible(hub) || hub.type === 'hq').map(hub => ({ type:'hub', id:hub.id, title:hub.name, subtitle:`${hub.country} · ${hub.subtitle}`, icon:hub.type === 'port' ? '⚓' : hub.type === 'supplier' ? '↑' : hub.type === 'customer' ? '↓' : '⌂', group:'World' }));
     const dealItems = state.activeDeals.map(deal => {
       const opp = getOpportunity(deal.opportunityId);
@@ -3448,6 +4082,7 @@ import * as THREE from './vendor/three.module.min.js';
     const risk = riskStats();
     const recommended = recommendedOpportunity();
     const constructing = state.constructionQueue || [];
+    const shopConstructing = state.shopOrders || [];
     const congestedDeals = state.activeDeals.filter(deal => !deal.delivered && !deal.routeMitigated && (deal.routeCondition?.score || 0) >= 70);
     const expiringAgreements = Object.values(state.procurementAgreements || {}).filter(item => item?.status === 'active' && item.daysRemaining <= 15 && item.liftings < item.commitment);
     const priorities = [];
@@ -3516,6 +4151,13 @@ import * as THREE from './vendor/three.module.min.js';
       copy: 'Construction progress continues when the game clock advances.',
       action: 'module',
       id: 'empire'
+    });
+    if (shopConstructing.length) priorities.push({
+      severity: 'info',
+      title: `${shopConstructing.length} shop order${shopConstructing.length === 1 ? '' : 's'} under construction`,
+      copy: 'Your permanent fleet and logistics assets progress whenever the game clock advances.',
+      action: 'module',
+      id: 'shop'
     });
     if (!priorities.length) priorities.push({
       severity: 'info',
@@ -3724,6 +4366,7 @@ import * as THREE from './vendor/three.module.min.js';
     $('#globeLegend')?.classList.toggle('open', layersOpen);
     $('#globeLegend')?.setAttribute('aria-hidden', String(!layersOpen));
     $('#openDeskButton')?.classList.toggle('active', leftDrawerOpen);
+    $('#openShopButton')?.classList.toggle('active', leftDrawerOpen && activeLeftTab === 'shop');
     $('#toggleOverviewButton')?.classList.toggle('active', overviewOpen);
     $('#toggleMarketsButton')?.classList.toggle('active', marketsOpen);
     $('#toggleLayersButton')?.classList.toggle('active', layersOpen);
@@ -3752,16 +4395,68 @@ import * as THREE from './vendor/three.module.min.js';
     syncOverlayUI();
   }
 
-  function showToast(message) {
-    const toast = $('#toast');
-    clearTimeout(toastTimer);
-    toast.textContent = message;
-    toast.classList.remove('hidden');
-    requestAnimationFrame(() => toast.classList.add('visible'));
-    toastTimer = setTimeout(() => {
-      toast.classList.remove('visible');
-      setTimeout(() => toast.classList.add('hidden'), 260);
-    }, 2600);
+  function openShortcutsOverlay() {
+    const ov = $('#shortcutsOverlay');
+    if (!ov) return;
+    ov.classList.add('open');
+    ov.setAttribute('aria-hidden', 'false');
+  }
+  function closeShortcutsOverlay() {
+    const ov = $('#shortcutsOverlay');
+    if (!ov) return;
+    ov.classList.remove('open');
+    ov.setAttribute('aria-hidden', 'true');
+  }
+  function toggleShortcutsOverlay() {
+    const ov = $('#shortcutsOverlay');
+    if (!ov) return;
+    ov.classList.contains('open') ? closeShortcutsOverlay() : openShortcutsOverlay();
+  }
+
+  const toastIcons = { success: '✓', error: '✕', warning: '!', info: 'ℹ', money: '$', deal: '◎' };
+  function inferToastType(message) {
+    const m = String(message).toLowerCase();
+    if (/(fail|reject|error|blocked|cannot|insufficient|not enough|not a valid|denied|invalid|declined|lost|missed|too busy|all project teams are busy)/.test(m)) return 'error';
+    if (/(warn|risk|delay|caution|overdue|breach|dispute|penalt|shortfall|exceed|locked:|requires )/.test(m)) return 'warning';
+    if (/(complete|approved|won|success|secured|delivered|profit|accepted|started|purchased|built|unlocked|saved|imported|exported|paid|settled|ordered|joined|opened|confirmed|is now active|activated|expedited|booked|hired|granted)/.test(m)) return 'success';
+    return 'info';
+  }
+  function showToast(message, type) {
+    const stack = $('#toastStack');
+    if (!stack) { // fallback to legacy element
+      const toast = $('#toast');
+      if (!toast) return;
+      clearTimeout(toastTimer);
+      toast.textContent = message;
+      toast.classList.remove('hidden');
+      requestAnimationFrame(() => toast.classList.add('visible'));
+      toastTimer = setTimeout(() => { toast.classList.remove('visible'); setTimeout(() => toast.classList.add('hidden'), 260); }, 2600);
+      return;
+    }
+    const kind = type || inferToastType(message);
+    try {
+      notificationHistory.unshift({ message: String(message), kind, at: Date.now(), gameDate: (typeof state !== 'undefined' && state) ? state.date : null });
+      if (notificationHistory.length > 60) notificationHistory.length = 60;
+      notificationsUnread = Math.min(99, notificationsUnread + 1);
+      updateNotificationsBadge();
+    } catch (e) {}
+    try { Sound.play(kind); } catch (e) {}
+    const el = document.createElement('div');
+    el.className = `toast-item toast-${kind}`;
+    el.setAttribute('role', kind === 'error' ? 'alert' : 'status');
+    el.innerHTML = `<span class="toast-icon">${toastIcons[kind] || 'ℹ'}</span><span class="toast-msg"></span><button class="toast-close" aria-label="Dismiss">×</button>`;
+    el.querySelector('.toast-msg').textContent = message;
+    // Cap stack at 4 — remove oldest
+    while (stack.children.length >= 4) stack.firstElementChild?.remove();
+    stack.appendChild(el);
+    requestAnimationFrame(() => el.classList.add('visible'));
+    const dismiss = () => {
+      el.classList.remove('visible');
+      el.classList.add('leaving');
+      setTimeout(() => el.remove(), 300);
+    };
+    const timer = setTimeout(dismiss, kind === 'error' ? 4200 : 3000);
+    el.querySelector('.toast-close').addEventListener('click', () => { clearTimeout(timer); dismiss(); });
   }
 
   function selectHub(id, focus = true) {
@@ -3856,7 +4551,7 @@ import * as THREE from './vendor/three.module.min.js';
       if (tender && tender.status !== 'player_reserved') {
         tender.status = 'player_reserved';
         tender.awardedTo = 'player';
-        state.tenderWins = (state.tenderWins || 0) + 1;
+        state.tenderWins = (state.tenderWins || 0) + 1; addXp(25, 'tender');
         state.rivalFeed.unshift({ date:state.date, cycle:state.marketCycle, opportunityId:opp.id, rivalId:'player', title:`${state.companyName} secures ${opp.title}`, description:`Player bid accepted against ${tender.pressure}% competitive pressure.` });
         state.rivalFeed = state.rivalFeed.slice(0,18);
       }
@@ -3888,7 +4583,7 @@ import * as THREE from './vendor/three.module.min.js';
     if (won) {
       tender.status = 'player_reserved';
       tender.awardedTo = 'player';
-      state.tenderWins = (state.tenderWins || 0) + 1;
+      state.tenderWins = (state.tenderWins || 0) + 1; addXp(25, 'tender');
       state.rivalFeed.unshift({ date: state.date, cycle: state.marketCycle, opportunityId: oppId, rivalId: 'player', title: `${state.companyName || 'Player'} secures tender`, description: `Competitive bid accepted for ${opp.title} with ${Math.round(winPct)}% win probability.` });
       state.rivalFeed = state.rivalFeed.slice(0, 18);
       // Temporarily apply margin adjustment for this deal
@@ -4059,7 +4754,8 @@ import * as THREE from './vendor/three.module.min.js';
   function exerciseStorageOption(dealId) {
     const deal = getActiveDeal(dealId);
     if (!deal || deal.storageOptionUsed || !deal.operations?.storage?.active || deal.commercialTerms?.delivery !== 'flexible') return;
-    const dailyCost = Math.max(1_500, Math.round((deal.capital||0)*.00022));
+    const warehouseDiscount=storageDiscountForHub(deal.operations?.storage?.hubId);
+    const dailyCost = Math.max(900, Math.round((deal.capital||0)*.00022*(1-warehouseDiscount)));
     const days = 7;
     deal.storageOptionUsed = true;
     deal.storageOptionalityEntry = marketPriceForOpportunity(getOpportunity(deal.opportunityId));
@@ -4293,7 +4989,9 @@ import * as THREE from './vendor/three.module.min.js';
     evaluateAchievements();
     selected = { type: 'hub', id: 'geneva' };
     focusOnHub('geneva');
-    showToast(`${opp.title} closed with ${money(pnl)} P&L.`);
+    { const _ps = _soundSuppressed; _soundSuppressed = true; showToast(`${opp.title} closed with ${money(pnl)} P&L.`, pnl >= 0 ? 'success' : 'warning'); _soundSuppressed = _ps; }
+    try { Sound.play(pnl >= 0 ? 'deal' : 'error'); } catch (e) {}
+    addXp(20 + Math.max(0, Math.min(80, Math.round(pnl / 5000))), 'deal');
   }
 
   // ─── Commodity price news headline catalog ─────────────────────────────────
@@ -4634,10 +5332,19 @@ import * as THREE from './vendor/three.module.min.js';
         return Math.round(spot * carry * noise * 100) / 100;
       });
     });
+    // Record rolling price history (last 90 days) per commodity
+    state.priceHistory = state.priceHistory || {};
+    _fwdComms.forEach(([key, spot]) => {
+      const arr = state.priceHistory[key] || [];
+      arr.push(Math.round(spot * 100) / 100);
+      if (arr.length > 90) arr.shift();
+      state.priceHistory[key] = arr;
+    });
     const overhead = dailyOverhead();
     state.cash -= overhead;
     state.overheadPaid = (state.overheadPaid || 0) + overhead;
     processInvestmentDay();
+    processShopDay();
     processCreditLimitRequests();
     processProcurementAgreements();
 
@@ -4677,11 +5384,31 @@ import * as THREE from './vendor/three.module.min.js';
     evaluateAchievements();
     const stats = portfolioStats();
     state.valuationHigh = Math.max(state.valuationHigh||0, tradingHouseValuation().value);
+    checkVictory();
     state.navHistory.push(stats.nav);
     if (state.navHistory.length > 50) state.navHistory.shift();
     saveState();
     if (!deferRender) renderAll();
+    if (!silent) { pulseNewDay(); try { Sound.play('day'); } catch (e) {} addXp(2, 'day'); }
     return !eventTriggered;
+  }
+
+  function pulseNewDay() {
+    if (!motionEnabled()) return;
+    const dateEl = $('#gameDate');
+    if (dateEl) {
+      dateEl.classList.remove('date-pulse');
+      void dateEl.offsetWidth;
+      dateEl.classList.add('date-pulse');
+      setTimeout(() => dateEl.classList.remove('date-pulse'), 700);
+    }
+    const stage = $('#globeStage');
+    if (stage && motionEnabled()) {
+      const sweep = document.createElement('div');
+      sweep.className = 'day-sweep';
+      stage.appendChild(sweep);
+      setTimeout(() => sweep.remove(), 900);
+    }
   }
 
   function advanceToNextEvent() {
@@ -4689,13 +5416,17 @@ import * as THREE from './vendor/three.module.min.js';
     let safe = 0;
     const feedBefore = state.worldEventFeed.length;
     const cycleBefore = state.marketCycle;
+    const _prevSuppress = _soundSuppressed;
+    _soundSuppressed = true;
     while (safe < 120) {
       safe++;
       const before = state.activeDeals.length;
       const continued = advanceDay({ silent: true, deferRender: true });
       if (!continued || state.activeDeals.length < before || state.worldEventFeed.length > feedBefore || state.marketCycle !== cycleBefore) break;
     }
+    _soundSuppressed = _prevSuppress;
     renderAll();
+    try { Sound.play('info'); } catch (e) {}
   }
 
   function updateClock() {
@@ -4711,6 +5442,7 @@ import * as THREE from './vendor/three.module.min.js';
       $('#clockStatus').textContent = `${runningSpeed}× active`;
       dot.classList.add('running');
     }
+    _soundSuppressed = runningSpeed > 0;
     clearInterval(clockTimer);
     simulationDayAnchor = performance.now();
     if (runningSpeed > 0) {
@@ -4738,8 +5470,33 @@ import * as THREE from './vendor/three.module.min.js';
            + `<text x="${x+bW/2}" y="${pY+cH+13}" text-anchor="middle" fill="rgba(255,255,255,.45)" font-size="9">${months[i]}</text>`
            + `<text x="${x+bW/2}" y="${y-3}" text-anchor="middle" fill="rgba(255,255,255,.85)" font-size="8">${fmt(p)}</text>`;
     }).join('');
+    // Historical price line chart (last up to 60 days)
+    const hist = (state.priceHistory?.[key] || []).slice(-60);
+    let histSvg = '';
+    if (hist.length >= 2) {
+      const hMn = Math.min(...hist), hMx = Math.max(...hist);
+      const hRng = hMx - hMn || 1;
+      const hW = svgW, hH = 46, hPad = 4;
+      const stepX = (hW - hPad*2) / (hist.length - 1);
+      const pts = hist.map((p,i) => {
+        const x = hPad + i*stepX;
+        const y = hPad + (hH - hPad*2) * (1 - (p - hMn) / hRng);
+        return `${x.toFixed(1)},${y.toFixed(1)}`;
+      }).join(' ');
+      const first = hist[0], last = hist[hist.length-1];
+      const lineCol = last >= first ? '#6ce3a6' : '#f0717f';
+      const areaPts = `${hPad},${hH-hPad} ${pts} ${(hPad+(hist.length-1)*stepX).toFixed(1)},${hH-hPad}`;
+      const pctChg = ((last/first - 1) * 100);
+      histSvg = `<div class="fwd-hist-head"><span>${hist.length}-day trend</span><strong style="color:${lineCol}">${pctChg>=0?'+':''}${pctChg.toFixed(1)}%</strong></div>
+        <svg viewBox="0 0 ${hW} ${hH}" width="100%" style="display:block;margin-bottom:8px">
+          <polyline points="${areaPts}" fill="${lineCol}" opacity="0.08" stroke="none"/>
+          <polyline points="${pts}" fill="none" stroke="${lineCol}" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/>
+        </svg>`;
+    }
     return `<div class="fwd-curve-popup" id="fwdCurvePopup">
       <div class="fwd-curve-head"><strong>${label}</strong><em style="color:${tsColor}">${tsLabel}</em></div>
+      ${histSvg}
+      <div class="fwd-curve-sub">Forward curve</div>
       <svg viewBox="0 0 ${svgW} ${pY*2+cH+18}" width="100%" style="overflow:visible;display:block">${bars}</svg>
       <div class="fwd-curve-meta">
         <div><span>Spot</span><strong>${fmt(spot)}</strong></div>
@@ -4749,15 +5506,81 @@ import * as THREE from './vendor/three.module.min.js';
     </div>`;
   }
 
+  function motionEnabled() {
+    if (state && state.reduceMotion) return false;
+    try { if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return false; } catch (e) {}
+    return true;
+  }
+
+  const _counterAnims = new WeakMap();
+  function animateCounter(el, target, fmt) {
+    if (!el) return;
+    const prev = _counterAnims.get(el);
+    if (prev) cancelAnimationFrame(prev.raf);
+    const from = prev ? prev.current : (Number.isFinite(el._counterVal) ? el._counterVal : target);
+    if (!motionEnabled() || from === target || from === null || from === undefined) {
+      el.textContent = fmt(target);
+      el._counterVal = target;
+      _counterAnims.delete(el);
+      return;
+    }
+    const duration = 520;
+    const startT = performance.now();
+    const step = (now) => {
+      const t = Math.min(1, (now - startT) / duration);
+      const eased = 1 - Math.pow(1 - t, 3); // easeOutCubic
+      const value = from + (target - from) * eased;
+      el.textContent = fmt(value);
+      if (t < 1) {
+        const raf = requestAnimationFrame(step);
+        _counterAnims.set(el, { raf, current: value });
+      } else {
+        el.textContent = fmt(target);
+        el._counterVal = target;
+        _counterAnims.delete(el);
+      }
+    };
+    const raf = requestAnimationFrame(step);
+    _counterAnims.set(el, { raf, current: from });
+    el._counterVal = target;
+  }
+
+  let _prevMetricValues = { nav: null, cash: null, rep: null };
+  function flashMetric(elId, newVal, prevVal, opts = {}) {
+    const el = $('#' + elId);
+    if (!el) return;
+    if (prevVal === null || prevVal === undefined || newVal === prevVal) return;
+    if (!motionEnabled()) return;
+    const up = newVal > prevVal;
+    el.classList.remove('metric-flash-up', 'metric-flash-down');
+    void el.offsetWidth; // reflow to restart animation
+    el.classList.add(up ? 'metric-flash-up' : 'metric-flash-down');
+    setTimeout(() => el.classList.remove('metric-flash-up', 'metric-flash-down'), 900);
+    // Floating delta chip
+    if (opts.showDelta && Math.abs(newVal - prevVal) >= (opts.threshold || 1)) {
+      const chip = document.createElement('span');
+      chip.className = 'metric-delta-chip ' + (up ? 'up' : 'down');
+      const diff = newVal - prevVal;
+      chip.textContent = (up ? '+' : '−') + (opts.fmt ? opts.fmt(Math.abs(diff)) : Math.abs(Math.round(diff)));
+      const host = el.parentElement;
+      if (host) {
+        host.style.position = host.style.position || 'relative';
+        host.appendChild(chip);
+        requestAnimationFrame(() => chip.classList.add('rise'));
+        setTimeout(() => chip.remove(), 1400);
+      }
+    }
+  }
+
   function renderMetrics() {
     const stats = portfolioStats();
     const start = 1_000_000;
     const ret = (stats.nav / start - 1) * 100;
-    $('#navMetric').textContent = money(stats.nav, true);
+    animateCounter($('#navMetric'), stats.nav, v => money(v, true));
     $('#navDelta').textContent = `${ret >= 0 ? '+' : ''}${ret.toFixed(1)}% all time`;
-    $('#cashMetric').textContent = money(state.cash, true);
-    $('#cashDelta').textContent = dailyInvestmentIncome() ? `${money(dailyInvestmentIncome())}/day assets` : (state.cash < 250_000 ? 'Low liquidity' : 'Available');
-    $('#creditMetric').textContent = money(stats.creditUsed, true);
+    animateCounter($('#cashMetric'), state.cash, v => money(v, true));
+    $('#cashDelta').textContent = (dailyInvestmentIncome()+shopDailyIncome()) ? `${money(dailyInvestmentIncome()+shopDailyIncome())}/day assets` : (state.cash < 250_000 ? 'Low liquidity' : 'Available');
+    animateCounter($('#creditMetric'), stats.creditUsed, v => money(v, true));
     $('#creditSub').textContent = `of ${money(effectiveCreditLimit(), true)}`;
     $('#repMetric').textContent = Math.round(state.reputation);
     $('#rankMetric').textContent = rankFromState();
@@ -4773,6 +5596,24 @@ import * as THREE from './vendor/three.module.min.js';
     $('#gameDate').textContent = formatDate(currentDate());
     const profileInitials=(state.profileName||'GB').split(/\s+/).map(value=>value[0]).slice(0,2).join('').toUpperCase();
     if ($('.profile-button')) $('.profile-button').textContent=profileInitials;
+    const prestigeBadge = $('#prestigeBadge');
+    if (prestigeBadge) {
+      const lvl = state.prestigeLevel || 0;
+      if (lvl > 0) { prestigeBadge.textContent = '★ ' + lvl; prestigeBadge.classList.remove('hidden'); prestigeBadge.title = `Prestige level ${lvl} · +${12*lvl}% starting capital`; }
+      else prestigeBadge.classList.add('hidden');
+    }
+    // v31 XP HUD
+    const xpLabel = $('#xpLevelLabel');
+    if (xpLabel) xpLabel.textContent = state.xpLevel || 1;
+    const xpFill = $('#xpFill');
+    if (xpFill) { const p = xpLevelProgress(); xpFill.style.width = p.pct + '%'; const chip = $('#xpChip'); if (chip) chip.title = `Level ${state.xpLevel} · ${p.have}/${p.need} XP`; }
+    const goldLabel = $('#goldBarsLabel'); if (goldLabel) goldLabel.textContent = (state.goldBars || 0).toLocaleString('en-US');
+
+    // v24 animated metric feedback
+    flashMetric('navMetric', stats.nav, _prevMetricValues.nav, { showDelta: true, threshold: 500, fmt: v => money(v, true).replace('$','$') });
+    flashMetric('cashMetric', state.cash, _prevMetricValues.cash, { showDelta: true, threshold: 500, fmt: v => money(v, true) });
+    flashMetric('repMetric', Math.round(state.reputation), _prevMetricValues.rep, { showDelta: true, threshold: 1 });
+    _prevMetricValues = { nav: stats.nav, cash: state.cash, rep: Math.round(state.reputation) };
 
     const marketDisplays = [
       ['copper', state.copperPrice, state.copperPrev, `${money(state.copperPrice)}/t`, 2],
@@ -4802,6 +5643,7 @@ import * as THREE from './vendor/three.module.min.js';
         if (tsEl) {
           const tsLabel = ts < -0.06 ? 'Backw.' : ts > 0.06 ? 'Contango' : 'Flat';
           tsEl.textContent = tsLabel;
+          tsEl.setAttribute('data-term', ts < -0.06 ? 'backwardation' : ts > 0.06 ? 'contango' : 'termstructure');
           tsEl.style.color = ts < -0.06 ? 'var(--orange)' : ts > 0.06 ? 'var(--blue)' : 'var(--muted)';
         }
       }
@@ -4853,7 +5695,7 @@ import * as THREE from './vendor/three.module.min.js';
   function renderTabs() {
     $$('.panel-tab').forEach(b => b.classList.toggle('active', b.dataset.leftTab === activeLeftTab));
     $$('.left-section').forEach(s => s.classList.toggle('active', s.id === `left-${activeLeftTab}`));
-    if ($('#drawerTitle')) $('#drawerTitle').textContent = drawerLabels[activeLeftTab] || 'Command center';
+    if ($('#drawerTitle')) $('#drawerTitle').textContent = drawerLabel(activeLeftTab) || 'Command center';
   }
 
   function renderActiveDeals() {
@@ -5228,7 +6070,7 @@ import * as THREE from './vendor/three.module.min.js';
     const available = state.fleetAssets.filter(v => v.status === 'available').length;
     const capacity = state.fleetAssets.reduce((sum, asset) => sum + (getVesselCatalog(asset.catalogId)?.capacity || 0), 0);
     summary.innerHTML = `
-      <div><span>Chartered assets</span><strong>${state.fleetAssets.length}</strong></div>
+      <div><span>Controlled assets</span><strong>${state.fleetAssets.length}</strong></div>
       <div><span>Available</span><strong>${available}</strong></div>
       <div><span>Assigned</span><strong>${assigned}</strong></div>
       <div><span>Total capacity</span><strong>${capacity.toLocaleString('en-US')} t</strong></div>`;
@@ -5243,10 +6085,10 @@ import * as THREE from './vendor/three.module.min.js';
           <div class="fleet-grid">
             <div><span>Position</span><strong>${getHub(asset.positionHub)?.name || 'At sea'}</strong></div>
             <div><span>Capacity</span><strong>${vessel.capacity.toLocaleString('en-US')} t</strong></div>
-            <div><span>Charter remaining</span><strong>${asset.daysRemaining} days</strong></div>
+            <div><span>${asset.ownership==='owned'?'Ownership':'Charter remaining'}</span><strong>${asset.ownership==='owned'?'Owned outright':`${asset.daysRemaining} days`}</strong></div>
             <div><span>Allocation</span><strong>${deal ? getOpportunity(deal.opportunityId).title : 'Open'}</strong></div>
           </div>
-          <div class="charter-life"><span style="width:${asset.daysRemaining/asset.charterDays*100}%"></span></div>
+          ${asset.ownership==='owned'?`<div class="owned-vessel-strip"><span>Permanent fleet</span><strong>${money(asset.maintenance||0)}/day upkeep</strong></div>`:`<div class="charter-life"><span style="width:${asset.daysRemaining/asset.charterDays*100}%"></span></div>`}
         </button>`;
       }).join('');
       $$('[data-fleet-asset]', container).forEach(button => button.addEventListener('click', () => selectVessel(button.dataset.fleetAsset)));
@@ -5265,7 +6107,7 @@ import * as THREE from './vendor/three.module.min.js';
           <div><span>Charter block</span><strong>${vessel.charterDays} days</strong></div>
           <div><span>Upfront hire</span><strong>${money(displayedHire)}</strong></div>
         </div>
-        <button class="button secondary charter-button" data-charter-vessel="${vessel.id}" ${!unlocked || owned || !canAfford ? 'disabled' : ''}>${owned ? 'Already chartered' : unlocked ? 'Start time charter' : vessel.requiresOffice && !officeOwned(vessel.requiresOffice) ? `Requires ${getOffice(vessel.requiresOffice).name}` : `Requires rep ${vessel.minReputation}`}</button>
+        <button class="button secondary charter-button" data-charter-vessel="${vessel.id}" ${!unlocked || owned || !canAfford ? 'disabled' : ''}>${owned ? 'Already controlled' : unlocked ? 'Start time charter' : vessel.requiresOffice && !officeOwned(vessel.requiresOffice) ? `Requires ${getOffice(vessel.requiresOffice).name}` : `Requires rep ${vessel.minReputation}`}</button>
       </div>`;
     }).join('');
     $$('[data-charter-vessel]', market).forEach(button => button.addEventListener('click', () => charterVessel(button.dataset.charterVessel)));
@@ -5638,20 +6480,70 @@ import * as THREE from './vendor/three.module.min.js';
   function renderEmpire() {
     const summary=$('#investmentSummary'), queue=$('#builderQueue'), container=$('#investmentList');
     if(!summary||!queue||!container) return;
-    const levels=totalInvestmentLevels(), income=dailyInvestmentIncome(), book=investmentBookValue(), active=activeConstructionCount();
+    const levels=totalInvestmentLevels(), income=dailyInvestmentIncome(), book=investmentBookValue(), active=activeProjectCount();
     summary.innerHTML=`<div><span>Industrial levels</span><strong>${levels}</strong></div><div><span>Asset book value</span><strong>${money(book,true)}</strong></div><div><span>Daily asset income</span><strong>${money(income)}</strong></div><div><span>Project teams</span><strong>${active}/${builderSlots()}</strong></div>`;
     const builds=investmentCatalog.filter(asset=>investmentRecord(asset.id).buildingTo);
     queue.innerHTML=builds.length?builds.map(asset=>{const r=investmentRecord(asset.id);const total=investmentBuildDays(asset,r.buildingTo);const pct=(1-r.daysRemaining/total)*100;return `<div class="builder-card"><div><span>${asset.chain} construction</span><strong>${asset.name} · L${r.buildingTo}</strong><small>${r.daysRemaining} days remaining</small></div><div class="progress-track"><span style="width:${pct}%"></span></div></div>`}).join(''):`<div class="empty-card compact">No projects under construction. You have ${builderSlots()} project teams available.</div>`;
+    // v32 buy extra project team with gold bars
+    const gCost = builderGoldCost();
+    queue.innerHTML += `<div class="buy-builder-card"><div class="bb-info"><span>Squadra di progetto extra</span><small>+1 builder permanente · ${state.bonusBuilders||0} acquistati</small></div><button class="button gold buy-builder-btn" id="buyBuilderBtn" ${(state.goldBars||0)<gCost?'disabled':''}>${gCost} lingotti</button></div>`;
+    const bbBtn = $('#buyBuilderBtn'); if (bbBtn) bbBtn.addEventListener('click', buyExtraBuilder);
     const visible=investmentCatalog.filter(asset=>selectedEmpireChain==='all'||asset.chain===selectedEmpireChain);
     container.innerHTML=visible.map(asset=>{
       const r=investmentRecord(asset.id), level=r.level||0, target=level+1, max=level>=asset.maxLevel, unlocked=investmentUnlocked(asset), building=Boolean(r.buildingTo), cost=max?0:investmentCost(asset,target), days=max?0:investmentBuildDays(asset,target);
       const benefits=[asset.dailyIncome?`${money(asset.dailyIncome*level)}/day`:null,asset.pnlBonus?`+${money(asset.pnlBonus*level)} deal edge`:null,asset.durationBonus&&level?`-${asset.durationBonus*level} days`:null].filter(Boolean).join(' · ');
-      return `<article class="investment-card chain-${asset.chain} ${building?'building':''} ${!unlocked?'locked':''}" data-investment-card="${asset.id}"><div class="investment-card-top"><div class="asset-icon">${asset.icon}</div><div><span>${asset.chain}</span><strong>${asset.name}</strong><small>${getHub(asset.hub)?.name||''}</small></div><b>L${level}/${asset.maxLevel}</b></div><p>${asset.description}</p><div class="asset-level-track">${Array.from({length:asset.maxLevel},(_,i)=>`<i class="${i<level?'filled':''} ${r.buildingTo===i+1?'building':''}"></i>`).join('')}</div><div class="investment-benefit">${level?benefits:'No active benefit — build level 1'}</div><div class="investment-economics"><div><span>Upgrade cost</span><strong>${max?'MAX':money(cost)}</strong></div><div><span>Build time</span><strong>${max?'—':`${days} days`}</strong></div></div><button class="button ${building?'secondary':'primary'} investment-action" data-build-investment="${asset.id}" ${max||building||!unlocked||state.cash<cost||activeConstructionCount()>=builderSlots()?'disabled':''}>${building?`Building L${r.buildingTo} · ${r.daysRemaining}d`:max?'Maximum level':unlocked?`Build level ${target}`:`Requires rep ${asset.minReputation} · ${asset.minDeals} deals`}</button></article>`;
+      return `<article class="investment-card chain-${asset.chain} ${building?'building':''} ${!unlocked?'locked':''}" data-investment-card="${asset.id}"><div class="investment-card-top"><div class="asset-icon">${asset.icon}</div><div><span>${asset.chain}</span><strong>${asset.name}</strong><small>${getHub(asset.hub)?.name||''}</small></div><b>L${level}/${asset.maxLevel}</b></div><p>${asset.description}</p><div class="asset-level-track">${Array.from({length:asset.maxLevel},(_,i)=>`<i class="${i<level?'filled':''} ${r.buildingTo===i+1?'building':''}"></i>`).join('')}</div><div class="investment-benefit">${level?benefits:'No active benefit — build level 1'}</div><div class="investment-economics"><div><span>Upgrade cost</span><strong>${max?'MAX':money(cost)}</strong></div><div><span>Build time</span><strong>${max?'—':`${days} days`}</strong></div></div><button class="button ${building?'secondary':'primary'} investment-action" data-build-investment="${asset.id}" ${max||building||!unlocked||state.cash<cost||activeProjectCount()>=builderSlots()?'disabled':''}>${building?`Building L${r.buildingTo} · ${r.daysRemaining}d`:max?'Maximum level':unlocked?`Build level ${target}`:`Requires rep ${asset.minReputation} · ${asset.minDeals} deals`}</button></article>`;
     }).join('');
     $$('[data-empire-chain]').forEach(button=>button.classList.toggle('active',button.dataset.empireChain===selectedEmpireChain));
     $$('[data-empire-chain]').forEach(button=>button.onclick=()=>{selectedEmpireChain=button.dataset.empireChain;renderEmpire();});
     $$('[data-build-investment]',container).forEach(button=>button.onclick=()=>startInvestment(button.dataset.buildInvestment));
     $$('[data-investment-card]',container).forEach(card=>card.addEventListener('click',event=>{if(event.target.closest('button'))return;selectInvestment(card.dataset.investmentCard);}));
+  }
+
+  function renderShop() {
+    const summary=$('#shopSummary'), queue=$('#shopBuildQueue'), catalog=$('#shopCatalogList');
+    if(!summary||!queue||!catalog) return;
+    const orders=state.shopOrders||[];
+    const delivered=shopCatalog.reduce((sum,item)=>sum+shopOwnedQuantity(item.id),0);
+    const permanentShips=(state.fleetAssets||[]).filter(asset=>asset.ownership==='owned').length;
+    summary.innerHTML=`
+      <div><span>Permanent assets</span><strong>${delivered}</strong></div>
+      <div><span>Owned vessels</span><strong>${permanentShips}</strong></div>
+      <div><span>Asset book value</span><strong>${money(shopBookValue(),true)}</strong></div>
+      <div><span>Project teams</span><strong>${activeProjectCount()}/${builderSlots()}</strong></div>`;
+    const queueCount=$('#shopQueueCount'); if(queueCount) queueCount.textContent=orders.length;
+    const badge=$('#shopBadge'); if(badge){ badge.textContent=orders.length; badge.classList.toggle('hidden',!orders.length); }
+    queue.innerHTML=orders.length?orders.map(order=>{
+      const item=shopDefinition(order.itemId); const pct=Math.round((1-order.daysRemaining/Math.max(1,order.totalDays))*100);
+      return `<article class="shop-order-card"><div class="shop-order-icon">${item?.icon||'▦'}</div><div><span>${item?.category||'asset'} project</span><strong>${item?.name||'Capital asset'}</strong><small>${order.daysRemaining} days remaining · ${pct}% complete</small><div class="shop-order-progress"><i style="width:${pct}%"></i></div></div></article>`;
+    }).join(''):`<div class="empty-card compact">No store orders under construction. ${Math.max(0,builderSlots()-activeProjectCount())} project team${builderSlots()-activeProjectCount()===1?'':'s'} available.</div>`;
+    const visible=shopCatalog.filter(item=>selectedShopCategory==='all'||item.category===selectedShopCategory);
+    catalog.innerHTML=visible.map(item=>{
+      const owned=shopOwnedQuantity(item.id), pending=shopPendingQuantity(item.id), unlocked=shopUnlocked(item), maxed=owned+pending>=item.maxOwned;
+      const officeMissing=item.requiresOffice&&!officeOwned(item.requiresOffice);
+      const lockText=officeMissing?`Requires ${getOffice(item.requiresOffice)?.name}`:`Requires rep ${item.minReputation} · ${item.minDeals} deals`;
+      const busy=activeProjectCount()>=builderSlots();
+      const status=pending?`${pending} building`:owned?`${owned}/${item.maxOwned} owned`:'Available';
+      return `<article class="shop-item-card category-${item.category} ${!unlocked?'locked':''} ${pending?'building':''}">
+        <div class="shop-ribbon">${item.category==='fleet'?'SHIPYARD':item.category==='storage'?'STORAGE':'LOGISTICS'}</div>
+        <div class="shop-item-visual"><span>${item.icon}</span><em>${status}</em></div>
+        <div class="shop-item-copy"><span>${item.category}</span><h3>${item.name}</h3><p>${item.description}</p></div>
+        <div class="shop-benefit"><b>Permanent benefit</b><span>${item.benefit}</span></div>
+        <div class="shop-item-meta">
+          <div><span>Price</span><strong>${money(item.cost)}</strong></div>
+          <div><span>Build time</span><strong>${item.buildDays} days</strong></div>
+          <div><span>Owned</span><strong>${owned}/${item.maxOwned}</strong></div>
+          <div><span>Daily upkeep</span><strong>${money(item.maintenance||item.dailyCost||0)}</strong></div>
+        </div>
+        <div class="shop-level-pips">${Array.from({length:item.maxOwned},(_,i)=>`<i class="${i<owned?'owned':i<owned+pending?'building':''}"></i>`).join('')}</div>
+        <button class="shop-buy-button" data-buy-shop-item="${item.id}" ${!unlocked||maxed||busy||state.cash<item.cost?'disabled':''}>
+          <span>${maxed?'MAX':pending?'ORDER MORE':unlocked?'BUY & BUILD':'LOCKED'}</span><b>${maxed?'Capacity reached':!unlocked?lockText:busy?'All teams busy':state.cash<item.cost?'Insufficient cash':`${money(item.cost)} · ${item.buildDays}d`}</b>
+        </button>
+      </article>`;
+    }).join('');
+    $$('[data-shop-category]').forEach(button=>button.classList.toggle('active',button.dataset.shopCategory===selectedShopCategory));
+    $$('[data-shop-category]').forEach(button=>button.onclick=()=>{selectedShopCategory=button.dataset.shopCategory;renderShop();});
+    $$('[data-buy-shop-item]',catalog).forEach(button=>button.onclick=()=>buyShopItem(button.dataset.buyShopItem));
   }
 
   function renderHQ() {
@@ -5950,6 +6842,7 @@ import * as THREE from './vendor/three.module.min.js';
     renderPerformance();
     renderAcademy();
     renderEmpire();
+    renderShop();
     renderHQ();
     renderCareer();
     renderLeaderboard();
@@ -6294,30 +7187,30 @@ import * as THREE from './vendor/three.module.min.js';
     const vessel = getVesselCatalog(asset.catalogId);
     const deal = asset.assignedDealId ? getActiveDeal(asset.assignedDealId) : null;
     return `
-      <div class="location-badge">◆ Chartered asset</div>
+      <div class="location-badge">◆ ${asset.ownership==='owned'?'Owned vessel':'Chartered asset'}</div>
       <h2>${vessel.name}</h2>
       <div class="inspector-subtitle">${vessel.vesselClass} · ${vessel.capacity.toLocaleString('en-US')} t DWT</div>
       <p class="inspector-subtitle" style="margin-top:12px">${vessel.description}</p>
       <div class="inspector-grid">
         <div class="inspector-stat"><span>Status</span><strong>${asset.status}</strong></div>
         <div class="inspector-stat"><span>Position</span><strong>${getHub(asset.positionHub)?.name || 'At sea'}</strong></div>
-        <div class="inspector-stat"><span>Days remaining</span><strong>${asset.daysRemaining}</strong></div>
-        <div class="inspector-stat"><span>Charter cost</span><strong>${money(asset.charterCost + (asset.extensionCost || 0))}</strong></div>
+        <div class="inspector-stat"><span>${asset.ownership==='owned'?'Ownership':'Days remaining'}</span><strong>${asset.ownership==='owned'?'Permanent':asset.daysRemaining}</strong></div>
+        <div class="inspector-stat"><span>${asset.ownership==='owned'?'Purchase cost':'Charter cost'}</span><strong>${money(asset.ownership==='owned'?(asset.purchaseCost||0):(asset.charterCost + (asset.extensionCost || 0)))}</strong></div>
       </div>
       <div class="inspector-section"><h3>Commercial employment</h3>
         ${deal ? `<div class="success-box">Assigned to ${getOpportunity(deal.opportunityId).title}. The vessel will be released at settlement.</div><button class="button secondary" id="openAssignedDealButton">Open assigned deal</button>` : '<div class="success-box">Available for a compatible opportunity departing from this location.</div>'}
       </div>
-      <div class="inspector-section"><h3>Charter profile</h3>
+      <div class="inspector-section"><h3>${asset.ownership==='owned'?'Ownership profile':'Charter profile'}</h3>
         <div class="timeline-mini-row"><i></i><span>Transport class</span><strong>${vessel.transportClass}</strong></div>
         <div class="timeline-mini-row"><i></i><span>Expected freight advantage</span><strong>${money(vessel.bonusPnl)}</strong></div>
         <div class="timeline-mini-row"><i></i><span>Execution advantage</span><strong>-${vessel.durationBonus} days</strong></div>
       </div>
       <button class="button secondary" id="focusVesselButton">Focus vessel</button>
-      <button class="button danger" id="releaseVesselButton" ${asset.status === 'assigned' ? 'disabled' : ''}>Terminate charter</button>`;
+      <button class="button danger" id="releaseVesselButton" ${asset.status === 'assigned' ? 'disabled' : ''}>${asset.ownership==='owned'?'Sell vessel (45% recovery)':'Terminate charter'}</button>`;
   }
 
   function selectInvestment(id,focus=true){const asset=investmentDefinition(id);if(!asset)return;selected={type:'investment',id};activeLeftTab='empire';if(focus)focusOnHub(asset.hub);renderTabs();renderInspector();renderEmpire();openInspector();}
-  function investmentInspector(asset){const r=investmentRecord(asset.id),level=r.level||0,target=level+1,max=level>=asset.maxLevel,cost=max?0:investmentCost(asset,target),days=max?0:investmentBuildDays(asset,target);return `<div class="location-badge chain-${asset.chain}">${asset.chain} asset</div><h2>${asset.name}</h2><div class="inspector-subtitle">${getHub(asset.hub)?.name} · Level ${level}/${asset.maxLevel}</div><p class="inspector-subtitle" style="margin-top:12px">${asset.description}</p><div class="economics-grid"><div><span>Daily income</span><strong>${money((asset.dailyIncome||0)*level)}</strong></div><div><span>Deal P&L edge</span><strong>${money((asset.pnlBonus||0)*level)}</strong></div><div><span>Book value</span><strong>${money((r.totalSpent||0)*.88,true)}</strong></div><div><span>Status</span><strong>${r.buildingTo?`Building L${r.buildingTo}`:level?'Operational':'Greenfield'}</strong></div></div>${r.buildingTo?`<div class="success-box">Project team at work · ${r.daysRemaining} days remaining.</div>`:`<button class="button primary" id="inspectorBuildInvestment" ${max||!investmentUnlocked(asset)||state.cash<cost||activeConstructionCount()>=builderSlots()?'disabled':''}>${max?'Maximum level':`Invest ${money(cost)} · ${days} days`}</button>`}<button class="button secondary" id="focusInvestmentHub">Focus location</button>`;}
+  function investmentInspector(asset){const r=investmentRecord(asset.id),level=r.level||0,target=level+1,max=level>=asset.maxLevel,cost=max?0:investmentCost(asset,target),days=max?0:investmentBuildDays(asset,target);return `<div class="location-badge chain-${asset.chain}">${asset.chain} asset</div><h2>${asset.name}</h2><div class="inspector-subtitle">${getHub(asset.hub)?.name} · Level ${level}/${asset.maxLevel}</div><p class="inspector-subtitle" style="margin-top:12px">${asset.description}</p><div class="economics-grid"><div><span>Daily income</span><strong>${money((asset.dailyIncome||0)*level)}</strong></div><div><span>Deal P&L edge</span><strong>${money((asset.pnlBonus||0)*level)}</strong></div><div><span>Book value</span><strong>${money((r.totalSpent||0)*.88,true)}</strong></div><div><span>Status</span><strong>${r.buildingTo?`Building L${r.buildingTo}`:level?'Operational':'Greenfield'}</strong></div></div>${r.buildingTo?`<div class="success-box">Project team at work · ${r.daysRemaining} days remaining.</div>`:`<button class="button primary" id="inspectorBuildInvestment" ${max||!investmentUnlocked(asset)||state.cash<cost||activeProjectCount()>=builderSlots()?'disabled':''}>${max?'Maximum level':`Invest ${money(cost)} · ${days} days`}</button>`}<button class="button secondary" id="focusInvestmentHub">Focus location</button>`;}
 
   function renderInspector() {
     const eyebrow = $('#inspectorEyebrow');
@@ -6481,6 +7374,220 @@ import * as THREE from './vendor/three.module.min.js';
     dialog.showModal();
   }
 
+  function openVictoryDialog() {
+    const dialog = $('#victoryDialog');
+    if (!dialog || dialog.open) return;
+    const val = tradingHouseValuation();
+    const nextLevel = loadPrestige() + 1;
+    const stats = portfolioStats();
+    const statsEl = $('#victoryStats');
+    if (statsEl) {
+      statsEl.innerHTML = `
+        <div><span>Enterprise value</span><strong>${money(val.value, true)}</strong></div>
+        <div><span>Net asset value</span><strong>${money(stats.nav, true)}</strong></div>
+        <div><span>Deals closed</span><strong>${state.completedDeals}</strong></div>
+        <div><span>Reputation</span><strong>${Math.round(state.reputation)}</strong></div>`;
+    }
+    const note = $('#victoryPrestigeNote');
+    if (note) {
+      note.innerHTML = `Prestige level ${loadPrestige()} → <strong>${nextLevel}</strong> · new careers start with <strong>+${12*nextLevel}% capital</strong>, <strong>+${8*nextLevel}% credit</strong> and higher reputation.`;
+    }
+    try { Sound.play('victory'); } catch (e) {}
+    dialog.showModal();
+  }
+
+  function claimPrestige() {
+    const newLevel = loadPrestige() + 1;
+    savePrestige(newLevel);
+    showToast(`Prestige ${newLevel} claimed! Your legacy carries into a new career.`, 'success');
+    resetCareer();
+  }
+
+  function checkVictory() {
+    if (!state || state.victoryClaimed) return;
+    const val = tradingHouseValuation();
+    if (val.value >= VICTORY_VALUATION) {
+      state.victoryClaimed = true;
+      saveState();
+      setTimeout(openVictoryDialog, 400);
+    }
+  }
+
+  // ── v31 XP / experience levels (Clash-of-Clans-style) ──────────────────────
+  function xpForLevel(level) { return Math.round(300 * Math.pow(1.16, Math.max(0, level - 1))); }
+  function xpLevelProgress() {
+    const need = xpForLevel(state.xpLevel || 1);
+    return { have: state.xp || 0, need, pct: Math.min(100, Math.round(((state.xp || 0) / need) * 100)) };
+  }
+  let _pendingLevelUps = 0;
+  function addXp(amount, reason) {
+    if (!amount || amount <= 0) return;
+    state.xp = (state.xp || 0) + Math.round(amount);
+    state.xpLevel = state.xpLevel || 1;
+    let leveled = false;
+    while (state.xp >= xpForLevel(state.xpLevel)) {
+      state.xp -= xpForLevel(state.xpLevel);
+      state.xpLevel += 1;
+      leveled = true;
+      const reward = 4000 + state.xpLevel * 2500;
+      state.cash += reward;
+      state.goldBars = (state.goldBars || 0) + 5;
+      _pendingLevelUps++;
+      _lastLevelReward = reward;
+    }
+    if (leveled && !_soundSuppressed) {
+      try { Sound.play('victory'); } catch (e) {}
+      setTimeout(() => celebrateLevelUp(), 60);
+    }
+    // pop the xp chip
+    if (!_soundSuppressed) { const chip = document.getElementById('xpChip'); if (chip) { chip.classList.remove('xp-pop'); void chip.offsetWidth; if (motionEnabled()) chip.classList.add('xp-pop'); } }
+  }
+  let _lastLevelReward = 0;
+  function addGold(n, reason) { if (!n) return; state.goldBars = Math.max(0, (state.goldBars || 0) + Math.round(n)); if (!_soundSuppressed) { const c = document.getElementById('goldChip'); if (c && motionEnabled()) { c.classList.remove('xp-pop'); void c.offsetWidth; c.classList.add('xp-pop'); } } }
+  function celebrateLevelUp() {
+    const overlay = document.getElementById('levelUpOverlay');
+    if (!overlay) { showToast(`Level ${state.xpLevel} reached! +${money(_lastLevelReward)} bonus.`, 'success'); return; }
+    const numEl = document.getElementById('levelUpNumber');
+    const rwEl = document.getElementById('levelUpReward');
+    if (numEl) numEl.textContent = state.xpLevel;
+    if (rwEl) rwEl.textContent = `+${money(_lastLevelReward)} cash bonus`;
+    overlay.classList.add('show');
+    overlay.setAttribute('aria-hidden', 'false');
+    clearTimeout(overlay._t);
+    overlay._t = setTimeout(() => { overlay.classList.remove('show'); overlay.setAttribute('aria-hidden','true'); }, 2600);
+  }
+
+  // ── v32 daily login reward (streak) ────────────────────────────────────────
+  function dailyRewardFor(streakDay) {
+    const d = Math.min(7, Math.max(1, streakDay));
+    return { cash: 20000 * d, xp: 15 * d, gold: 2 + d };
+  }
+  let _pendingDailyReward = null;
+  function checkDailyReward() {
+    const today = new Date().toISOString().slice(0, 10);
+    if (state.lastRewardDay === today) return;
+    // streak: consecutive calendar days
+    const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+    state.loginStreak = (state.lastRewardDay === yesterday) ? (state.loginStreak || 0) + 1 : 1;
+    _pendingDailyReward = today;
+    setTimeout(openDailyReward, 700);
+  }
+  function openDailyReward() {
+    const dialog = $('#dailyRewardDialog');
+    const streak = state.loginStreak || 1;
+    const reward = dailyRewardFor(streak);
+    if (!dialog) { // fallback: auto-grant
+      claimDailyReward();
+      return;
+    }
+    const sub = $('#dailyStreakSub'); if (sub) sub.textContent = `Giorno ${streak} di fila`;
+    const row = $('#dailyDaysRow');
+    if (row) {
+      row.innerHTML = Array.from({ length: 7 }, (_, i) => {
+        const day = i + 1; const r = dailyRewardFor(day);
+        const cls = day < streak ? 'done' : day === Math.min(7, streak) ? 'active' : '';
+        return `<div class="daily-day ${cls}"><span>G${day}</span><b>${r.gold}⬤</b></div>`;
+      }).join('');
+    }
+    const line = $('#dailyRewardLine');
+    if (line) line.innerHTML = `Oggi: <strong>${money(reward.cash)}</strong> · <strong>${reward.xp} XP</strong> · <strong>${reward.gold} lingotti</strong>`;
+    try { Sound.play('purchase'); } catch (e) {}
+    if (!dialog.open) dialog.showModal();
+  }
+  function claimDailyReward() {
+    const streak = state.loginStreak || 1;
+    const reward = dailyRewardFor(streak);
+    state.cash += reward.cash;
+    addGold(reward.gold, 'daily');
+    state.lastRewardDay = _pendingDailyReward || new Date().toISOString().slice(0, 10);
+    addXp(reward.xp, 'daily');
+    saveState(true);
+    renderAll();
+    showToast(`Bonus giornaliero riscosso: ${money(reward.cash)} + ${reward.gold} lingotti.`, 'success');
+  }
+
+  function switchToSlot(n) {
+    if (n === activeSlot) { $('#slotDialog')?.close(); return; }
+    saveState(true); // persist current slot first
+    setActiveSlot(n);
+    state = loadState();
+    initializeCounterparties();
+    initializeCompetitiveMarket(true);
+    selected = { type: 'hub', id: 'geneva' };
+    activeLeftTab = 'portfolio';
+    runningSpeed = 0;
+    if (state.reduceMotion) document.body.classList.add('reduce-motion'); else document.body.classList.remove('reduce-motion');
+    cleanGlobeView();
+    updateClock();
+    saveState(true);
+    view = { lon: 6, lat: 18, zoom: 1, targetLon: 6, targetLat: 18 };
+    renderAll();
+    $('#slotDialog')?.close();
+    const meta = readSlotMeta(n);
+    showToast(`Switched to slot ${n}${meta ? ' · ' + meta.companyName : ' (new career)'}.`, 'success');
+    if (!localStorage.getItem(currentStorageKey())) setTimeout(openOnboarding, 80);
+  }
+
+  function deleteSlot(n) {
+    try {
+      localStorage.removeItem(slotKey(n));
+      localStorage.removeItem(`${slotKey(n)}-backup`);
+    } catch (e) {}
+    if (n === activeSlot) {
+      state = defaultState();
+      initializeCounterparties();
+      initializeCompetitiveMarket(true);
+      saveState(true);
+      renderAll();
+    }
+    showToast(`Slot ${n} cleared.`, 'warning');
+    renderSlotManager();
+  }
+
+  function renderSlotManager() {
+    const list = $('#slotList');
+    if (!list) return;
+    const cards = [];
+    for (let n = 1; n <= SLOT_COUNT; n++) {
+      const meta = (n === activeSlot) ? {
+        empty: false, companyName: state.companyName, profileName: state.profileName,
+        completedDeals: state.completedDeals, cash: state.cash, prestigeLevel: state.prestigeLevel,
+        date: state.date, lastSavedAt: state.lastSavedAt
+      } : readSlotMeta(n);
+      const isActive = n === activeSlot;
+      if (!meta) {
+        cards.push(`<div class="slot-card empty">
+          <div class="slot-head"><strong>Slot ${n}</strong><span class="slot-tag">Empty</span></div>
+          <p class="slot-empty-copy">No career here yet.</p>
+          <div class="slot-actions"><button class="button primary" data-slot-switch="${n}">Start career</button></div>
+        </div>`);
+      } else {
+        const val = meta.date ? new Intl.DateTimeFormat('en-GB',{day:'2-digit',month:'short',year:'numeric'}).format(new Date(meta.date)) : '—';
+        cards.push(`<div class="slot-card ${isActive?'active':''}">
+          <div class="slot-head"><strong>Slot ${n}${isActive?' <span class="slot-tag current">Current</span>':''}</strong>${meta.prestigeLevel?`<span class="slot-prestige">★ ${meta.prestigeLevel}</span>`:''}</div>
+          <div class="slot-company">${(meta.companyName||'World of Trade Co.').replace(/</g,'&lt;')}</div>
+          <div class="slot-meta"><span>${meta.completedDeals} deals</span><span>${money(meta.cash,true)}</span><span>${val}</span></div>
+          <div class="slot-actions">
+            ${isActive?'<button class="button secondary" disabled>Active</button>':`<button class="button primary" data-slot-switch="${n}">Load</button>`}
+            <button class="button danger" data-slot-delete="${n}">Delete</button>
+          </div>
+        </div>`);
+      }
+    }
+    list.innerHTML = cards.join('');
+    list.querySelectorAll('[data-slot-switch]').forEach(b => b.addEventListener('click', () => switchToSlot(Number(b.dataset.slotSwitch))));
+    list.querySelectorAll('[data-slot-delete]').forEach(b => b.addEventListener('click', () => {
+      if (confirm(`Delete the career in slot ${b.dataset.slotDelete}? This cannot be undone.`)) deleteSlot(Number(b.dataset.slotDelete));
+    }));
+  }
+
+  function openSlotManager() {
+    const dialog = $('#slotDialog');
+    if (!dialog) return;
+    renderSlotManager();
+    if (!dialog.open) dialog.showModal();
+  }
+
   function resetCareer() {
     state = defaultState();
     initializeCounterparties();
@@ -6498,7 +7605,58 @@ import * as THREE from './vendor/three.module.min.js';
     setTimeout(openOnboarding,80);
   }
 
+  const wotIcons = {
+    openDeskButton: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2.5"/><path d="M3 9h18M9 9v11"/></svg>',
+    openShopButton: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8h12l-1 12H7L6 8z"/><path d="M9 8a3 3 0 0 1 6 0"/></svg>',
+    toggleOverviewButton: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v9l7 4"/><circle cx="12" cy="12" r="9"/></svg>',
+    toggleMarketsButton: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 5v14M5 9h4M9 6v10M12 5v14M12 8h4M16 6v9M19 5v14"/></svg>',
+    toggleLayersButton: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l9 5-9 5-9-5 9-5z"/><path d="M3 13l9 5 9-5"/></svg>',
+    openSearchButton: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>',
+    openBriefingButton: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h9l3 3v15H6z"/><path d="M9 9h6M9 13h6M9 17h4"/></svg>',
+    openShortcutsButton: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="19" height="12" rx="2.5"/><path d="M7 10h.01M11 10h.01M15 10h.01M7 14h10"/></svg>',
+    openGlossaryButton: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5a2 2 0 0 1 2-2h5v17H6a2 2 0 0 0-2 2z"/><path d="M20 5a2 2 0 0 0-2-2h-5v17h5a2 2 0 0 1 2 2z"/></svg>',
+    installButton: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v11m0 0l-4-4m4 4l4-4"/><path d="M5 19h14"/></svg>',
+    openNotificationsButton: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9a6 6 0 0 1 12 0c0 5 2 6 2 6H4s2-1 2-6z"/><path d="M10 20a2 2 0 0 0 4 0"/></svg>',
+    resetButton: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12a8 8 0 1 1 2.3 5.6"/><path d="M4 20v-5h5"/></svg>',
+  };
+  const metricCoinIcons = {
+    navMetric: '<svg viewBox="0 0 24 24" fill="none" stroke="#3a1e6e" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 16l5-5 3 3 6-7"/><path d="M15 7h4v4"/></svg>',
+    cashMetric: '<svg viewBox="0 0 24 24" fill="none" stroke="#0a3d1a" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><path d="M12 8v8M9.5 9.5a2.5 2 0 0 1 5 0c0 1.5-5 1.5-5 3a2.5 2 0 0 0 5 0"/></svg>',
+    creditMetric: '<svg viewBox="0 0 24 24" fill="none" stroke="#0a2d5e" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10l9-5 9 5"/><path d="M5 10v8M12 10v8M19 10v8M3 19h18"/></svg>',
+    repMetric: '<svg viewBox="0 0 24 24" fill="#5a3600" stroke="#5a3600" stroke-width="1.5" stroke-linejoin="round"><path d="M12 3l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8L3.5 9.2l5.9-.9z"/></svg>',
+  };
+  function injectIcons() {
+    Object.entries(wotIcons).forEach(([id, svg]) => {
+      const btn = document.getElementById(id);
+      if (!btn) return;
+      let holder = btn.querySelector('span');
+      if (!holder) { holder = document.createElement('span'); btn.insertBefore(holder, btn.firstChild); }
+      holder.classList.add('wot-icon');
+      holder.innerHTML = svg;
+    });
+    // Metric resource coins
+    Object.entries(metricCoinIcons).forEach(([id, svg]) => {
+      const strong = document.getElementById(id);
+      const metric = strong ? strong.closest('.top-metric') : null;
+      if (!metric || metric.querySelector('.metric-coin')) return;
+      // Wrap existing label/value/sub into a column body
+      const body = document.createElement('div');
+      body.className = 'metric-body';
+      while (metric.firstChild) body.appendChild(metric.firstChild);
+      const coin = document.createElement('span');
+      coin.className = 'metric-coin coin-' + id;
+      coin.innerHTML = svg;
+      metric.appendChild(coin);
+      metric.appendChild(body);
+    });
+  }
+
   function bindEvents() {
+    injectIcons();
+    // Unlock Web Audio on the first user gesture (autoplay policy)
+    const _unlockAudio = () => { try { Sound.unlock(); } catch (e) {} window.removeEventListener('pointerdown', _unlockAudio); window.removeEventListener('keydown', _unlockAudio); };
+    window.addEventListener('pointerdown', _unlockAudio, { once: false });
+    window.addEventListener('keydown', _unlockAudio, { once: false });
     window.addEventListener('resize', resizeCanvas);
     new ResizeObserver(resizeCanvas).observe($('#globeStage'));
 
@@ -6584,6 +7742,7 @@ import * as THREE from './vendor/three.module.min.js';
     $('#closeInspector').addEventListener('click', closeInspectorPanel);
     $('#closeLeftPanel')?.addEventListener('click', closeLeftDrawer);
     $('#openDeskButton')?.addEventListener('click', () => leftDrawerOpen ? closeLeftDrawer() : openLeftDrawer(activeLeftTab));
+    $('#openShopButton')?.addEventListener('click', () => openLeftDrawer('shop'));
     $('#toggleOverviewButton')?.addEventListener('click', () => { overviewOpen = !overviewOpen; marketsOpen = false; syncOverlayUI(); });
     $('#toggleMarketsButton')?.addEventListener('click', () => { marketsOpen = !marketsOpen; overviewOpen = false; syncOverlayUI(); });
     $('#toggleLayersButton')?.addEventListener('click', () => { layersOpen = !layersOpen; syncOverlayUI(); });
@@ -6623,6 +7782,10 @@ import * as THREE from './vendor/three.module.min.js';
         if (event.key.toLowerCase() === 'm') { event.preventDefault(); return openLeftDrawer('opportunities'); }
         if (event.key.toLowerCase() === 'r') { event.preventDefault(); return openLeftDrawer('risk'); }
         if (event.key.toLowerCase() === 'p') { event.preventDefault(); return openLeftDrawer('performance'); }
+        if (event.key.toLowerCase() === 's') { event.preventDefault(); return openLeftDrawer('shop'); }
+        if (event.key.toLowerCase() === 'n') { event.preventDefault(); return advanceDay(); }
+        if (event.key === '?' || (event.shiftKey && event.key === '/')) { event.preventDefault(); return toggleShortcutsOverlay(); }
+        if (event.key.toLowerCase() === 'g') { event.preventDefault(); return openGlossaryDialog(); }
       }
       if (event.key.toLowerCase() === 'f' && !['INPUT','SELECT','TEXTAREA'].includes(document.activeElement?.tagName)) {
         globeOptions.cinematic = !globeOptions.cinematic;
@@ -6630,9 +7793,24 @@ import * as THREE from './vendor/three.module.min.js';
         renderLayers();
         return;
       }
+      if (event.key === 'Escape' && $('#shortcutsOverlay')?.classList.contains('open')) { closeShortcutsOverlay(); return; }
       if (event.key === 'Escape' && !$('#searchDialog')?.open) cleanGlobeView();
     });
     $('#profileButton')?.addEventListener('click', openProfileDialog);
+    $('#openShortcutsButton')?.addEventListener('click', toggleShortcutsOverlay);
+    $('#openGlossaryButton')?.addEventListener('click', openGlossaryDialog);
+    $('#openNotificationsButton')?.addEventListener('click', openNotificationsDialog);
+    $('#manageSlotsButton')?.addEventListener('click', () => { $('#profileDialog')?.close(); setTimeout(openSlotManager, 60); });
+    $('#installButton')?.addEventListener('click', async () => {
+      if (!_deferredInstallPrompt) { showToast('Install is not available right now. Use your browser menu → Install / Add to Home Screen.', 'info'); return; }
+      _deferredInstallPrompt.prompt();
+      try { await _deferredInstallPrompt.userChoice; } catch (e) {}
+      _deferredInstallPrompt = null;
+      $('#installButton')?.classList.add('hidden');
+    });
+    bindTermTooltips();
+    $('#shortcutsCloseButton')?.addEventListener('click', closeShortcutsOverlay);
+    $('#shortcutsOverlay')?.addEventListener('click', event => { if (event.target === $('#shortcutsOverlay')) closeShortcutsOverlay(); });
     $('#exportCareerButton')?.addEventListener('click', exportCareer);
     $('#importCareerButton')?.addEventListener('click', () => $('#importCareerInput')?.click());
     $('#importCareerInput')?.addEventListener('change', event => importCareerFile(event.target.files?.[0]));
@@ -6664,14 +7842,36 @@ import * as THREE from './vendor/three.module.min.js';
         showToast(state.tutorialEnabled ? `${state.difficulty} career started. Follow the guided first deal.` : `${state.difficulty} career started. Open Market and negotiate your first deal.`);
       } else if (!state.onboardingComplete) setTimeout(openOnboarding,80);
     });
+    const dailyDialog = $('#dailyRewardDialog');
+    dailyDialog?.addEventListener('close', () => { if (dailyDialog.returnValue === 'claim') claimDailyReward(); });
+    const victoryDialog = $('#victoryDialog');
+    victoryDialog?.addEventListener('close', () => {
+      if (victoryDialog.returnValue === 'prestige') claimPrestige();
+    });
   }
+
+  let _deferredInstallPrompt = null;
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    _deferredInstallPrompt = e;
+    const btn = $('#installButton');
+    if (btn) btn.classList.remove('hidden');
+  });
+  window.addEventListener('appinstalled', () => {
+    _deferredInstallPrompt = null;
+    const btn = $('#installButton');
+    if (btn) btn.classList.add('hidden');
+    showToast('World of Trade installed as an app.', 'success');
+  });
 
   if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
-    window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {}));
+    window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' }).catch(() => {}));
   }
 
+  if (state.reduceMotion) document.body.classList.add('reduce-motion');
+  applyLanguage(state.language || 'en');
   initEarthRenderer();
-  loadGeoBorders();
+  deferNonCritical(loadGeoBorders, 1600);
   resizeCanvas();
   bindEvents();
   renderAll();
@@ -6679,4 +7879,11 @@ import * as THREE from './vendor/three.module.min.js';
   updateClock();
   requestAnimationFrame(animate);
   setTimeout(openOnboarding,120);
+  setTimeout(() => { if (state.onboardingComplete) checkDailyReward(); }, 1400);
+  (function hideSplash(){
+    const splash = document.getElementById('wotSplash');
+    if (!splash) return;
+    setTimeout(() => splash.classList.add('hide'), 1100);
+    setTimeout(() => splash.remove(), 1700);
+  })();
 })();

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'world-of-trade-v22-static';
+const CACHE_NAME = 'world-of-trade-v32-static';
 const CORE = [
   './',
   './index.html',
@@ -33,18 +33,21 @@ self.addEventListener('activate', event => {
 
 self.addEventListener('fetch', event => {
   if (event.request.method !== 'GET' || new URL(event.request.url).origin !== self.location.origin) return;
-  if (event.request.mode === 'navigate') {
+  const requestUrl = new URL(event.request.url);
+  const criticalAsset = ['/app.js', '/styles.css', '/index.html', '/manifest.webmanifest'].some(path => requestUrl.pathname.endsWith(path));
+
+  if (event.request.mode === 'navigate' || criticalAsset) {
     event.respondWith(
       fetch(event.request)
         .then(response => {
-          const copy = response.clone();
-          caches.open(CACHE_NAME).then(cache => cache.put('./index.html', copy));
+          if (response.ok) caches.open(CACHE_NAME).then(cache => cache.put(event.request.mode === 'navigate' ? './index.html' : event.request, response.clone()));
           return response;
         })
-        .catch(() => caches.match('./index.html'))
+        .catch(() => event.request.mode === 'navigate' ? caches.match('./index.html') : caches.match(event.request))
     );
     return;
   }
+
   event.respondWith(
     caches.match(event.request).then(cached => cached || fetch(event.request).then(response => {
       if (response.ok) caches.open(CACHE_NAME).then(cache => cache.put(event.request, response.clone()));

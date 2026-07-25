@@ -1,7 +1,7 @@
 {
   "name": "World of Trade",
   "short_name": "World of Trade",
-  "description": "A physical commodity trading simulator with performance attribution, capital allocation, stress testing, shipping, contracts, credit and supply-chain strategy.",
+  "description": "A physical commodity trading simulator with permanent fleet ownership, warehouses, infrastructure construction, shipping, contracts, credit and supply-chain strategy.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
