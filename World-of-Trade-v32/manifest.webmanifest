@@ -1,0 +1,13 @@
+{
+  "name": "World of Trade",
+  "short_name": "World of Trade",
+  "description": "A physical commodity trading simulator with permanent fleet ownership, warehouses, infrastructure construction, shipping, contracts, credit and supply-chain strategy.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "landscape",
+  "background_color": "#02070c",
+  "theme_color": "#061019",
+  "categories": ["games", "education", "finance"],
+  "icons": [{"src":"assets/world-of-trade-icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}]
+}
