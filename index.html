@@ -6,21 +6,94 @@
   <meta name="description" content="World of Trade — the global physical commodity trading, shipping, supply-chain, risk and industrial strategy simulator." />
   <meta name="theme-color" content="#1f6fe0" />
   <link rel="manifest" href="manifest.webmanifest" />
-  <link rel="icon" href="assets/world-of-trade-icon.svg" type="image/svg+xml" />
+  <link rel="icon" href="world-of-trade-icon.svg" type="image/svg+xml" />
   <link rel="preload" as="image" href="assets/earth/earth_atmos_2048.jpg" fetchpriority="high" />
   <title>World of Trade — Physical Commodity Trading Simulator</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Baloo+2:wght@600;700;800&display=swap" />
-  <link rel="stylesheet" href="styles.css" />
+  <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Baloo+2:wght@600;700;800&display=swap" onload="this.onload=null;this.rel='stylesheet'" />
+  <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Baloo+2:wght@600;700;800&display=swap" /></noscript>
+  <link rel="stylesheet" href="styles.css?v=32.1.1" />
+  <script>
+    (() => {
+      const boot = window.__WOT_BOOT__ = { startedAt: Date.now(), status: 'HTML loaded', progress: 4, failed: false };
+      const getSplash = () => document.getElementById('wotSplash');
+      const setStatus = (message, progress) => {
+        boot.status = message || boot.status;
+        if (Number.isFinite(progress)) boot.progress = Math.max(0, Math.min(100, progress));
+        const status = document.getElementById('wotBootStatus');
+        const fill = document.getElementById('wotBootProgress');
+        if (status) status.textContent = boot.status;
+        if (fill) fill.style.width = `${boot.progress}%`;
+      };
+      const hideSplash = () => {
+        const splash = getSplash();
+        if (!splash) return;
+        splash.classList.add('hide');
+        setTimeout(() => splash.remove(), 520);
+      };
+      const showFailure = error => {
+        if (window.__WOT_APP_READY__) return;
+        boot.failed = true;
+        boot.error = error?.message || String(error || 'Unknown startup error');
+        const splash = getSplash();
+        if (!splash) return;
+        splash.classList.add('boot-failed');
+        const title = document.getElementById('wotBootTitle');
+        const status = document.getElementById('wotBootStatus');
+        const recovery = document.getElementById('wotBootRecovery');
+        if (title) title.textContent = 'Startup needs repair';
+        if (status) status.textContent = 'A required game file is missing or an old cached version is active.';
+        if (recovery) recovery.hidden = false;
+      };
+      window.__WOT_SET_BOOT_STATUS__ = setStatus;
+      window.__WOT_BOOT_FAIL__ = showFailure;
+      window.__WOT_CONTINUE_BASIC__ = () => {
+        document.body.classList.add('webgl-fallback');
+        hideSplash();
+      };
+      window.__WOT_REPAIR_AND_RELOAD__ = async () => {
+        setStatus('Clearing old game cache…', 12);
+        try {
+          if ('caches' in window) {
+            const keys = await caches.keys();
+            await Promise.all(keys.filter(key => key.startsWith('world-of-trade-') || key.startsWith('shippy-')).map(key => caches.delete(key)));
+          }
+          if ('serviceWorker' in navigator) {
+            const registrations = await navigator.serviceWorker.getRegistrations();
+            await Promise.all(registrations.map(registration => registration.unregister()));
+          }
+        } catch (error) { console.warn('Cache repair was partial', error); }
+        const url = new URL(location.href);
+        url.searchParams.set('repair', Date.now().toString());
+        location.replace(url.toString());
+      };
+      window.addEventListener('wot-ready', () => {
+        const wait = Math.max(0, 420 - (Date.now() - boot.startedAt));
+        setTimeout(hideSplash, wait);
+      }, { once: true });
+      window.addEventListener('unhandledrejection', event => {
+        if (!window.__WOT_APP_READY__) showFailure(event.reason);
+      });
+      setTimeout(() => {
+        if (!window.__WOT_APP_READY__) showFailure(new Error('Startup timeout'));
+      }, 10000);
+    })();
+  </script>
 </head>
 <body>
   <div class="wot-splash" id="wotSplash" aria-hidden="true">
     <div class="wot-splash-inner">
       <div class="wot-splash-crest">W<span class="wot-splash-shine"></span></div>
-      <div class="wot-splash-title">World of Trade</div>
+      <div class="wot-splash-title" id="wotBootTitle">World of Trade</div>
       <div class="wot-splash-sub">Physical Commodity Trading</div>
-      <div class="wot-splash-loader"><span></span></div>
+      <div class="wot-splash-loader"><span id="wotBootProgress"></span></div>
+      <div class="wot-boot-status" id="wotBootStatus">Loading game files…</div>
+      <div class="wot-boot-recovery" id="wotBootRecovery" hidden>
+        <button type="button" onclick="window.__WOT_REPAIR_AND_RELOAD__()">Repair cache and reload</button>
+        <button type="button" class="secondary" onclick="window.__WOT_CONTINUE_BASIC__()">Open basic interface</button>
+        <small>Your saved career will not be deleted.</small>
+      </div>
     </div>
   </div>
   <div class="app-shell">
@@ -507,6 +580,6 @@
       <div class="dialog-actions"><button value="cancel" class="button secondary" data-i18n="btn.cancel">Cancel</button><button value="save" class="button primary" data-i18n="btn.save">Save changes</button></div>
     </form>
   </dialog>
-  <script type="module" src="app.js"></script>
+  <script type="module" src="app.js?v=32.1.1"></script>
 </body>
 </html>

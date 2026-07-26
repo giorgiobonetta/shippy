@@ -1,12 +1,20 @@
-const CACHE_NAME = 'world-of-trade-v32-static';
+const CACHE_NAME = 'world-of-trade-v32-1-boot-recovery';
 const CORE = [
   './',
   './index.html',
-  './styles.css',
-  './app.js',
+  './styles.css?v=32.1.1',
+  './app.js?v=32.1.1',
   './vendor/three.module.min.js',
+  './three.module.min.js',
+  './earth_atmos_2048.jpg',
+  './earth_normal_2048.jpg',
+  './earth_specular_2048.jpg',
+  './earth_clouds_1024.png',
+  './earth_lights_2048.png',
+  './countries-lowres.geojson',
   './manifest.webmanifest',
   './assets/world-of-trade-icon.svg',
+  './world-of-trade-icon.svg',
   './assets/earth/earth_atmos_2048.jpg',
   './assets/earth/earth_normal_2048.jpg',
   './assets/earth/earth_specular_2048.jpg',

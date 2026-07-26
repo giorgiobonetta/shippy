@@ -9,5 +9,5 @@
   "background_color": "#02070c",
   "theme_color": "#061019",
   "categories": ["games", "education", "finance"],
-  "icons": [{"src":"assets/world-of-trade-icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}]
+  "icons": [{"src":"world-of-trade-icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}]
 }

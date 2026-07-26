@@ -1,0 +1,5 @@
+UPLOAD THE CONTENTS OF THIS FOLDER DIRECTLY TO THE ROOT OF github.com/giorgiobonetta/shippy.
+
+Select every file, but do not upload this ZIP itself. Existing index.html, app.js, styles.css, sw.js, vercel.json and manifest.webmanifest must be replaced. The remaining root files repair the missing vendor/assets folders without requiring directory upload.
+
+After Vercel reports Ready, open the site and press Ctrl+Shift+R. If the recovery card appears, click Repair cache and reload. Career saves are preserved.

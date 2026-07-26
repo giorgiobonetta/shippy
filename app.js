@@ -1,4 +1,32 @@
-import * as THREE from './vendor/three.module.min.js';
+(async () => {
+  window.__WOT_MODULE_LOADED__ = true;
+  window.__WOT_SET_BOOT_STATUS__?.('Loading 3D engine…', 18);
+
+  let THREE;
+  const threeCandidates = [
+    './vendor/three.module.min.js',
+    './three.module.min.js',
+    'https://cdn.jsdelivr.net/npm/three@0.185.0/build/three.module.min.js',
+    'https://unpkg.com/three@0.185.0/build/three.module.min.js'
+  ];
+  let lastThreeError = null;
+  for (const candidate of threeCandidates) {
+    try {
+      THREE = await import(candidate);
+      break;
+    } catch (error) {
+      lastThreeError = error;
+      console.warn(`Three.js source unavailable: ${candidate}`, error);
+      window.__WOT_SET_BOOT_STATUS__?.('Repairing missing 3D engine…', 24);
+    }
+  }
+  if (!THREE) {
+    const error = new Error('The Three.js engine could not be loaded from the repository or the recovery sources.');
+    error.cause = lastThreeError;
+    throw error;
+  }
+
+  window.__WOT_SET_BOOT_STATUS__?.('Preparing trading world…', 36);
 
 (() => {
   'use strict';
@@ -1674,6 +1702,27 @@ import * as THREE from './vendor/three.module.min.js';
     else setTimeout(callback, Math.min(timeout, 240));
   }
 
+  const earthTextureFallbacks = {
+    './assets/earth/earth_atmos_2048.jpg': ['./earth_atmos_2048.jpg', 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r185/examples/textures/planets/earth_atmos_2048.jpg'],
+    './assets/earth/earth_lights_2048.png': ['./earth_lights_2048.png', 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r185/examples/textures/planets/earth_lights_2048.png'],
+    './assets/earth/earth_normal_2048.jpg': ['./earth_normal_2048.jpg', 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r185/examples/textures/planets/earth_normal_2048.jpg'],
+    './assets/earth/earth_specular_2048.jpg': ['./earth_specular_2048.jpg', 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r185/examples/textures/planets/earth_specular_2048.jpg'],
+    './assets/earth/earth_clouds_1024.png': ['./earth_clouds_1024.png', 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r185/examples/textures/planets/earth_clouds_1024.png']
+  };
+
+  function loadEarthTexture(loader, localUrl, onLoad, onProgress, onError) {
+    const candidates = [localUrl, ...(earthTextureFallbacks[localUrl] || [])];
+    const tryCandidate = index => {
+      if (index >= candidates.length) { onError?.(new Error(`Texture unavailable: ${localUrl}`)); return; }
+      const candidate = candidates[index];
+      loader.load(candidate, onLoad, onProgress, () => {
+        console.warn(`Earth texture source unavailable: ${candidate}`);
+        tryCandidate(index + 1);
+      });
+    };
+    tryCandidate(0);
+  }
+
   function initEarthRenderer() {
     try {
       earthRenderer = new THREE.WebGLRenderer({ canvas: earthCanvas, antialias: true, alpha: true, powerPreference: 'high-performance' });
@@ -1820,7 +1869,8 @@ import * as THREE from './vendor/three.module.min.js';
       if (loadingLabel) loadingLabel.textContent = 'Loading world map';
 
       const primaryLoader = new THREE.TextureLoader();
-      primaryLoader.load(
+      loadEarthTexture(
+        primaryLoader,
         './assets/earth/earth_atmos_2048.jpg',
         texture => {
           prepareEarthTexture(texture, true);
@@ -1831,20 +1881,20 @@ import * as THREE from './vendor/three.module.min.js';
 
           deferNonCritical(() => {
             const detailLoader = new THREE.TextureLoader();
-            detailLoader.load('./assets/earth/earth_lights_2048.png', value => {
+            loadEarthTexture(detailLoader, './assets/earth/earth_lights_2048.png', value => {
               prepareEarthTexture(value, true);
               earthMaterial.uniforms.nightMap.value = value;
               earthMaterial.uniforms.nightIntensity.value = globeOptions.night ? 0.82 : 0;
             }, undefined, () => {});
-            detailLoader.load('./assets/earth/earth_normal_2048.jpg', value => {
+            loadEarthTexture(detailLoader, './assets/earth/earth_normal_2048.jpg', value => {
               prepareEarthTexture(value, false);
               earthMaterial.uniforms.normalMap.value = value;
             }, undefined, () => {});
-            detailLoader.load('./assets/earth/earth_specular_2048.jpg', value => {
+            loadEarthTexture(detailLoader, './assets/earth/earth_specular_2048.jpg', value => {
               prepareEarthTexture(value, false);
               earthMaterial.uniforms.specularMap.value = value;
             }, undefined, () => {});
-            detailLoader.load('./assets/earth/earth_clouds_1024.png', value => {
+            loadEarthTexture(detailLoader, './assets/earth/earth_clouds_1024.png', value => {
               prepareEarthTexture(value, false);
               cloudMaterial.map = value;
               cloudMaterial.alphaMap = value;
@@ -3412,11 +3462,16 @@ import * as THREE from './vendor/three.module.min.js';
   }
 
   function loadGeoBorders() {
-    fetch('./assets/data/countries-lowres.geojson')
-      .then(r => {
-        if (!r.ok) throw new Error('Geography asset unavailable');
-        return r.json();
-      })
+    const loadGeoSource = async () => {
+      for (const url of ['./assets/data/countries-lowres.geojson', './countries-lowres.geojson']) {
+        try {
+          const response = await fetch(url);
+          if (response.ok) return response.json();
+        } catch (error) { console.warn(`Geography source unavailable: ${url}`, error); }
+      }
+      throw new Error('Geography asset unavailable');
+    };
+    loadGeoSource()
       .then(world => {
         const borders = [];
         const coasts = [];
@@ -7868,22 +7923,46 @@ import * as THREE from './vendor/three.module.min.js';
     window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' }).catch(() => {}));
   }
 
-  if (state.reduceMotion) document.body.classList.add('reduce-motion');
-  applyLanguage(state.language || 'en');
-  initEarthRenderer();
-  deferNonCritical(loadGeoBorders, 1600);
-  resizeCanvas();
-  bindEvents();
-  renderAll();
-  syncOverlayUI();
-  updateClock();
+  const bootWarnings = [];
+  const bootStep = (label, progress, callback) => {
+    window.__WOT_SET_BOOT_STATUS__?.(label, progress);
+    try {
+      return callback();
+    } catch (error) {
+      bootWarnings.push({ label, message: error?.message || String(error) });
+      console.error(`[World of Trade boot] ${label}`, error);
+      return undefined;
+    }
+  };
+
+  bootStep('Applying player settings…', 46, () => {
+    if (state.reduceMotion) document.body.classList.add('reduce-motion');
+    applyLanguage(state.language || 'en');
+  });
+  bootStep('Starting the globe…', 58, initEarthRenderer);
+  bootStep('Sizing the world map…', 68, resizeCanvas);
+  bootStep('Connecting controls…', 76, bindEvents);
+  bootStep('Building the trading desk…', 88, renderAll);
+  bootStep('Synchronising the interface…', 94, () => {
+    syncOverlayUI();
+    updateClock();
+  });
+
+  // Non-critical resources must never block the player from entering the game.
+  deferNonCritical(() => {
+    try { loadGeoBorders(); } catch (error) { console.warn('Country borders unavailable', error); }
+  }, 1600);
+
   requestAnimationFrame(animate);
-  setTimeout(openOnboarding,120);
+  setTimeout(openOnboarding, 120);
   setTimeout(() => { if (state.onboardingComplete) checkDailyReward(); }, 1400);
-  (function hideSplash(){
-    const splash = document.getElementById('wotSplash');
-    if (!splash) return;
-    setTimeout(() => splash.classList.add('hide'), 1100);
-    setTimeout(() => splash.remove(), 1700);
-  })();
+
+  window.__WOT_BOOT_WARNINGS__ = bootWarnings;
+  window.__WOT_APP_READY__ = true;
+  window.__WOT_SET_BOOT_STATUS__?.(bootWarnings.length ? 'Ready — some optional features were repaired' : 'Ready', 100);
+  window.dispatchEvent(new CustomEvent('wot-ready', { detail: { warnings: bootWarnings } }));
 })();
+})().catch(error => {
+  console.error('World of Trade failed to start', error);
+  window.__WOT_BOOT_FAIL__?.(error);
+});
