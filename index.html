@@ -7,13 +7,13 @@
   <meta name="theme-color" content="#1f6fe0" />
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="icon" href="world-of-trade-icon.svg" type="image/svg+xml" />
-  <link rel="preload" as="image" href="assets/earth/earth_atmos_2048.jpg" fetchpriority="high" />
+  <link rel="preload" as="image" href="earth_atmos_2048.jpg" fetchpriority="high" />
   <title>World of Trade — Physical Commodity Trading Simulator</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Baloo+2:wght@600;700;800&display=swap" onload="this.onload=null;this.rel='stylesheet'" />
   <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Baloo+2:wght@600;700;800&display=swap" /></noscript>
-  <link rel="stylesheet" href="styles.css?v=32.1.1" />
+  <link rel="stylesheet" href="styles.css?v=33.0.0" />
   <script>
     (() => {
       const boot = window.__WOT_BOOT__ = { startedAt: Date.now(), status: 'HTML loaded', progress: 4, failed: false };
@@ -106,11 +106,14 @@
         </div>
       </div>
 
-      <div class="top-metrics" id="overviewPanel" aria-label="Key metrics" aria-hidden="true">
-        <div class="top-metric"><span data-term="nav" data-i18n="metric.nav">Portfolio NAV</span><strong id="navMetric">$1.00M</strong><small id="navDelta">Base 100</small></div>
-        <div class="top-metric"><span data-i18n="metric.cash">Cash</span><strong id="cashMetric">$1.00M</strong><small id="cashDelta">Available</small></div>
-        <div class="top-metric"><span data-term="creditline" data-i18n="metric.credit">Credit</span><strong id="creditMetric">$0</strong><small id="creditSub">of $6.00M</small></div>
-        <div class="top-metric"><span data-i18n="metric.reputation">Reputation</span><strong id="repMetric">50</strong><small id="rankMetric">Junior Trader</small></div>
+      <div class="top-metrics open" id="overviewPanel" aria-label="Always visible company metrics" aria-hidden="false">
+        <div class="metrics-rail-title"><span>Company control</span><strong id="stageMetric">Geneva Micro Merchant</strong></div>
+        <div class="top-metric pnl-rail"><span>Realized P&amp;L</span><strong id="realizedPnlMetric">$0</strong><small id="activePnlRail">$0 live</small></div>
+        <div class="top-metric"><span data-term="nav" data-i18n="metric.nav">Portfolio NAV</span><strong id="navMetric">$500K</strong><small id="navDelta">Base 100</small></div>
+        <div class="top-metric"><span data-i18n="metric.cash">Cash</span><strong id="cashMetric">$500K</strong><small id="cashDelta">Available</small></div>
+        <div class="top-metric"><span data-term="creditline" data-i18n="metric.credit">Credit used</span><strong id="creditMetric">$0</strong><small id="creditSub">of $1.50M</small></div>
+        <div class="top-metric risk-rail"><span>Risk exposure</span><strong id="riskMetric">0/100</strong><small id="riskImpactMetric">$0 event impact</small></div>
+        <div class="top-metric"><span data-i18n="metric.reputation">Reputation</span><strong id="repMetric">12</strong><small id="rankMetric">Micro Merchant · L1</small></div>
       </div>
 
       <div class="top-actions">
@@ -261,7 +264,7 @@
         </section>
 
         <section id="left-events" class="left-section">
-          <div class="section-copy"><span class="eyebrow">Global intelligence</span><h2>Crises and dislocations</h2><p>Geopolitical, logistics and financial events change markets and cargoes in transit.</p></div>
+          <div class="section-copy"><span class="eyebrow">Global risk intelligence</span><h2>Geopolitics, macro, weather and execution risk</h2><p>Every shock changes prices, freight, financing, credit, timing and the P&amp;L of your commodity trading firm.</p></div>
           <div id="worldSummary" class="world-summary"></div><div id="worldEventList" class="world-event-list"></div>
         </section>
 
@@ -347,14 +350,16 @@
         <canvas id="globeCanvas" aria-label="Interactive global-trading globe"></canvas>
         <div class="earth-loading" id="earthLoading"><span></span><strong>Loading world map</strong></div>
 
-        <nav class="command-dock" aria-label="Main commands">
+        <nav class="command-dock left-command-rail" aria-label="Main commands">
           <button class="command-button primary" id="openDeskButton" aria-label="Open command center"><span>☰</span><b data-i18n="dock.desk">Desk</b></button>
           <button class="command-button shop-command" id="openShopButton" aria-label="Open trading empire shop" title="Trading Empire Shop · S"><span>▦</span><b data-i18n="dock.shop">Shop</b><em class="command-badge hidden" id="shopBadge">0</em></button>
-          <button class="command-button" id="toggleOverviewButton" aria-label="Show portfolio"><span>◇</span><b data-i18n="dock.overview">Overview</b></button>
+          <button class="command-button" id="toggleOverviewButton" aria-label="Focus permanent company metrics"><span>◇</span><b data-i18n="dock.overview">Overview</b></button>
+          <button class="command-button briefing-command" id="openBriefingButton" aria-label="Open daily briefing" title="Daily briefing · B"><span>☷</span><b data-i18n="dock.briefing">Briefing</b><em class="command-badge hidden" id="briefingBadge">0</em></button>
+        </nav>
+        <nav class="utility-dock right-command-rail" aria-label="World controls">
           <button class="command-button" id="toggleMarketsButton" aria-label="Show markets"><span>⌁</span><b data-i18n="dock.markets">Markets</b></button>
           <button class="command-button" id="toggleLayersButton" aria-label="Show layers"><span>◎</span><b data-i18n="dock.layers">Layers</b></button>
           <button class="command-button icon-only" id="openSearchButton" aria-label="Search the world" title="Search · Ctrl K"><span>⌕</span><b data-i18n="dock.search">Search</b></button>
-          <button class="command-button briefing-command" id="openBriefingButton" aria-label="Open daily briefing" title="Daily briefing · B"><span>☷</span><b data-i18n="dock.briefing">Briefing</b><em class="command-badge hidden" id="briefingBadge">0</em></button>
           <button class="command-button icon-only" id="openShortcutsButton" aria-label="Keyboard shortcuts" title="Keyboard shortcuts · ?"><span>⌨</span><b data-i18n="dock.keys">Keys</b></button>
           <button class="command-button icon-only" id="openGlossaryButton" aria-label="Trading glossary" title="Trading glossary · G"><span>📖</span><b data-i18n="dock.glossary">Glossary</b></button>
         </nav>
@@ -362,7 +367,7 @@
         <div class="drawer-backdrop" id="drawerBackdrop" aria-hidden="true"></div>
 
         <div class="globe-header">
-          <div><span class="eyebrow">Global operations view</span><h1>World of Trade · Global Trade Command <span class="version-badge">v32</span></h1></div>
+          <div><span class="eyebrow">Global operations view</span><h1>World of Trade · Global Trade Command <span class="version-badge">v33</span></h1></div>
           <div class="market-strip" id="marketStrip" aria-label="Markets" aria-hidden="true">
             <div class="market-ticker"><span>Copper</span><strong id="copperPrice">$9,500/t</strong><small id="copperMove">+0.0%</small><em id="copperTermStructure" class="term-struct"></em></div>
             <div class="market-ticker"><span>Aluminium</span><strong id="aluminiumPrice">$2,450/t</strong><small id="aluminiumMove">+0.0%</small><em id="aluminiumTermStructure" class="term-struct"></em></div>
@@ -483,7 +488,7 @@
   </dialog>
 
   <dialog id="onboardingDialog" class="confirm-dialog onboarding-dialog">
-    <form method="dialog"><span class="eyebrow">New career</span><h2>Start your World of Trade career</h2><p>Choose your economic difficulty and how much guidance you want during the first physical deal.</p><label class="difficulty-field">Difficulty<select id="difficultySelect"><option value="guided">Guided · more capital and support</option><option value="standard" selected>Standard · balanced experience</option><option value="expert">Expert · reduced capital and liquidity</option></select></label><label class="tutorial-toggle"><input id="guidedTourToggle" type="checkbox" checked /><span><strong>Guided first deal</strong><small>Contextual steps will teach sourcing, negotiation, hedging, logistics and settlement.</small></span></label><div class="dialog-actions"><button value="start" class="button primary">Start career</button></div></form>
+    <form method="dialog"><span class="eyebrow">Geneva start-up</span><h2>Build a global commodity trading house</h2><p>You begin in Geneva with one product, one supplier and one customer: copper from Baltic Metals OU to Lombardia Cables. Earn experience to unlock new commodities, resource-rich countries, counterparties and global corridors.</p><label class="difficulty-field">Difficulty<select id="difficultySelect"><option value="guided">Guided · more capital and support</option><option value="standard" selected>Standard · balanced experience</option><option value="expert">Expert · reduced capital and liquidity</option></select></label><label class="tutorial-toggle"><input id="guidedTourToggle" type="checkbox" checked /><span><strong>Guided first deal</strong><small>Contextual steps will teach sourcing, negotiation, hedging, logistics and settlement.</small></span></label><div class="dialog-actions"><button value="start" class="button primary">Start career</button></div></form>
   </dialog>
 
   <dialog id="searchDialog" class="search-dialog">
@@ -539,7 +544,7 @@
         <div><span class="eyebrow" data-i18n="dlg.glossary.eyebrow">Reference</span><h2 data-i18n="dlg.glossary.title">Trading glossary</h2></div>
         <button value="close" class="glossary-close" aria-label="Close glossary">×</button>
       </div>
-      <div class="glossary-list" id="glossaryList"></div>
+      <div class="glossary-list" id="glossaryDialogList"></div>
     </form>
   </dialog>
   <dialog id="victoryDialog" class="victory-dialog">
@@ -580,6 +585,6 @@
       <div class="dialog-actions"><button value="cancel" class="button secondary" data-i18n="btn.cancel">Cancel</button><button value="save" class="button primary" data-i18n="btn.save">Save changes</button></div>
     </form>
   </dialog>
-  <script type="module" src="app.js?v=32.1.1"></script>
+  <script type="module" src="app.js?v=33.0.0"></script>
 </body>
 </html>

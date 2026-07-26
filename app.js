@@ -4,8 +4,8 @@
 
   let THREE;
   const threeCandidates = [
-    './vendor/three.module.min.js',
     './three.module.min.js',
+    './vendor/three.module.min.js',
     'https://cdn.jsdelivr.net/npm/three@0.185.0/build/three.module.min.js',
     'https://unpkg.com/three@0.185.0/build/three.module.min.js'
   ];
@@ -36,8 +36,8 @@
   const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
   const lerp = (a, b, t) => a + (b - a) * t;
   const deg = Math.PI / 180;
-  const storageKey = 'wot-v32';
-  const legacyStorageKeys = ['wot-v31', 'wot-v30', 'wot-v29', 'wot-v28', 'wot-v27', 'wot-v26', 'wot-v25', 'wot-v24', 'wot-v23', 'wot-v22', 'wot-v21', 'wot-v20', 'wot-v19', 'wot-v18', 'shippy-v17', 'shippy-v16', 'shippy-v15', 'shippy-v14', 'shippy-v13', 'shippy-v12', 'shippy-v11', 'shippy-v10', 'shippy-v9', 'shippy-v8', 'shippy-v7', 'shippy-v6', 'shippy-v5', 'global-commodity-trader-v3'];
+  const storageKey = 'wot-v33';
+  const legacyStorageKeys = ['wot-v32', 'wot-v31', 'wot-v30', 'wot-v29', 'wot-v28', 'wot-v27', 'wot-v26', 'wot-v25', 'wot-v24', 'wot-v23', 'wot-v22', 'wot-v21', 'wot-v20', 'wot-v19', 'wot-v18', 'shippy-v17', 'shippy-v16', 'shippy-v15', 'shippy-v14', 'shippy-v13', 'shippy-v12', 'shippy-v11', 'shippy-v10', 'shippy-v9', 'shippy-v8', 'shippy-v7', 'shippy-v6', 'shippy-v5', 'global-commodity-trader-v3'];
 
   // ── v25 prestige (persists across career resets) ────────────────────────────
   const prestigeKey = 'wot-prestige';
@@ -282,7 +282,7 @@
   function openGlossaryDialog() {
     const dialog = $('#glossaryDialog');
     if (!dialog) return;
-    const list = $('#glossaryList');
+    const list = $('#glossaryDialogList');
     if (list) {
       const cats = [...new Set(glossaryTerms.map(t => t.category))];
       list.innerHTML = cats.map(cat => `
@@ -365,7 +365,7 @@
   }).format(date);
 
   const hubs = [
-    { id: 'geneva', name: 'Geneva', country: 'Switzerland', type: 'hq', lat: 46.2044, lon: 6.1432, subtitle: 'Northstar Commodities SA', description: 'The headquarters coordinates capital, risk, compliance and the desk’s banking relationships.', commodities: ['Base metals', 'Energy', 'Risk management'], risk: 'Low' },
+    { id: 'geneva', name: 'Geneva', country: 'Switzerland', type: 'hq', lat: 46.2044, lon: 6.1432, subtitle: 'Geneva Commodity Trading Sàrl', description: 'The headquarters coordinates capital, risk, compliance and the desk’s banking relationships.', commodities: ['Base metals', 'Energy', 'Risk management'], risk: 'Low' },
     { id: 'brescia', name: 'Brescia', country: 'Italy', type: 'customer', lat: 45.5416, lon: 10.2118, subtitle: 'Lombardia Cables S.p.A.', description: 'Industrial district with demand for refined copper and strict quality requirements.', commodities: ['Copper cathodes', 'Aluminium', 'Scrap'], risk: 'Low' },
     { id: 'genova', name: 'Genoa', country: 'Italy', type: 'port', lat: 44.4056, lon: 8.9463, subtitle: 'Port of Genoa', description: 'Maritime gateway for deliveries to Northern Italy.', commodities: ['Containers', 'Bulk cargo', 'Warehousing'], risk: 'Medium' },
     { id: 'tallinn', name: 'Tallinn', country: 'Estonia', type: 'supplier', lat: 59.437, lon: 24.7536, subtitle: 'Baltic Metals OU', description: 'Fast, capital-light European supplier whose quality documentation requires verification.', commodities: ['Copper cathodes', 'Recycled metals'], risk: 'Low' },
@@ -386,6 +386,74 @@
     { id: 'durban', name: 'Durban', country: 'South Africa', type: 'supplier', lat: -29.8587, lon: 31.0218, subtitle: 'Southern Africa Metals Gateway', description: 'Africa\'s busiest port and key conduit for Zambian copper, South African manganese and chrome ore. Deep-water quays handle Capesize bulk vessels.', commodities: ['Copper', 'Chrome ore', 'Zinc', 'Coal'], risk: 'Medium', locked: true },
     { id: 'houston', name: 'Houston', country: 'USA', type: 'supplier', lat: 29.7604, lon: -95.3698, subtitle: 'US Gulf Energy Hub', description: 'America\'s premier energy export gateway. Home to LNG liquefaction terminals, petrochemical complexes and grain elevator networks.', commodities: ['LNG', 'Crude', 'Petrochemicals', 'Grain'], risk: 'Low', locked: true }
   ];
+
+
+  // ── v33 progressive trading-house expansion ────────────────────────────────
+  const commodityUnlockLevels = {
+    'Copper': 1, 'Aluminium': 4, 'Urea': 6, 'Diesel': 8, 'Coffee': 10,
+    'Wheat': 11, 'Palm oil': 13, 'Cocoa': 14, 'Iron ore': 16, 'Steel': 18,
+    'Zinc': 20, 'LNG': 22, 'Nickel': 25, 'Soybeans': 26
+  };
+  const countryUnlockLevels = {
+    'Switzerland': 1, 'Estonia': 1, 'Italy': 1, 'Chile': 2, 'UAE': 3,
+    'Morocco': 6, 'Netherlands': 8, 'Belgium': 8, 'Brazil': 10,
+    'Argentina': 11, 'Singapore': 12, 'Malaysia': 13, 'Ivory Coast': 14,
+    'Australia': 16, 'China': 18, 'South Africa': 20, 'Qatar': 22, 'USA': 23
+  };
+  function countryAccessTier(country) {
+    const level = countryRequiredLevel(country);
+    if (level <= 1) return 'Starter corridor';
+    if (level <= 6) return 'Developing origin';
+    if (level <= 14) return 'Established commodity market';
+    if (level <= 20) return 'Resource powerhouse';
+    return 'Strategic resource market';
+  }
+  const expansionMilestones = [
+    { level:1, title:'Geneva Micro Merchant', text:'Copper only · Baltic Metals OU → Lombardia Cables' },
+    { level:2, title:'European Copper Desk', text:'Chile and a second copper supplier become accessible' },
+    { level:3, title:'Emerging-Market Merchant', text:'The UAE copper corridor becomes accessible' },
+    { level:4, title:'Base Metals Trader', text:'Aluminium unlocks' },
+    { level:6, title:'Mediterranean Merchant', text:'Morocco and urea unlock' },
+    { level:8, title:'ARA Trading House', text:'Netherlands, Belgium and diesel unlock' },
+    { level:10, title:'Atlantic Softs Desk', text:'Brazil and coffee unlock' },
+    { level:12, title:'International Merchant', text:'Singapore hub unlocks' },
+    { level:16, title:'Bulk Commodity House', text:'Australia and iron ore unlock' },
+    { level:20, title:'African Metals Merchant', text:'South Africa and zinc unlock' },
+    { level:22, title:'Global Energy Trader', text:'Qatar and LNG unlock' },
+    { level:25, title:'Integrated Global House', text:'Nickel and the hardest origins unlock' }
+  ];
+  function playerLevel() { return Math.max(1, Number(state?.xpLevel || 1)); }
+  function commodityRequiredLevel(name) { return commodityUnlockLevels[name] || 1; }
+  function countryRequiredLevel(country) { return countryUnlockLevels[country] || 1; }
+  function commodityUnlocked(name) { return playerLevel() >= commodityRequiredLevel(name); }
+  function countryUnlocked(country) { return playerLevel() >= countryRequiredLevel(country); }
+  function opportunityProgressionRequirements(opp) {
+    const routeHubs = [opp.origin, opp.destination, ...(opp.via || [])].map(getHub).filter(Boolean);
+    const countryLevels = routeHubs.map(h => ({ country:h.country, level:countryRequiredLevel(h.country) }));
+    const requiredLevel = Math.max(commodityRequiredLevel(opp.commodity), ...countryLevels.map(x=>x.level), 1);
+    const lockedCountries = countryLevels.filter(x => playerLevel() < x.level);
+    return { requiredLevel, commodityLevel:commodityRequiredLevel(opp.commodity), lockedCountries };
+  }
+  function expansionStage() {
+    const level=playerLevel();
+    return [...expansionMilestones].reverse().find(m=>level>=m.level) || expansionMilestones[0];
+  }
+  function nextExpansionUnlock() {
+    const level=playerLevel();
+    return expansionMilestones.find(m=>m.level>level) || null;
+  }
+  function newlyUnlockedAtLevel(level) {
+    const countries=Object.entries(countryUnlockLevels).filter(([,v])=>v===level).map(([k])=>k);
+    const commodities=Object.entries(commodityUnlockLevels).filter(([,v])=>v===level).map(([k])=>k);
+    return { countries, commodities };
+  }
+  function unlockReason(opp) {
+    const req=opportunityProgressionRequirements(opp);
+    if (playerLevel() < req.commodityLevel) return `${opp.commodity} unlocks at level ${req.commodityLevel}`;
+    if (req.lockedCountries.length) return `${req.lockedCountries.map(x=>`${x.country} (${countryAccessTier(x.country)})`).join(' / ')} unlocks at level ${req.requiredLevel}`;
+    if (typeof opp.unlock === 'function' && !opp.unlock(state)) return 'Requires a larger balance sheet, reputation or regional office';
+    return '';
+  }
 
   const opportunities = [
     {
@@ -854,6 +922,28 @@
     { id:'eu-grain-import-ban', title: 'EU Imposes Temporary Grain Import Restrictions', region: 'Europe', severity: 'medium', duration: 8, description: 'Brussels announces emergency import quotas on Black Sea wheat and corn to protect domestic farmers. Spot basis in Rotterdam tightens sharply as import volumes are redirected.', freightShock: -4, equityFactor: 0.97, pnlFactor: 0.88, priceKey: 'wheat', dailyDrift: -15, affects: opp => ['wheat','urea'].includes(opp.priceKey), dealDays: 2, dealPnl: -18_000 }
   ];
 
+  // v33 systemic risk library: events affect price, freight, financing, credit,
+  // execution timing and ultimately the trading house P&L.
+  globalEventCatalog.push(
+    { id:'red-sea-escalation', category:'Geopolitical', title:'Red Sea security escalation', region:'Red Sea / Indian Ocean', severity:'high', duration:12, description:'Missile and piracy risk forces vessels around the Cape, increasing war-risk premia, bunker use and voyage duration.', freightShock:16, insuranceShock:0.018, affects:opp=>transportClassForOpportunity(opp)==='ocean' && ['dubai','doha','klang','singapore'].includes(opp.origin), dealDays:8, dealPnl:-48_000, pnlFactor:.93 },
+    { id:'sanctions-metals', category:'Geopolitical', title:'Sanctions expand to a major metals producer', region:'Global metals', severity:'high', duration:14, description:'Banks and warehouses tighten screening. Deliverable supply falls while compliance costs and settlement risk rise.', creditPenalty:420_000, equityFactor:1.10, acceptanceShock:-6, affects:opp=>['Copper','Aluminium','Nickel','Zinc'].includes(opp.commodity), dealDays:4, dealPnl:-32_000, pnlFactor:.96 },
+    { id:'fertilizer-export-curbs', category:'Geopolitical', commodity:'urea', title:'Fertilizer export restrictions', region:'North Africa / Middle East', severity:'high', duration:11, description:'Government export controls reduce prompt availability and create replacement-cost risk for committed urea cargoes.', dailyDrift:8, affects:opp=>opp.commodity==='Urea', dealDays:5, dealPnl:-36_000, pnlFactor:.91 },
+    { id:'global-recession', category:'Macroeconomic', title:'Global industrial recession shock', region:'Global economy', severity:'high', duration:16, description:'PMIs contract, manufacturers destock and buyer demand weakens across metals, energy and dry bulk.', creditPenalty:300_000, acceptanceShock:-10, affects:opp=>['Copper','Aluminium','Iron ore','Steel','Zinc','Nickel','Diesel'].includes(opp.commodity), dealDays:2, dealPnl:-24_000, pnlFactor:.78 },
+    { id:'rates-higher-longer', category:'Macroeconomic', title:'Central banks reprice rates higher for longer', region:'Global banking', severity:'medium', duration:15, description:'Trade-finance spreads widen and inventory carrying costs rise as policy-rate expectations reset.', creditPenalty:250_000, equityFactor:1.08, financingRateShock:.035, affects:()=>true, dealDays:0, dealPnl:-8_000, pnlFactor:.96 },
+    { id:'usd-liquidity-squeeze', category:'Macroeconomic', title:'US dollar liquidity squeeze', region:'Global FX / Banking', severity:'high', duration:9, description:'Dollar funding becomes scarce, FX volatility jumps and banks demand additional collateral.', creditPenalty:600_000, equityFactor:1.15, financingRateShock:.055, firmPnl:-18_000, affects:()=>true, dealDays:1, dealPnl:-14_000, pnlFactor:.94 },
+    { id:'rhine-low-water', category:'Weather', title:'Rhine water levels fall below critical threshold', region:'Northwest Europe', severity:'high', duration:13, description:'Barges sail part-loaded and ARA inland logistics require more rotations, sharply increasing delivered costs.', freightShock:10, affects:opp=>['rotterdam','antwerp'].includes(opp.destination)||['rotterdam','antwerp'].includes(opp.origin), dealDays:6, dealPnl:-42_000, pnlFactor:.90 },
+    { id:'brazil-frost', category:'Weather', commodity:'coffee', title:'Brazilian frost threatens coffee crop', region:'Brazil', severity:'high', duration:10, description:'Frost damages arabica areas. Prices and differentials gap higher while exporters reassess availability.', dailyDrift:58, affects:opp=>opp.commodity==='Coffee', dealDays:3, dealPnl:22_000, pnlFactor:1.12 },
+    { id:'pilbara-cyclone', category:'Weather', title:'Cyclone closes Pilbara export terminals', region:'Western Australia', severity:'high', duration:9, description:'Port Hedland suspends loading and bulk carriers queue offshore, tightening iron ore supply and dry-bulk capacity.', freightShock:12, affects:opp=>opp.origin==='port-hedland', dealDays:7, dealPnl:-55_000, pnlFactor:.88 },
+    { id:'europe-heatwave', category:'Weather', title:'European heatwave curtails smelter output', region:'Europe', severity:'medium', duration:8, description:'Power prices spike and metals processors reduce output, changing physical premiums and customer demand.', affects:opp=>['Aluminium','Zinc','Copper'].includes(opp.commodity), dealDays:2, dealPnl:-16_000, pnlFactor:.94 },
+    { id:'port-cyberattack', category:'Operational', title:'Cyberattack disrupts port and customs systems', region:'European logistics', severity:'high', duration:7, description:'Electronic bills of lading, customs declarations and terminal release systems become unavailable.', firmPnl:-28_000, affects:opp=>transportClassForOpportunity(opp)==='ocean', dealDays:5, dealPnl:-31_000, pnlFactor:.91 },
+    { id:'piracy-surge', category:'Operational', title:'Piracy surge raises marine security costs', region:'Indian Ocean / West Africa', severity:'medium', duration:12, description:'Armed guards, route deviations and higher insurance deductibles increase voyage costs.', freightShock:7, affects:opp=>['abidjan','durban','klang','doha','dubai'].includes(opp.origin), dealDays:3, dealPnl:-23_000, pnlFactor:.94 },
+    { id:'warehouse-fire', category:'Operational', title:'Regional warehouse fire tightens storage capacity', region:'ARA / Mediterranean', severity:'medium', duration:8, description:'Emergency storage and inspection costs rise while nearby terminals impose stricter handling controls.', firmPnl:-12_000, affects:opp=>['rotterdam','antwerp','genova'].includes(opp.destination)||(opp.via||[]).some(x=>['rotterdam','antwerp','genova'].includes(x)), dealDays:2, dealPnl:-18_000, pnlFactor:.95 },
+    { id:'buyer-downgrade-wave', category:'Credit', title:'Industrial buyer downgrade wave', region:'Europe / Asia', severity:'high', duration:14, description:'Weak industrial earnings lead banks and insurers to reduce buyer limits and demand stronger payment security.', creditPenalty:850_000, equityFactor:1.12, acceptanceShock:-5, affects:()=>true, dealDays:0, dealPnl:-20_000, pnlFactor:.90 },
+    { id:'argentina-currency-controls', category:'Political / FX', title:'Argentina tightens capital and currency controls', region:'Argentina', severity:'high', duration:12, description:'Export proceeds, documentary settlement and local basis become volatile as controls tighten.', financingRateShock:.02, affects:opp=>opp.origin==='rosario', dealDays:6, dealPnl:-46_000, pnlFactor:.86 },
+    { id:'carbon-border-cost', category:'Regulatory', title:'EU carbon border costs increase', region:'European Union', severity:'medium', duration:18, description:'New embedded-emissions requirements raise documentation and landed cost for carbon-intensive imports.', acceptanceShock:-3, affects:opp=>['Steel','Aluminium','Iron ore'].includes(opp.commodity)&&['rotterdam','antwerp','brescia'].includes(opp.destination), dealDays:3, dealPnl:-27_000, pnlFactor:.92 },
+    { id:'quality-fraud-alert', category:'Compliance', title:'Industry-wide quality certificate fraud alert', region:'Global trade compliance', severity:'high', duration:10, description:'Banks and buyers require independent inspection and enhanced document verification for new cargoes.', firmPnl:-10_000, equityFactor:1.04, acceptanceShock:-4, affects:()=>true, dealDays:2, dealPnl:-15_000, pnlFactor:.95 }
+  );
+
 
   const logisticsAssets = {
     'baltic-copper': {
@@ -1085,17 +1175,17 @@
 
   function defaultState() {
     return {
-      version: 32,
+      version: 33,
       profileName: 'Giorgio Bonetta',
-      companyName: 'World of Trade Co.',
+      companyName: 'Geneva Commodity Trading Sàrl',
       leaderboardSnapshots: [],
       investments: {},
       constructionQueue: [],
       assetIncome: 0,
       date: '2026-09-01T00:00:00.000Z',
-      cash: prestigeStartCash(1_000_000),
-      creditLimit: prestigeStartCredit(6_000_000),
-      reputation: prestigeStartReputation(50),
+      cash: prestigeStartCash(500_000),
+      creditLimit: prestigeStartCredit(1_500_000),
+      reputation: prestigeStartReputation(12),
       prestigeLevel: loadPrestige(),
       victoryClaimed: false,
       realizedPnl: 0,
@@ -1107,7 +1197,8 @@
       completedMissions: [],
       overheadPaid: 0,
       history: [],
-      navHistory: [1_000_000, 1_000_000, 1_000_000],
+      navHistory: [500_000, 500_000, 500_000],
+      startingCapital: prestigeStartCash(500_000),
       copperPrice: 9500,
       copperPrev: 9500,
       aluminiumPrice: 2450,
@@ -1214,7 +1305,12 @@
       shopAssets: {},
       shopOrders: [],
       shopSpent: 0,
-      shopDeliveries: 0
+      shopDeliveries: 0,
+      riskPnlImpact: 0,
+      riskLedger: [],
+      unlockedCountriesSeen: ['Switzerland','Estonia','Italy'],
+      unlockedCommoditiesSeen: ['Copper'],
+      progressionMode: 'expansion'
     };
   }
 
@@ -1233,8 +1329,8 @@
       }
       if (!raw) return defaultState();
       const loaded = JSON.parse(raw);
-      if (![3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32].includes(loaded.version)) return defaultState();
-      const migrated = { ...defaultState(), ...loaded, version: 32 };
+      if (![3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33].includes(loaded.version)) return defaultState();
+      const migrated = { ...defaultState(), ...loaded, version: 33 };
       migrated.offices = [...new Set(['geneva', ...(migrated.offices || [])])];
       migrated.staff = migrated.staff || [];
       migrated.completedMissions = migrated.completedMissions || [];
@@ -1320,6 +1416,12 @@
       migrated.shopOrders = migrated.shopOrders || [];
       migrated.shopSpent = migrated.shopSpent || 0;
       migrated.shopDeliveries = migrated.shopDeliveries || 0;
+      migrated.startingCapital = migrated.startingCapital || (loaded.version >= 33 ? 500_000 : 1_000_000);
+      migrated.riskPnlImpact = migrated.riskPnlImpact || 0;
+      migrated.riskLedger = migrated.riskLedger || [];
+      migrated.unlockedCountriesSeen = migrated.unlockedCountriesSeen || ['Switzerland','Estonia','Italy'];
+      migrated.unlockedCommoditiesSeen = migrated.unlockedCommoditiesSeen || ['Copper'];
+      migrated.progressionMode = migrated.progressionMode || 'expansion';
       migrated.hubBasis = migrated.hubBasis || {};
       migrated.quarterNumber   = migrated.quarterNumber  || 1;
       migrated.quarterTarget   = migrated.quarterTarget  || 500000;
@@ -1528,7 +1630,7 @@
       if (!imported || typeof imported !== 'object' || !Array.isArray(imported.activeDeals) || !Array.isArray(imported.history)) {
         throw new Error('Invalid World of Trade career file');
       }
-      const migrated = { ...defaultState(), ...imported, version: 32 };
+      const migrated = { ...defaultState(), ...imported, version: 33 };
       migrated.activeDeals = (migrated.activeDeals || []).map(hydrateDealOperations);
       migrated.fleetAssets = (migrated.fleetAssets || []).filter(asset => vesselCatalog.some(vessel => vessel.id === asset.catalogId));
       migrated.offices = [...new Set(['geneva', ...(migrated.offices || [])])];
@@ -2503,16 +2605,19 @@
     // Credit rating modifier: A=+3, BBB=0, BB=-4, B=-9
     const _ratingMod = { 'A': 3, 'BBB': 0, 'BB': -4, 'B': -9 };
     const _creditMod = _ratingMod[buyer?.creditRating] ?? 0;
-    return clamp(54 + state.reputation * .18 + (relationship - 50) * .45 + (buyer?.credit || 70) * .08 + commercial.acceptance + payment.acceptance + pricing.acceptance + delivery.acceptance + (financing.acceptance || 0) + vertical.acceptanceBonus + shop.acceptanceBonus + difficultySettings().acceptance + regime.acceptance + season.acceptance + doctrine.acceptance + procurement.acceptance - route.acceptancePenalty - competitionPenalty(opp) + _creditMod, 5, 97);
+    return clamp(54 + state.reputation * .18 + (relationship - 50) * .45 + (buyer?.credit || 70) * .08 + commercial.acceptance + payment.acceptance + pricing.acceptance + delivery.acceptance + (financing.acceptance || 0) + vertical.acceptanceBonus + shop.acceptanceBonus + difficultySettings().acceptance + regime.acceptance + season.acceptance + doctrine.acceptance + procurement.acceptance - route.acceptancePenalty - competitionPenalty(opp) + _creditMod + crisisAdjustments(opp).acceptanceShock, 5, 97);
   }
   function crisisAdjustments(opp) {
     return activeCrisisDefinitions().filter(event => event.affects?.(opp)).reduce((acc, event) => {
       acc.duration += event.dealDays || 0;
       acc.pnl += event.dealPnl || 0;
+      acc.pnlFactor *= event.pnlFactor || 1;
       acc.equityFactor *= event.equityFactor || 1;
+      acc.financingRateShock += event.financingRateShock || 0;
+      acc.acceptanceShock += event.acceptanceShock || 0;
       acc.labels.push(event.title);
       return acc;
-    }, { duration: 0, pnl: 0, equityFactor: 1, labels: [] });
+    }, { duration: 0, pnl: 0, pnlFactor: 1, equityFactor: 1, financingRateShock: 0, acceptanceShock: 0, labels: [] });
   }
   function opportunityEconomics(opp, negotiation = negotiationFor(opp.id)) {
     const offer = liveOffer(opp);
@@ -2538,8 +2643,8 @@
     const _carrierStrat = selectedCarrierStrategies[opp.id] || 'spot';
     const _vc = _carrierStrat === 'spot' ? vesselClassFor(opp.id) : vesselClasses.supramax;
     const vesselPnlBonus = Math.round(offer.basePnl * (_vc.pnlMod || 0));
-    const basePnl = Math.round(offer.basePnl * regime.pnlFactor * doctrine.pnlFactor * capitalPolicy.pnlFactor) + commercial.pnl + pricing.pnl + delivery.pnl + office.pnlBonus + crisis.pnl + structure.financing.pnl + structure.insurance.pnl + structure.inspection.pnl + vertical.pnlBonus + shop.pnlBonus + procurement.pnlBonus - competitionCost - route.freightCost + vesselPnlBonus;
-    const financingRate = structure.financing.rate * capitalPolicy.financingRateFactor;
+    const basePnl = Math.round(offer.basePnl * regime.pnlFactor * doctrine.pnlFactor * capitalPolicy.pnlFactor * crisis.pnlFactor) + commercial.pnl + pricing.pnl + delivery.pnl + office.pnlBonus + crisis.pnl + structure.financing.pnl + structure.insurance.pnl + structure.inspection.pnl + vertical.pnlBonus + shop.pnlBonus + procurement.pnlBonus - competitionCost - route.freightCost + vesselPnlBonus;
+    const financingRate = structure.financing.rate * capitalPolicy.financingRateFactor + crisis.financingRateShock;
     const estimatedInterest = borrowed * financingRate * Math.max(10, offer.duration + delivery.duration - office.durationBonus - vertical.durationBonus - shop.durationBonus + crisis.duration + regime.duration) / 360;
     const expectedPnl = basePnl - estimatedInterest;
     return {
@@ -2905,19 +3010,32 @@
 
   function triggerGlobalEvent() {
     const activeIds = new Set((state.activeGlobalEvents || []).map(event => event.id));
-    const available = globalEventCatalog.filter(event => !activeIds.has(event.id));
+    const accessibleOpps = opportunities.filter(isOpportunityUnlocked);
+    const available = globalEventCatalog.filter(event => !activeIds.has(event.id)).filter(event => {
+      if (typeof event.affects !== 'function') return true;
+      return accessibleOpps.some(opp => { try { return event.affects(opp); } catch (e) { return false; } });
+    });
     if (!available.length) return;
     const pick = Math.floor(deterministicRandom(`${state.date}-world-${state.marketCycle}`) * available.length);
     const definition = available[pick];
-    const active = { id: definition.id, started: state.date, remaining: definition.duration };
+    const active = { id: definition.id, started: state.date, remaining: definition.duration, category: definition.category || 'Market / Logistics' };
     state.activeGlobalEvents.push(active);
     state.worldEventFeed.unshift({
       type: 'crisis', id: definition.id, title: definition.title, date: state.date,
       severity: definition.severity, description: definition.description
     });
     state.worldEventFeed = state.worldEventFeed.slice(0, 14);
-    if (definition.freightShock) state.freightIndex = clamp(state.freightIndex + definition.freightShock, 76, 155);
+    if (definition.freightShock) state.freightIndex = clamp(state.freightIndex + definition.freightShock, 76, 175);
+    let eventImpact = 0;
+    if (definition.firmPnl) {
+      const sizeFactor = clamp(.35 + playerLevel() / 30, .4, 1.15);
+      const directImpact = Math.round(definition.firmPnl * sizeFactor);
+      state.cash += directImpact;
+      state.realizedPnl += directImpact;
+      eventImpact += directImpact;
+    }
     refreshRouteConditions();
+    let affectedCargoes = 0;
     state.activeDeals.forEach(deal => {
       const opp = getOpportunity(deal.opportunityId);
       if (!definition.affects?.(opp)) return;
@@ -2926,9 +3044,16 @@
       deal.globalEventImpacts.push(definition.id);
       deal.duration += definition.dealDays || 0;
       deal.pnlAdjustments += definition.dealPnl || 0;
+      eventImpact += definition.dealPnl || 0;
+      affectedCargoes += 1;
       deal.eventResult = `${definition.title}: impact incorporated into route timing and P&L.`;
     });
-    showToast(`Global event: ${definition.title}`);
+    state.riskPnlImpact = (state.riskPnlImpact || 0) + eventImpact;
+    state.riskLedger = state.riskLedger || [];
+    state.riskLedger.unshift({ id:definition.id, date:state.date, category:definition.category || 'Market / Logistics', title:definition.title, severity:definition.severity || 'medium', impact:eventImpact, affectedCargoes, description:definition.description });
+    state.riskLedger = state.riskLedger.slice(0,40);
+    recordJournal('Risk', definition.title, `${definition.category || 'Market / Logistics'} · ${affectedCargoes} live cargo${affectedCargoes===1?'':'es'} affected.`, eventImpact, definition.id);
+    showToast(`Global risk: ${definition.title} · ${eventImpact ? money(eventImpact) : 'market exposure'}`);
   }
 
   function advanceWorldState() {
@@ -2942,7 +3067,8 @@
     if (expired.length) {
       expired.forEach(id => {
         const definition = globalEventCatalog.find(event => event.id === id);
-        state.worldEventFeed.unshift({ type: 'resolved', id, title: `${definition?.title || id} resolved`, date: state.date, description: 'Operating conditions are gradually returning to normal.' });
+        if (definition?.freightShock) state.freightIndex = clamp(state.freightIndex - definition.freightShock * .75, 76, 175);
+        state.worldEventFeed.unshift({ type: 'resolved', id, title: `${definition?.title || id} resolved`, date: state.date, description: 'Operating conditions are gradually returning to normal and temporary freight premia are unwinding.' });
       });
       state.activeGlobalEvents = state.activeGlobalEvents.filter(event => !expired.includes(event.id));
       refreshRouteConditions();
@@ -3009,17 +3135,24 @@
         { id:'dc-coffee-santos', origin:'santos',  destination:'antwerp', commodity:'Coffee', priceKey:'coffee', quantity:5000,  capital:19_000_000, basePnl:520_000, duration:16, risk:'Medium', riskClass:'medium', transportMode:'Container ship', title:'Distressed coffee lot · Brazil', description:'Brazilian trader caught long after local currency move. Grade 2 arabica, discount to ICE benchmark. Deal must close this market cycle.', recommendedHedge:75 },
         { id:'dc-ironore-cape', origin:'port-hedland', destination:'shanghai', commodity:'Iron ore', priceKey:'ironore', quantity:80000, capital:8_000_000, basePnl:350_000, duration:21, risk:'Medium', riskClass:'medium', transportMode:'Capesize bulk', title:'Distressed iron ore · Pilbara', description:'Mining co. needs to move spot cargo — port capacity allocation expires. 62% Fe fines at discount. Competitive bids expected.', recommendedHedge:85 },
       ];
-      const dcSeed = deterministicRandom(`${state.date}-dc-pick`);
-      const dc = _dcPool[Math.floor(dcSeed * _dcPool.length)];
-      // Mark as distressed and short-lived
-      state.distressedOpportunity = { ...dc, distressed: true, distressedExpiry: state.dayIndex + 4 };
-      state.worldEventFeed.unshift({
-        type: 'distressed',
-        title: `Distressed cargo available — ${dc.commodity}`,
-        date: state.date,
-        description: `${dc.title}: ${dc.description} Window: ~4 days. Margin: ${money(dc.basePnl)} (discounted).`
+      const eligibleDcPool = _dcPool.filter(dc => {
+        const origin = getHub(dc.origin), destination = getHub(dc.destination);
+        const commodityName = dc.commodity === 'Crude Oil' ? 'Diesel' : dc.commodity;
+        return commodityUnlocked(commodityName) && (!origin || countryUnlocked(origin.country)) && (!destination || countryUnlocked(destination.country));
       });
-      state.worldEventFeed = state.worldEventFeed.slice(0, 18);
+      const dcSeed = deterministicRandom(`${state.date}-dc-pick`);
+      const dc = eligibleDcPool.length ? eligibleDcPool[Math.floor(dcSeed * eligibleDcPool.length)] : null;
+      if (dc) {
+        // Mark as distressed and short-lived
+        state.distressedOpportunity = { ...dc, distressed: true, distressedExpiry: state.dayIndex + 4 };
+        state.worldEventFeed.unshift({
+          type: 'distressed',
+          title: `Distressed cargo available — ${dc.commodity}`,
+          date: state.date,
+          description: `${dc.title}: ${dc.description} Window: ~4 days. Margin: ${money(dc.basePnl)} (discounted).`
+        });
+        state.worldEventFeed = state.worldEventFeed.slice(0, 18);
+      }
     }
     // Expire distressed opportunity
     if (state.distressedOpportunity && state.dayIndex > (state.distressedOpportunity.distressedExpiry || 0)) {
@@ -3211,12 +3344,13 @@
     const marginRequirement = state.activeDeals.reduce((sum,deal)=>sum+currentMarginRequirement(deal),0);
     const liquidityReserve = Math.max(150_000, netFlatExposure * .08 + netFxExposure * .06 + stats.creditUsed * .035 + marginRequirement * .12);
     const liquidityCoverage = liquidityReserve ? state.cash / liquidityReserve : 10;
+    const systemicRisk = activeCrisisDefinitions().reduce((sum,event) => sum + (event.severity === 'high' ? 9 : event.severity === 'medium' ? 5 : 2), 0);
     const riskScore = clamp(
-      creditUtilization * 30 + concentration * 20 + Math.min(1, netFlatExposure / 1_500_000) * 26 + Math.min(1, netFxExposure / 800_000) * 12 + (liquidityCoverage < 1 ? 18 : liquidityCoverage < 1.5 ? 8 : 0),
+      creditUtilization * 30 + concentration * 20 + Math.min(1, netFlatExposure / 1_500_000) * 26 + Math.min(1, netFxExposure / 800_000) * 12 + (liquidityCoverage < 1 ? 18 : liquidityCoverage < 1.5 ? 8 : 0) + Math.min(24, systemicRisk),
       0, 100
     ) - (hasStaff('risk-analyst') ? 8 : 0) + difficultySettings().riskPenalty + activeDoctrine().riskAdjustment + activeCapitalPolicy().riskAdjustment;
-    const stressLoss = netFlatExposure * .08 + netFxExposure * .05 + stats.creditUsed * .012;
-    return { ...stats, grossByCommodity, netFlatExposure, netFxExposure, marginRequirement, stressLoss, creditUtilization, concentration, liquidityReserve, liquidityCoverage, riskScore: clamp(riskScore, 0, 100) };
+    const stressLoss = netFlatExposure * .08 + netFxExposure * .05 + stats.creditUsed * .012 + Math.max(0, -(state.riskPnlImpact || 0)) * .15;
+    return { ...stats, grossByCommodity, netFlatExposure, netFxExposure, marginRequirement, stressLoss, systemicRisk, creditUtilization, concentration, liquidityReserve, liquidityCoverage, riskScore: clamp(riskScore, 0, 100) };
   }
 
   function portfolioStats() {
@@ -3231,6 +3365,10 @@
 
   function isOpportunityUnlocked(opp) {
     if (!opp) return false;
+    const req = opportunityProgressionRequirements(opp);
+    if (playerLevel() < req.requiredLevel) return false;
+    if (!commodityUnlocked(opp.commodity)) return false;
+    if (req.lockedCountries.length) return false;
     if (typeof opp.unlock === 'function') return Boolean(opp.unlock(state));
     return !opp.locked;
   }
@@ -3718,13 +3856,17 @@
   }
 
   function hubVisible(hub) {
-    if (hub.locked && !opportunities.some(o => (o.origin === hub.id || o.destination === hub.id || o.via?.includes(hub.id)) && isOpportunityUnlocked(o))) return false;
+    if (hub.type === 'hq') return true;
     if (layers.portfolio && state.activeDeals.some(d => {
       const o = getOpportunity(d.opportunityId);
       return [o.origin, o.destination, ...(o.via || [])].includes(hub.id);
     })) return true;
-    if (layers.opportunities && opportunities.some(o => isOpportunityUnlocked(o) && [o.origin,o.destination,...(o.via||[])].includes(hub.id))) return true;
-    return hub.type === 'hq';
+    if (layers.opportunities) {
+      // Keep future markets visible as dim locked nodes so expansion feels tangible.
+      if (!countryUnlocked(hub.country)) return true;
+      return opportunities.some(o => [o.origin,o.destination,...(o.via||[])].includes(hub.id));
+    }
+    return false;
   }
 
   function hubColor(hub) {
@@ -3737,15 +3879,16 @@
       const p = project(hub.lon, hub.lat, .012);
       if (p.z <= 0) return;
       const selectedHub = selected.type === 'hub' && selected.id === hub.id;
-      const color = hubColor(hub);
+      const lockedMarket = !countryUnlocked(hub.country);
+      const color = lockedMarket ? '#77829a' : hubColor(hub);
       const pulse = 1 + Math.sin(animationTime * .003 + hub.lon) * .12;
       ctx.save();
-      ctx.globalAlpha = clamp(p.z * 1.7, .25, 1);
+      ctx.globalAlpha = lockedMarket ? clamp(p.z * .75, .12, .42) : clamp(p.z * 1.7, .25, 1);
       ctx.fillStyle = color;
       ctx.shadowColor = color;
       ctx.shadowBlur = selectedHub ? 18 : 9;
       ctx.beginPath();
-      ctx.arc(p.x, p.y, (selectedHub ? 5 : 3.4) * pulse, 0, Math.PI*2);
+      ctx.arc(p.x, p.y, (lockedMarket ? 2.4 : (selectedHub ? 5 : 3.4)) * pulse, 0, Math.PI*2);
       ctx.fill();
       ctx.shadowBlur = 0;
       if (selectedHub) {
@@ -3762,7 +3905,7 @@
         ctx.font = `${selectedHub ? 700 : 600} ${selectedHub ? 10 : 8}px Inter, sans-serif`;
         ctx.textAlign = 'center';
         ctx.fillStyle = selectedHub ? '#f4fbff' : 'rgba(218,233,241,.78)';
-        ctx.fillText(hub.name.toUpperCase(), p.x, p.y - (selectedHub ? 14 : 10));
+        ctx.fillText(`${lockedMarket ? '🔒 ' : ''}${hub.name.toUpperCase()}`, p.x, p.y - (selectedHub ? 14 : 10));
       }
       ctx.restore();
       markerHitboxes.push({ id: hub.id, x: p.x, y: p.y, r: selectedHub ? 15 : 11, z: p.z });
@@ -4412,8 +4555,8 @@
     $('#briefingPanel')?.setAttribute('aria-hidden', String(!briefingOpen));
     backdrop?.classList.toggle('open', leftDrawerOpen || inspectorOpen || briefingOpen);
     backdrop?.setAttribute('aria-hidden', String(!(leftDrawerOpen || inspectorOpen || briefingOpen)));
-    $('#overviewPanel')?.classList.toggle('open', overviewOpen);
-    $('#overviewPanel')?.setAttribute('aria-hidden', String(!overviewOpen));
+    $('#overviewPanel')?.classList.add('open');
+    $('#overviewPanel')?.setAttribute('aria-hidden', 'false');
     $('#marketStrip')?.classList.toggle('open', marketsOpen);
     $('#marketStrip')?.setAttribute('aria-hidden', String(!marketsOpen));
     $('#layerControls')?.classList.toggle('open', layersOpen);
@@ -4426,7 +4569,7 @@
     $('#toggleMarketsButton')?.classList.toggle('active', marketsOpen);
     $('#toggleLayersButton')?.classList.toggle('active', layersOpen);
     $('#openBriefingButton')?.classList.toggle('active', briefingOpen);
-    document.body.classList.toggle('overlay-active', leftDrawerOpen || inspectorOpen || overviewOpen || marketsOpen || layersOpen || briefingOpen);
+    document.body.classList.toggle('overlay-active', leftDrawerOpen || inspectorOpen || marketsOpen || layersOpen || briefingOpen);
   }
 
   function openLeftDrawer(tab = activeLeftTab) {
@@ -5629,7 +5772,7 @@
 
   function renderMetrics() {
     const stats = portfolioStats();
-    const start = 1_000_000;
+    const start = state.startingCapital || 500_000;
     const ret = (stats.nav / start - 1) * 100;
     animateCounter($('#navMetric'), stats.nav, v => money(v, true));
     $('#navDelta').textContent = `${ret >= 0 ? '+' : ''}${ret.toFixed(1)}% all time`;
@@ -5638,7 +5781,17 @@
     animateCounter($('#creditMetric'), stats.creditUsed, v => money(v, true));
     $('#creditSub').textContent = `of ${money(effectiveCreditLimit(), true)}`;
     $('#repMetric').textContent = Math.round(state.reputation);
-    $('#rankMetric').textContent = rankFromState();
+    $('#rankMetric').textContent = `${rankFromState()} · L${playerLevel()}`;
+    const realizedMetric = $('#realizedPnlMetric');
+    if (realizedMetric) { realizedMetric.textContent = money(state.realizedPnl || 0, true); realizedMetric.style.color = (state.realizedPnl||0) >= 0 ? 'var(--green)' : 'var(--red)'; }
+    const activeRail = $('#activePnlRail');
+    if (activeRail) { activeRail.textContent = `${stats.activePnl >= 0 ? '+' : ''}${money(stats.activePnl, true)} live`; activeRail.style.color = stats.activePnl >= 0 ? 'var(--green)' : 'var(--red)'; }
+    const risk = riskStats();
+    const riskMetric = $('#riskMetric');
+    if (riskMetric) { riskMetric.textContent = `${Math.round(risk.riskScore)}/100`; riskMetric.style.color = risk.riskScore >= 70 ? 'var(--red)' : risk.riskScore >= 45 ? 'var(--orange)' : 'var(--green)'; }
+    const riskImpactMetric = $('#riskImpactMetric');
+    if (riskImpactMetric) { riskImpactMetric.textContent = `${money(state.riskPnlImpact || 0, true)} event impact`; riskImpactMetric.style.color = (state.riskPnlImpact||0) >= 0 ? 'var(--green)' : 'var(--red)'; }
+    const stageMetric = $('#stageMetric'); if (stageMetric) stageMetric.textContent = expansionStage().title;
     $('#portfolioValue').textContent = money(stats.nav);
     $('#portfolioReturn').textContent = `${ret >= 0 ? '+' : ''}${ret.toFixed(1)}% since inception`;
     $('#portfolioReturn').style.color = ret >= 0 ? 'var(--green)' : 'var(--red)';
@@ -6248,7 +6401,9 @@
         <div><span>Refresh in</span><strong>${Math.max(0, 7-state.marketCycleDay)} days</strong></div>
         <div><span>Open tenders</span><strong>${openTenders}</strong></div>
         <div><span>Accepted bids</span><strong>${accepted}</strong></div>
-        <div><span>Active crises</span><strong>${state.activeGlobalEvents.length}</strong></div>`;
+        <div><span>Active crises</span><strong>${state.activeGlobalEvents.length}</strong></div>
+        <div><span>Expansion level</span><strong>L${playerLevel()}</strong></div>
+        <div><span>Next unlock</span><strong>${nextExpansionUnlock() ? `L${nextExpansionUnlock().level}` : 'Global'}</strong></div>`;
     }
     container.innerHTML = opportunities.map(opp => {
       const unlocked = isOpportunityUnlocked(opp);
@@ -6261,7 +6416,7 @@
       const tender = rivalTenderFor(opp.id);
       const rival = rivalForTender(tender);
       const rivalWon = tender?.status === 'awarded';
-      const status = !unlocked ? 'Locked' : rivalWon ? `${rival.name} won` : !available ? 'Taken' : negotiation?.status === 'accepted' ? 'Tender secured' : negotiation?.status === 'rejected' ? 'Revise bid' : `${economics.expiresIn}d left`;
+      const status = !unlocked ? `L${opportunityProgressionRequirements(opp).requiredLevel}` : rivalWon ? `${rival.name} won` : !available ? 'Taken' : negotiation?.status === 'accepted' ? 'Tender secured' : negotiation?.status === 'rejected' ? 'Revise bid' : `${economics.expiresIn}d left`;
       const statusClass = !unlocked || rivalWon || !available ? 'high' : negotiation?.status === 'accepted' ? 'low' : negotiation?.status === 'rejected' ? 'medium' : opp.riskClass;
       return `<button class="opportunity-card ${selectedClass} ${unlocked && available ? '' : 'locked'}" data-opportunity-id="${opp.id}" ${unlocked && available ? '' : 'disabled'}>
         <div class="opportunity-card-head"><span class="route-name">${origin.name} <span class="route-arrow">→</span> ${destination.name}</span><span class="status-pill ${statusClass}">${status}</span></div>
@@ -6271,6 +6426,7 @@
         <div class="seasonal-demand-row"><span>Seasonal flow · ${seasonalDemand(opp).label}</span><strong>${Math.round(seasonalDemand(opp).factor*100)}</strong></div>
         <div class="tender-pressure-row"><span>Rival interest · ${rival.name}</span><strong>${tender?.pressure || 0}%</strong></div>
         <div class="tender-pressure-track"><span style="width:${tender?.pressure || 0}%"></span></div>
+        ${!unlocked ? `<div class="unlock-requirement"><strong>Locked expansion</strong><span>${unlockReason(opp)}</span></div>` : ''}
         ${economics.crisisLabels.length ? `<div class="crisis-tag">Impacted · ${economics.crisisLabels.join(', ')}</div>` : ''}
       </button>`;
     }).join('');
@@ -6327,15 +6483,24 @@
     const summary = $('#counterpartySummary');
     const container = $('#counterpartyList');
     if (!summary || !container) return;
+    const accessiblePartyIds = new Set();
+    opportunities.filter(isOpportunityUnlocked).forEach(opp => {
+      const parties = partiesForOpportunity(opp);
+      if (parties.supplierId) accessiblePartyIds.add(parties.supplierId);
+      if (parties.buyerId) accessiblePartyIds.add(parties.buyerId);
+    });
+    const accessibleParties = counterpartyCatalog.filter(party => accessiblePartyIds.has(party.id));
     const exposures = {};
-    counterpartyCatalog.forEach(party => { exposures[party.id] = counterpartyExposure(party.id); });
-    const avgRelationship = counterpartyCatalog.reduce((sum, p) => sum + getCounterpartyState(p.id).relationship, 0) / counterpartyCatalog.length;
+    accessibleParties.forEach(party => { exposures[party.id] = counterpartyExposure(party.id); });
+    const avgRelationship = accessibleParties.length ? accessibleParties.reduce((sum, p) => sum + getCounterpartyState(p.id).relationship, 0) / accessibleParties.length : 0;
+    const suppliers = accessibleParties.filter(p=>p.type==='Supplier').length;
+    const buyers = accessibleParties.filter(p=>p.type==='Buyer').length;
     summary.innerHTML = `
-      <div><span>Approved KYC</span><strong>${counterpartyCatalog.filter(p=>p.kyc==='Approved').length}/${counterpartyCatalog.length}</strong></div>
+      <div><span>Active suppliers</span><strong>${suppliers}</strong></div>
+      <div><span>Active customers</span><strong>${buyers}</strong></div>
       <div><span>Avg relationship</span><strong>${Math.round(avgRelationship)}/100</strong></div>
-      <div><span>Active exposure</span><strong>${money(Object.values(exposures).reduce((a,b)=>a+b,0), true)}</strong></div>
-      <div><span>Disputes</span><strong>${counterpartyCatalog.reduce((sum,p)=>sum+(getCounterpartyState(p.id).disputes||0),0)}</strong></div>`;
-    container.innerHTML = counterpartyCatalog.map(party => {
+      <div><span>Next network unlock</span><strong>${nextExpansionUnlock()?`L${nextExpansionUnlock().level}`:'Global'}</strong></div>`;
+    container.innerHTML = accessibleParties.map(party => {
       const record = getCounterpartyState(party.id);
       const exposure = exposures[party.id] || 0;
       const limit = counterpartyCreditLimit(party.id);
@@ -6406,12 +6571,23 @@
       <div><span>Active disruptions</span><strong>${active.length}</strong></div>
       <div><span>Freight index</span><strong>${state.freightIndex.toFixed(1)}</strong></div>
       <div><span>Effective credit</span><strong>${money(effectiveCreditLimit(),true)}</strong></div>
-      <div><span>Next risk window</span><strong>${Math.max(0,(state.nextGlobalEventDay||0)-state.dayIndex)}d</strong></div>`;
+      <div><span>Next risk window</span><strong>${Math.max(0,(state.nextGlobalEventDay||0)-state.dayIndex)}d</strong></div>
+      <div><span>Risk P&amp;L impact</span><strong style="color:${(state.riskPnlImpact||0)>=0?'var(--green)':'var(--red)'}">${money(state.riskPnlImpact||0,true)}</strong></div>`;
     const activeHtml = active.length ? active.map(event => `<div class="world-event-card active ${event.severity}">
-      <div class="world-event-head"><div><span>${event.region}</span><strong>${event.title}</strong></div><span class="status-pill ${event.severity}">${event.remaining}d</span></div>
+      <div class="world-event-head"><div><span>${event.category || 'Market / Logistics'} · ${event.region || 'Global'}</span><strong>${event.title}</strong></div><span class="status-pill ${event.severity}">${event.remaining}d</span></div>
       <p>${event.description}</p>
       <div class="world-impact">${event.creditPenalty ? `${money(event.creditPenalty,true)} temporary credit reduction` : event.freightShock ? `Freight shock +${event.freightShock} points` : event.commodity ? `${event.commodity} price pressure` : 'Operational disruption'}</div>
     </div>`).join('') : '<div class="success-box">No active global crisis. Routes are operating under normal conditions.</div>';
+    const categoryOrder=['Geopolitical','Macroeconomic','Weather','Operational','Credit','Regulatory','Compliance','Political / FX','Market / Logistics'];
+    const categoryRows=categoryOrder.map(category=>{
+      const events=active.filter(event=>(event.category||'Market / Logistics')===category);
+      const impact=(state.riskLedger||[]).filter(item=>item.category===category).slice(0,8).reduce((sum,item)=>sum+(item.impact||0),0);
+      return `<div class="risk-radar-cell ${events.length?'alert':''}"><span>${category}</span><strong>${events.length}</strong><small>${money(impact,true)} P&amp;L</small></div>`;
+    }).join('');
+    const ledgerHtml=(state.riskLedger||[]).length ? (state.riskLedger||[]).slice(0,12).map(item=>`<div class="risk-ledger-row"><div><span>${formatDate(new Date(item.date))} · ${item.category}</span><strong>${item.title}</strong><small>${item.affectedCargoes||0} cargoes affected</small></div><b style="color:${(item.impact||0)>=0?'var(--green)':'var(--red)'}">${item.impact?money(item.impact):'Market'}</b></div>`).join('') : '<div class="empty-card">Risk events and their P&amp;L impact will be recorded here.</div>';
+    const nextUnlock=nextExpansionUnlock();
+    const expansionHtml=`<div class="expansion-roadmap-card"><div><span>Current company stage · Level ${playerLevel()}</span><strong>${expansionStage().title}</strong><small>${expansionStage().text}</small></div>${nextUnlock?`<div class="next-unlock"><span>Next expansion</span><strong>Level ${nextUnlock.level}</strong><small>${nextUnlock.text}</small></div>`:'<div class="next-unlock"><strong>All global markets unlocked</strong></div>'}</div>`;
+
     // Market Intelligence panel
     const intelCooldown = (state.dayIndex||0) - (state.intelCooldownDay||-99);
     const intelReady = intelCooldown >= 5 && state.completedDeals >= 1;
@@ -6442,7 +6618,7 @@
       <button class="button primary" id="viewDistressedBtn">Open distressed opportunity →</button>
     </div>` : '';
     const feedHtml = (state.worldEventFeed || []).map(item => `<div class="intelligence-item ${item.type}"><span>${formatDate(new Date(item.date))}</span><strong>${item.title}</strong><p>${item.description}</p></div>`).join('');
-    container.innerHTML = `${activeHtml}${intelSection}${distressedCard ? `<div class="section-head history-head"><div><span class="eyebrow">Distressed cargo</span><h2>Urgent deal window</h2></div></div>${distressedCard}` : ''}<div class="section-head history-head"><div><span class="eyebrow">Intelligence feed</span><h2>Latest developments</h2></div></div>${feedHtml || '<div class="empty-card">The global intelligence feed will update over time.</div>'}`;
+    container.innerHTML = `<div class="section-head history-head"><div><span class="eyebrow">Enterprise risk radar</span><h2>Risk categories and P&amp;L</h2></div></div><div class="risk-radar-grid">${categoryRows}</div>${expansionHtml}<div class="section-head history-head"><div><span class="eyebrow">Active shocks</span><h2>Global tension monitor</h2></div></div>${activeHtml}<div class="section-head history-head"><div><span class="eyebrow">Risk attribution</span><h2>Event P&amp;L ledger</h2></div></div><div class="risk-ledger-list">${ledgerHtml}</div>${intelSection}${distressedCard ? `<div class="section-head history-head"><div><span class="eyebrow">Distressed cargo</span><h2>Urgent deal window</h2></div></div>${distressedCard}` : ''}<div class="section-head history-head"><div><span class="eyebrow">Intelligence feed</span><h2>Latest developments</h2></div></div>${feedHtml || '<div class="empty-card">The global intelligence feed will update over time.</div>'}`;
     $('#buyIntelBtn')?.addEventListener('click', () => buyMarketIntel());
     $('#viewDistressedBtn')?.addEventListener('click', () => {
       if (state.distressedOpportunity) {
@@ -6932,7 +7108,7 @@
         })()}
       </div>
       ${related.length ? `<div class="inspector-section"><h3>Related opportunities</h3>${related.map(o => `<button class="event-choice" data-open-opportunity="${o.id}"><strong>${o.title}</strong><small>${getHub(o.origin).name} → ${getHub(o.destination).name} · ${money(opportunityEconomics(o).basePnl)} expected</small></button>`).join('')}</div>` : ''}
-      ${hub.locked && related.length === 0 ? '<div class="warning-box">Hub not yet accessible. Complete more deals and increase reputation.</div>' : ''}
+      ${!countryUnlocked(hub.country) ? `<div class="warning-box"><strong>${hub.country} locked</strong><br>Reach company level ${countryRequiredLevel(hub.country)} to access this market. Commodity-rich and capital-intensive origins unlock later.</div>` : hub.locked && related.length === 0 ? '<div class="warning-box">Hub accessible by level, but a regional office, stronger balance sheet or higher reputation is still required.</div>' : ''}
     `;
   }
 
@@ -7413,9 +7589,14 @@
 
   function configureDifficulty(level) {
     state.difficulty = level;
-    if (level === 'guided') { state.cash = 1_300_000; state.creditLimit = 7_500_000; state.nextGlobalEventDay = 10; }
-    else if (level === 'expert') { state.cash = 800_000; state.creditLimit = 5_000_000; state.nextGlobalEventDay = 4; }
-    else { state.cash = 1_000_000; state.creditLimit = 6_000_000; state.nextGlobalEventDay = 6; }
+    if (level === 'guided') { state.cash = prestigeStartCash(650_000); state.creditLimit = prestigeStartCredit(2_000_000); state.reputation = prestigeStartReputation(15); state.nextGlobalEventDay = 9; }
+    else if (level === 'expert') { state.cash = prestigeStartCash(480_000); state.creditLimit = prestigeStartCredit(1_250_000); state.reputation = prestigeStartReputation(8); state.nextGlobalEventDay = 3; }
+    else { state.cash = prestigeStartCash(500_000); state.creditLimit = prestigeStartCredit(1_500_000); state.reputation = prestigeStartReputation(12); state.nextGlobalEventDay = 6; }
+    state.startingCapital = state.cash;
+    state.xp = 0; state.xpLevel = 1;
+    state.riskPnlImpact = 0; state.riskLedger = [];
+    state.unlockedCountriesSeen = ['Switzerland','Estonia','Italy'];
+    state.unlockedCommoditiesSeen = ['Copper'];
     state.navHistory = [state.cash,state.cash,state.cash];
     state.marketRegime = generateMarketRegime(1);
     initializeCompetitiveMarket(true);
@@ -7475,6 +7656,7 @@
     return { have: state.xp || 0, need, pct: Math.min(100, Math.round(((state.xp || 0) / need) * 100)) };
   }
   let _pendingLevelUps = 0;
+  let _lastUnlockMessage = '';
   function addXp(amount, reason) {
     if (!amount || amount <= 0) return;
     state.xp = (state.xp || 0) + Math.round(amount);
@@ -7483,6 +7665,8 @@
     while (state.xp >= xpForLevel(state.xpLevel)) {
       state.xp -= xpForLevel(state.xpLevel);
       state.xpLevel += 1;
+      const unlockedNow = newlyUnlockedAtLevel(state.xpLevel);
+      _lastUnlockMessage = [...unlockedNow.commodities.map(x=>`${x} market`), ...unlockedNow.countries.map(x=>`${x} corridor`)].join(' · ');
       leveled = true;
       const reward = 4000 + state.xpLevel * 2500;
       state.cash += reward;
@@ -7505,7 +7689,7 @@
     const numEl = document.getElementById('levelUpNumber');
     const rwEl = document.getElementById('levelUpReward');
     if (numEl) numEl.textContent = state.xpLevel;
-    if (rwEl) rwEl.textContent = `+${money(_lastLevelReward)} cash bonus`;
+    if (rwEl) rwEl.textContent = `+${money(_lastLevelReward)} cash bonus${_lastUnlockMessage ? ` · Unlocked: ${_lastUnlockMessage}` : ''}`;
     overlay.classList.add('show');
     overlay.setAttribute('aria-hidden', 'false');
     clearTimeout(overlay._t);
