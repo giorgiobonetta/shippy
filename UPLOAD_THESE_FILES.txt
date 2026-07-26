@@ -1,9 +1,9 @@
-WORLD OF TRADE v33 — UPLOAD INSTRUCTIONS
+WORLD OF TRADE v35.2 — GLOBAL EXPANSION
 
-1. Open your existing GitHub repository.
-2. Select Add file -> Upload files.
-3. Upload every file inside this folder directly to the repository root.
-4. Commit message: Release World of Trade v33 Global Risks & Expansion
-5. Wait for Vercel to show Ready, then press Ctrl+Shift+R.
+Upload every file in this folder directly to the ROOT of the existing GitHub repository.
+Do not upload the containing folder and do not upload the ZIP itself.
 
-Do not upload this folder as a nested folder and do not upload the ZIP itself.
+Suggested commit:
+Release World of Trade v35.2 Global Expansion Roadmap
+
+After Vercel reports Ready, press Ctrl + Shift + R.

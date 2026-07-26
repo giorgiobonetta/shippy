@@ -1,9 +1,12 @@
-const CACHE_NAME = 'world-of-trade-v33-global-risks';
+const CACHE_NAME = 'world-of-trade-v35-2-global-expansion';
 const CORE = [
-  './', './index.html', './styles.css?v=33.0.0', './app.js?v=33.0.0',
+  './', './index.html', './styles.css?v=35.1.0', './app.js?v=35.1.0',
   './three.module.min.js', './earth_atmos_2048.jpg', './earth_normal_2048.jpg',
   './earth_specular_2048.jpg', './earth_clouds_1024.png', './earth_lights_2048.png',
-  './countries-lowres.geojson', './manifest.webmanifest', './world-of-trade-icon.svg'
+  './countries-lowres.geojson', './manifest.webmanifest', './world-of-trade-icon.svg',
+  './world-of-trade-logo.svg', './world-of-trade-logo.png', './world-of-trade-icon.png',
+  './world-of-trade-premium-logo.webp', './world-of-trade-premium-logo.png',
+  './world-of-trade-premium-icon-192.png', './world-of-trade-premium-icon-512.png'
 ];
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE_NAME).then(cache => Promise.all(CORE.map(url => cache.add(url).catch(() => undefined)))).then(() => self.skipWaiting()));

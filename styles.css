@@ -3179,3 +3179,153 @@ h3 { font-size: 1.12rem; }
   .expansion-roadmap-card { grid-template-columns:1fr; }
   .next-unlock { padding-left:0; padding-top:10px; border-left:0; border-top:1px solid rgba(55,78,128,.16); }
 }
+
+/* ── v34 Strategic Growth Office ─────────────────────────────────────────── */
+.expansion-section{padding-bottom:42px}
+.expansion-summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:16px 0 20px}
+.expansion-summary>div,.growth-benefit-grid>div{padding:13px 14px;border:1px solid rgba(255,255,255,.09);border-radius:15px;background:linear-gradient(145deg,rgba(255,255,255,.055),rgba(255,255,255,.018));box-shadow:inset 0 1px rgba(255,255,255,.04)}
+.expansion-summary span,.growth-benefit-grid span{display:block;color:var(--muted);font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.075em;margin-bottom:5px}
+.expansion-summary strong,.growth-benefit-grid strong{font-size:15px;line-height:1.25}
+.hq-growth-panel{display:grid;gap:12px}
+.hq-growth-card,.specialisation-card,.framework-card,.crisis-playbook-card,.market-reputation-card{border:1px solid rgba(255,255,255,.095);border-radius:18px;background:linear-gradient(150deg,rgba(9,28,45,.96),rgba(4,15,27,.92));box-shadow:0 14px 32px rgba(0,0,0,.2),inset 0 1px rgba(255,255,255,.045)}
+.hq-growth-card{padding:16px}
+.hq-growth-card.current{border-color:rgba(91,226,185,.3);background:linear-gradient(150deg,rgba(13,48,53,.96),rgba(5,19,30,.94))}
+.hq-growth-card.next{border-color:rgba(255,194,75,.24)}
+.hq-growth-card.building{animation:growthPulse 2.4s ease-in-out infinite}
+@keyframes growthPulse{50%{box-shadow:0 15px 38px rgba(255,181,52,.14),inset 0 1px rgba(255,255,255,.055)}}
+.growth-card-head,.framework-head,.crisis-playbook-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:10px}
+.growth-card-head span,.framework-head span,.crisis-playbook-head span{display:block;color:var(--muted);font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;margin-bottom:4px}
+.growth-card-head strong,.framework-head strong,.crisis-playbook-head strong{font-size:16px;line-height:1.25}
+.hq-growth-card p,.framework-card p,.crisis-playbook-card p,.specialisation-card p{color:var(--muted);line-height:1.55;margin:8px 0 13px;font-size:14px}
+.growth-benefit-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:13px 0}
+.build-progress-card{padding:12px;border-radius:13px;background:rgba(255,190,65,.08);border:1px solid rgba(255,190,65,.15)}
+.build-progress-card strong{font-size:13px}
+.desk-specialisation-list{display:grid;gap:11px}
+.specialisation-card{display:grid;grid-template-columns:50px minmax(0,1fr);gap:12px;padding:15px;position:relative;overflow:hidden}
+.specialisation-card.active{border-color:rgba(91,226,185,.42);background:linear-gradient(150deg,rgba(13,55,56,.95),rgba(4,18,30,.94))}
+.specialisation-card.locked{opacity:.62}
+.specialisation-icon{width:48px;height:48px;border-radius:15px;display:grid;place-items:center;font-size:25px;font-weight:900;background:linear-gradient(145deg,rgba(91,226,185,.17),rgba(65,124,255,.13));border:1px solid rgba(255,255,255,.1)}
+.specialisation-copy span{display:block;color:var(--muted);text-transform:uppercase;font-size:10px;letter-spacing:.09em;font-weight:800}
+.specialisation-copy strong{display:block;font-size:16px;margin-top:3px}
+.specialisation-copy p{margin-bottom:7px}
+.specialisation-copy small{color:#b8c9d8;font-weight:700}
+.specialisation-stats{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:7px}
+.specialisation-stats b{padding:6px 9px;border-radius:999px;background:rgba(255,255,255,.055);border:1px solid rgba(255,255,255,.075);font-size:11px;color:#dce9f4}
+.specialisation-card>.button{grid-column:1/-1}
+.market-reputation-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+.market-reputation-card{padding:12px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center}
+.market-reputation-card div:first-child span{display:block;color:var(--muted);font-size:10px;text-transform:uppercase;font-weight:800;letter-spacing:.08em}
+.market-reputation-card div:first-child strong{font-size:14px}
+.market-reputation-card>b{font-size:18px;color:var(--green)}
+.market-reputation-card .progress-track{grid-column:1/-1;height:7px;margin:0}
+.market-reputation-card small{grid-column:1/-1;color:var(--muted);font-size:11px}
+.commercial-framework-list,.crisis-response-list{display:grid;gap:11px}
+.framework-card,.crisis-playbook-card{padding:15px}
+.framework-card.active{border-color:rgba(91,226,185,.36)}
+.framework-progress{padding:11px;border-radius:13px;background:rgba(91,226,185,.07);border:1px solid rgba(91,226,185,.14);margin:10px 0}
+.framework-progress strong{font-size:13px}
+.playbook-actions{display:grid;gap:8px;margin-top:12px}
+.playbook-actions button{display:grid;grid-template-columns:38px minmax(0,1fr);gap:3px 10px;text-align:left;padding:11px 12px;border:1px solid rgba(255,255,255,.09);border-radius:14px;background:rgba(255,255,255,.04);color:var(--text);cursor:pointer;transition:.18s ease}
+.playbook-actions button:hover{transform:translateY(-1px);background:rgba(255,255,255,.075);border-color:rgba(91,226,185,.3)}
+.playbook-actions button>span{grid-row:1/3;width:36px;height:36px;border-radius:12px;display:grid;place-items:center;background:rgba(255,190,65,.13);font-size:20px}
+.playbook-actions button strong{font-size:13px;align-self:end}
+.playbook-actions button small{color:var(--muted);font-size:11px;align-self:start}
+.crisis-playbook-card.protected{border-color:rgba(91,226,185,.35)}
+@media (max-width:720px){.expansion-summary,.growth-benefit-grid,.market-reputation-grid{grid-template-columns:1fr}.specialisation-card{grid-template-columns:44px minmax(0,1fr)}}
+
+
+/* ── v35 global office network & brand identity ─────────────────────────── */
+.wot-splash-logo{width:min(420px,78vw);height:auto;filter:drop-shadow(0 24px 28px rgba(0,0,0,.42));animation:wot-logo-float 2.8s ease-in-out infinite}
+@keyframes wot-logo-float{50%{transform:translateY(-6px) rotate(-.6deg)}}
+.brand-mark{overflow:hidden;padding:0!important;background:linear-gradient(145deg,#ffe789,#f4a700)!important;box-shadow:0 6px 0 #a86500,0 10px 20px rgba(0,0,0,.32)!important}
+.brand-mark img{display:block;width:100%;height:100%;object-fit:cover}
+.global-office-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:14px}
+.global-office-summary>div{padding:13px 14px;border:1px solid rgba(122,192,255,.16);border-radius:15px;background:linear-gradient(145deg,rgba(16,38,62,.92),rgba(7,18,31,.94));box-shadow:inset 0 1px rgba(255,255,255,.04)}
+.global-office-summary span,.office-stat-grid span{display:block;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.075em}
+.global-office-summary strong{display:block;margin-top:5px;color:#fff;font-size:18px}
+.global-office-pipeline{display:grid;gap:9px;margin-bottom:14px}
+.office-project-card{padding:13px 15px;border-radius:15px;border:1px solid rgba(83,224,255,.24);background:rgba(7,29,45,.82)}
+.office-project-card>div:first-child{display:grid;grid-template-columns:1fr auto;gap:3px 12px;align-items:center;margin-bottom:9px}.office-project-card span{color:#8edfff;font-size:11px;text-transform:uppercase;letter-spacing:.06em}.office-project-card strong{color:#fff;font-size:14px}.office-project-card small{grid-column:2;color:#ffd35c;font-weight:800}
+.global-office-network{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-bottom:24px}
+.global-office-card{position:relative;overflow:hidden;padding:15px;border-radius:20px;border:1px solid rgba(132,165,197,.18);background:linear-gradient(155deg,rgba(14,34,55,.98),rgba(5,15,27,.98));box-shadow:0 12px 28px rgba(0,0,0,.18);transition:transform .18s ease,border-color .18s ease,box-shadow .18s ease}
+.global-office-card.available:hover{transform:translateY(-2px);border-color:rgba(255,211,78,.45);box-shadow:0 18px 32px rgba(0,0,0,.28)}
+.global-office-card.owned{border-color:rgba(255,210,73,.5);background:linear-gradient(155deg,rgba(38,49,56,.98),rgba(24,25,22,.98))}.global-office-card.building{border-color:rgba(80,220,255,.45)}.global-office-card.locked{opacity:.68;filter:saturate(.7)}
+.office-card-banner{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:11px;margin-bottom:11px}.office-flag{display:grid;place-items:center;width:50px;height:50px;border-radius:15px;font-size:27px;background:linear-gradient(145deg,rgba(255,255,255,.13),rgba(255,255,255,.03));box-shadow:inset 0 1px rgba(255,255,255,.12)}
+.office-card-banner small{display:block;color:#70cfff;text-transform:uppercase;font-size:10px;letter-spacing:.09em;font-weight:800}.office-card-banner h3{margin:2px 0 0;color:#fff;font-size:20px;line-height:1}.office-card-banner b{color:#aebed0;font-size:12px}.office-card-banner em{align-self:start;padding:6px 8px;border-radius:999px;background:rgba(255,211,78,.12);color:#ffd34e;font-style:normal;font-size:9px;font-weight:900;letter-spacing:.08em}
+.global-office-card p{min-height:54px;margin:0 0 10px;color:#b9c8d8;font-size:12.5px;line-height:1.45}.office-benefit{padding:10px 11px;border-radius:12px;background:rgba(62,211,255,.07);color:#88e5ff;font-size:11.5px;font-weight:700;line-height:1.35}
+.office-stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin:11px 0}.office-stat-grid>div{padding:8px 9px;border-radius:10px;background:rgba(255,255,255,.035)}.office-stat-grid strong{display:block;margin-top:2px;color:#fff;font-size:12px}
+.office-specialties{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:11px}.office-specialties span{padding:4px 7px;border-radius:999px;background:rgba(116,145,184,.13);color:#c7d8ea;font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.045em}.office-build-progress{margin:10px 0}.office-build-progress>div:first-child{display:flex;justify-content:space-between;color:#8edfff;font-size:11px}.office-open-button{width:100%;min-height:42px}
+@media(max-width:900px){.global-office-network{grid-template-columns:1fr}.global-office-summary{grid-template-columns:1fr 1fr}.wot-splash-logo{width:min(340px,84vw)}}
+
+
+/* ── v35.1 premium World of Trade identity ─────────────────────────────── */
+.wot-splash{
+  background:
+    radial-gradient(700px 460px at 50% 42%,rgba(154,92,14,.34),transparent 68%),
+    radial-gradient(1000px 720px at 50% 20%,rgba(29,77,169,.22),transparent 65%),
+    linear-gradient(180deg,#05070c 0%,#071329 56%,#020409 100%);
+}
+.wot-splash-inner{width:min(820px,96vw);padding:22px}
+.wot-splash-logo{
+  display:block;
+  width:min(620px,88vw);
+  max-height:72vh;
+  margin:0 auto;
+  object-fit:contain;
+  border-radius:34px;
+  filter:drop-shadow(0 30px 38px rgba(0,0,0,.62));
+  animation:wot-logo-float 2.8s ease-in-out infinite;
+}
+.wot-splash-loader{margin-top:12px;width:min(260px,58vw);border:1px solid rgba(255,205,73,.26)}
+.wot-splash-loader>span{background:linear-gradient(90deg,#f2a900,#ffe178,#5bc9ff)}
+.wot-boot-status{color:#f3e5bf;text-shadow:0 1px 2px #000}
+.brand-mark{
+  width:52px!important;
+  height:52px!important;
+  flex:0 0 52px;
+  border:2px solid #f2be43!important;
+  border-radius:15px!important;
+  background:#061229!important;
+  box-shadow:0 5px 0 #8a5705,0 11px 22px rgba(0,0,0,.38)!important;
+}
+.brand-mark img{width:100%;height:100%;object-fit:cover;border-radius:12px}
+@media(max-width:760px){
+  .wot-splash-logo{width:min(520px,94vw);max-height:65vh;border-radius:22px}
+  .brand-mark{width:45px!important;height:45px!important;flex-basis:45px}
+}
+
+
+/* v35.2 — prominent global office expansion */
+.command-button.offices-command{
+  color:#dfffe8;
+  border-color:rgba(80,220,135,.34);
+  background:linear-gradient(180deg,rgba(16,91,54,.68),rgba(6,40,28,.76));
+}
+.command-button.offices-command:hover,.command-button.offices-command.active{
+  color:#fff;
+  border-color:rgba(126,255,174,.72);
+  background:linear-gradient(180deg,rgba(24,132,76,.82),rgba(7,57,38,.9));
+  box-shadow:0 0 25px rgba(72,232,135,.18);
+}
+.command-badge.building{background:#65dfff;color:#062b3a;}
+.office-unlock-roadmap{margin:12px 0 16px;padding:13px;border:1px solid rgba(126,255,174,.18);border-radius:16px;background:linear-gradient(145deg,rgba(17,68,48,.28),rgba(6,20,30,.54));}
+.office-roadmap-heading{display:flex;justify-content:space-between;gap:14px;align-items:flex-end;margin-bottom:11px;}
+.office-roadmap-heading span,.office-roadmap-heading strong,.office-roadmap-heading small{display:block;}
+.office-roadmap-heading span{font-size:.72rem;color:#7fffa8;font-weight:800;text-transform:uppercase;letter-spacing:.08em;}
+.office-roadmap-heading strong{margin-top:4px;font-size:1rem;color:#f2fff6;}
+.office-roadmap-heading small{max-width:360px;text-align:right;color:var(--muted);font-size:.78rem;line-height:1.35;}
+.office-roadmap-track{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;}
+.office-roadmap-node{min-width:0;padding:10px 8px;border:1px solid rgba(255,255,255,.1);border-radius:13px;background:rgba(5,15,25,.64);color:var(--text);text-align:left;cursor:pointer;transition:.18s ease;}
+.office-roadmap-node:hover{transform:translateY(-2px);border-color:rgba(126,255,174,.42);}
+.office-roadmap-node>span{font-size:1.4rem;float:left;margin-right:7px;}
+.office-roadmap-node b{display:inline-block;padding:2px 6px;border-radius:999px;background:rgba(255,255,255,.08);font-size:.67rem;color:#d9e6ee;}
+.office-roadmap-node strong,.office-roadmap-node small{display:block;clear:both;}
+.office-roadmap-node strong{margin-top:7px;font-size:.88rem;}
+.office-roadmap-node small{margin-top:3px;color:var(--muted);font-size:.68rem;line-height:1.25;}
+.office-roadmap-node.ready{border-color:rgba(126,255,174,.42);box-shadow:inset 0 0 18px rgba(73,220,130,.08);}
+.office-roadmap-node.ready b{background:#65e69a;color:#06351d;}
+.office-roadmap-node.building{border-color:rgba(101,223,255,.48);box-shadow:inset 0 0 18px rgba(101,223,255,.08);}
+.office-roadmap-node.building b{background:#65dfff;color:#062b3a;}
+.office-roadmap-node.locked{opacity:.68;}
+@media(max-width:980px){.office-roadmap-track{grid-template-columns:repeat(2,minmax(0,1fr));}.office-roadmap-heading{align-items:flex-start;flex-direction:column}.office-roadmap-heading small{text-align:left;}}
+@media(max-width:560px){.office-roadmap-track{grid-template-columns:1fr;}}

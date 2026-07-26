@@ -6,14 +6,16 @@
   <meta name="description" content="World of Trade — the global physical commodity trading, shipping, supply-chain, risk and industrial strategy simulator." />
   <meta name="theme-color" content="#1f6fe0" />
   <link rel="manifest" href="manifest.webmanifest" />
-  <link rel="icon" href="world-of-trade-icon.svg" type="image/svg+xml" />
+  <link rel="icon" href="world-of-trade-premium-icon-192.png" type="image/png" />
+  <link rel="apple-touch-icon" href="world-of-trade-premium-icon-192.png" />
+  <link rel="preload" as="image" href="world-of-trade-premium-logo.webp" type="image/webp" fetchpriority="high" />
   <link rel="preload" as="image" href="earth_atmos_2048.jpg" fetchpriority="high" />
   <title>World of Trade — Physical Commodity Trading Simulator</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Baloo+2:wght@600;700;800&display=swap" onload="this.onload=null;this.rel='stylesheet'" />
   <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Baloo+2:wght@600;700;800&display=swap" /></noscript>
-  <link rel="stylesheet" href="styles.css?v=33.0.0" />
+  <link rel="stylesheet" href="styles.css?v=35.1.0" />
   <script>
     (() => {
       const boot = window.__WOT_BOOT__ = { startedAt: Date.now(), status: 'HTML loaded', progress: 4, failed: false };
@@ -84,9 +86,7 @@
 <body>
   <div class="wot-splash" id="wotSplash" aria-hidden="true">
     <div class="wot-splash-inner">
-      <div class="wot-splash-crest">W<span class="wot-splash-shine"></span></div>
-      <div class="wot-splash-title" id="wotBootTitle">World of Trade</div>
-      <div class="wot-splash-sub">Physical Commodity Trading</div>
+      <img class="wot-splash-logo" src="world-of-trade-premium-logo.webp" width="760" height="683" alt="World of Trade — Physical Commodity Trading">
       <div class="wot-splash-loader"><span id="wotBootProgress"></span></div>
       <div class="wot-boot-status" id="wotBootStatus">Loading game files…</div>
       <div class="wot-boot-recovery" id="wotBootRecovery" hidden>
@@ -99,7 +99,7 @@
   <div class="app-shell">
     <header class="topbar">
       <div class="brand-block">
-        <div class="brand-mark">W</div>
+        <div class="brand-mark"><img src="world-of-trade-premium-icon-192.png" width="48" height="48" alt="World of Trade logo"></div>
         <div>
           <div class="brand-name">World of Trade <span class="prestige-badge hidden" id="prestigeBadge" title="Prestige level"></span></div>
           <div class="brand-subtitle" data-i18n="brand.subtitle">Physical Trading Command · Geneva HQ</div>
@@ -146,6 +146,7 @@
           <button class="panel-tab" data-left-tab="opportunities">Market</button>
           <button class="panel-tab rival-tab" data-left-tab="rivals">Rivals</button>
           <button class="panel-tab strategy-tab" data-left-tab="strategy">Strategy</button>
+          <button class="panel-tab expansion-tab" data-left-tab="expansion">Expansion</button>
           <button class="panel-tab" data-left-tab="counterparties">Network</button>
           <button class="panel-tab compliance-tab" data-left-tab="compliance">Compliance</button>
           <button class="panel-tab" data-left-tab="events">World</button>
@@ -246,6 +247,26 @@
           <div id="boardMandates" class="board-mandates"></div>
         </section>
 
+        <section id="left-expansion" class="left-section expansion-section">
+          <div class="section-copy"><span class="eyebrow">Strategic growth office</span><h2>Build the merchant house</h2><p>Upgrade Geneva HQ, open offices around the world, specialise the desk, earn market credibility and build a multinational commodity merchant.</p></div>
+          <div id="expansionSummary" class="expansion-summary"></div>
+          <div class="section-head history-head"><div><span class="eyebrow">Geneva headquarters</span><h2>HQ development roadmap</h2></div></div>
+          <div id="hqGrowthPanel" class="hq-growth-panel"></div>
+          <div class="section-head history-head"><div><span class="eyebrow">International footprint</span><h2>Global office network</h2></div></div>
+          <div id="globalOfficeSummary" class="global-office-summary"></div>
+          <div id="officeUnlockRoadmap" class="office-unlock-roadmap"></div>
+          <div id="globalOfficePipeline" class="global-office-pipeline"></div>
+          <div id="globalOfficeNetwork" class="global-office-network"></div>
+          <div class="section-head history-head"><div><span class="eyebrow">Trading identity</span><h2>Desk specialisation</h2></div></div>
+          <div id="deskSpecialisationList" class="desk-specialisation-list"></div>
+          <div class="section-head history-head"><div><span class="eyebrow">Commercial franchise</span><h2>Market reputation</h2></div></div>
+          <div id="marketReputationGrid" class="market-reputation-grid"></div>
+          <div class="section-head history-head"><div><span class="eyebrow">Long-term business</span><h2>Framework &amp; offtake agreements</h2></div></div>
+          <div id="commercialFrameworkList" class="commercial-framework-list"></div>
+          <div class="section-head history-head"><div><span class="eyebrow">Crisis management</span><h2>Active response playbooks</h2></div></div>
+          <div id="crisisResponseList" class="crisis-response-list"></div>
+        </section>
+
         <section id="left-counterparties" class="left-section">
           <div class="section-copy"><span class="eyebrow">Commercial network</span><h2>Buyers and suppliers</h2><p>Commercial relationships change with punctuality, claims, execution and results.</p></div>
           <div id="counterpartySummary" class="network-summary"></div><div id="counterpartyList" class="counterparty-list"></div>
@@ -321,7 +342,7 @@
         </section>
 
         <section id="left-hq" class="left-section">
-          <div class="section-copy"><span class="eyebrow">Trading house</span><h2>HQ management</h2><p>Open regional offices and hire specialists with benefits and daily costs.</p></div>
+          <div class="section-copy"><span class="eyebrow">Trading house</span><h2>HQ management</h2><p>Build and manage international offices, project teams and specialist staff across the global trading network.</p></div>
           <div id="hqSummary" class="management-summary"></div><div id="officeList" class="management-list"></div>
           <div class="section-head history-head"><div><span class="eyebrow">Team</span><h2>Specialists</h2></div></div><div id="staffList" class="management-list"></div>
         </section>
@@ -353,6 +374,7 @@
         <nav class="command-dock left-command-rail" aria-label="Main commands">
           <button class="command-button primary" id="openDeskButton" aria-label="Open command center"><span>☰</span><b data-i18n="dock.desk">Desk</b></button>
           <button class="command-button shop-command" id="openShopButton" aria-label="Open trading empire shop" title="Trading Empire Shop · S"><span>▦</span><b data-i18n="dock.shop">Shop</b><em class="command-badge hidden" id="shopBadge">0</em></button>
+          <button class="command-button offices-command" id="openOfficesButton" aria-label="Open global office network" title="Global Office Network · O"><span>⌂</span><b>Offices</b><em class="command-badge hidden" id="officeBadge">0</em></button>
           <button class="command-button" id="toggleOverviewButton" aria-label="Focus permanent company metrics"><span>◇</span><b data-i18n="dock.overview">Overview</b></button>
           <button class="command-button briefing-command" id="openBriefingButton" aria-label="Open daily briefing" title="Daily briefing · B"><span>☷</span><b data-i18n="dock.briefing">Briefing</b><em class="command-badge hidden" id="briefingBadge">0</em></button>
         </nav>
@@ -367,7 +389,7 @@
         <div class="drawer-backdrop" id="drawerBackdrop" aria-hidden="true"></div>
 
         <div class="globe-header">
-          <div><span class="eyebrow">Global operations view</span><h1>World of Trade · Global Trade Command <span class="version-badge">v33</span></h1></div>
+          <div><span class="eyebrow">Global operations view</span><h1>World of Trade · Global Trade Command <span class="version-badge">v34</span></h1></div>
           <div class="market-strip" id="marketStrip" aria-label="Markets" aria-hidden="true">
             <div class="market-ticker"><span>Copper</span><strong id="copperPrice">$9,500/t</strong><small id="copperMove">+0.0%</small><em id="copperTermStructure" class="term-struct"></em></div>
             <div class="market-ticker"><span>Aluminium</span><strong id="aluminiumPrice">$2,450/t</strong><small id="aluminiumMove">+0.0%</small><em id="aluminiumTermStructure" class="term-struct"></em></div>
@@ -468,6 +490,7 @@
           <div class="shortcut-row"><span data-i18n="sc.market">Opportunity market</span><kbd>M</kbd></div>
           <div class="shortcut-row"><span data-i18n="sc.risk">Risk dashboard</span><kbd>R</kbd></div>
           <div class="shortcut-row"><span data-i18n="sc.perf">Performance office</span><kbd>P</kbd></div>
+          <div class="shortcut-row"><span>Global office network</span><kbd>O</kbd></div>
           <div class="shortcut-row"><span data-i18n="sc.shop">Empire shop</span><kbd>S</kbd></div>
         </div>
         <div class="shortcuts-col">
@@ -585,6 +608,6 @@
       <div class="dialog-actions"><button value="cancel" class="button secondary" data-i18n="btn.cancel">Cancel</button><button value="save" class="button primary" data-i18n="btn.save">Save changes</button></div>
     </form>
   </dialog>
-  <script type="module" src="app.js?v=33.0.0"></script>
+  <script type="module" src="app.js?v=35.1.0"></script>
 </body>
 </html>

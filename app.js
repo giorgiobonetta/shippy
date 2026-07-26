@@ -36,8 +36,8 @@
   const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
   const lerp = (a, b, t) => a + (b - a) * t;
   const deg = Math.PI / 180;
-  const storageKey = 'wot-v33';
-  const legacyStorageKeys = ['wot-v32', 'wot-v31', 'wot-v30', 'wot-v29', 'wot-v28', 'wot-v27', 'wot-v26', 'wot-v25', 'wot-v24', 'wot-v23', 'wot-v22', 'wot-v21', 'wot-v20', 'wot-v19', 'wot-v18', 'shippy-v17', 'shippy-v16', 'shippy-v15', 'shippy-v14', 'shippy-v13', 'shippy-v12', 'shippy-v11', 'shippy-v10', 'shippy-v9', 'shippy-v8', 'shippy-v7', 'shippy-v6', 'shippy-v5', 'global-commodity-trader-v3'];
+  const storageKey = 'wot-v35';
+  const legacyStorageKeys = ['wot-v34', 'wot-v33', 'wot-v32', 'wot-v31', 'wot-v30', 'wot-v29', 'wot-v28', 'wot-v27', 'wot-v26', 'wot-v25', 'wot-v24', 'wot-v23', 'wot-v22', 'wot-v21', 'wot-v20', 'wot-v19', 'wot-v18', 'shippy-v17', 'shippy-v16', 'shippy-v15', 'shippy-v14', 'shippy-v13', 'shippy-v12', 'shippy-v11', 'shippy-v10', 'shippy-v9', 'shippy-v8', 'shippy-v7', 'shippy-v6', 'shippy-v5', 'global-commodity-trader-v3'];
 
   // ── v25 prestige (persists across career resets) ────────────────────────────
   const prestigeKey = 'wot-prestige';
@@ -335,7 +335,7 @@
   };
   const drawerLabelsIT = {
     portfolio:'Scrivania trading', inventory:'Inventario fisico', operations:'Centro operazioni', supply:'Controllo supply chain', contracts:'Contratti e credito',
-    fleet:'Ufficio flotta', risk:'Dashboard rischio', opportunities:'Mercato opportunità', rivals:'Intelligence competitiva', strategy:'Strategia del board',
+    fleet:'Ufficio flotta', risk:'Dashboard rischio', opportunities:'Mercato opportunità', rivals:'Intelligence competitiva', strategy:'Strategia del board', expansion:'Ufficio crescita strategica',
     counterparties:'Rete commerciale', compliance:'Ufficio compliance', events:'Intelligence globale', finance:'Tesoreria', performance:'Ufficio performance',
     academy:'WoT Academy', empire:'Impero di trading', shop:'Negozio impero', hq:'Quartier generale',
     career:'Progressione carriera', leaderboard:'Career League'
@@ -445,7 +445,8 @@
   function newlyUnlockedAtLevel(level) {
     const countries=Object.entries(countryUnlockLevels).filter(([,v])=>v===level).map(([k])=>k);
     const commodities=Object.entries(commodityUnlockLevels).filter(([,v])=>v===level).map(([k])=>k);
-    return { countries, commodities };
+    const offices=(typeof officeCatalog !== 'undefined' ? officeCatalog : []).filter(office=>office.id!=='geneva' && office.minLevel===level).map(office=>`${office.city} office`);
+    return { countries, commodities, offices };
   }
   function unlockReason(opp) {
     const req=opportunityProgressionRequirements(opp);
@@ -453,6 +454,232 @@
     if (req.lockedCountries.length) return `${req.lockedCountries.map(x=>`${x.country} (${countryAccessTier(x.country)})`).join(' / ')} unlocks at level ${req.requiredLevel}`;
     if (typeof opp.unlock === 'function' && !opp.unlock(state)) return 'Requires a larger balance sheet, reputation or regional office';
     return '';
+  }
+
+
+  // ── v34 strategic growth: HQ, desk specialisation, franchise and playbooks ──
+  const hqTierCatalog = [
+    { tier:1, name:'Geneva Micro Office', minLevel:1, cost:0, buildDays:0, dailyCost:0, pnlBonus:0, acceptance:0, equityFactor:1, durationBonus:0, riskReduction:0, creditBonus:0, description:'A small Geneva office with one trader, outsourced operations and limited banking capacity.' },
+    { tier:2, name:'Geneva Trading Floor', minLevel:3, cost:180_000, buildDays:5, dailyCost:450, pnlBonus:3_500, acceptance:1, equityFactor:.99, durationBonus:0, riskReduction:1, creditBonus:150_000, description:'A dedicated trading floor with basic middle-office support and stronger bank visibility.' },
+    { tier:3, name:'Geneva Merchant House', minLevel:8, cost:650_000, buildDays:10, dailyCost:1_250, pnlBonus:9_000, acceptance:3, equityFactor:.97, durationBonus:1, riskReduction:3, creditBonus:500_000, description:'An established merchant platform with integrated risk, finance, operations and legal teams.' },
+    { tier:4, name:'Global Trading Campus', minLevel:16, cost:2_100_000, buildDays:18, dailyCost:3_200, pnlBonus:20_000, acceptance:5, equityFactor:.94, durationBonus:2, riskReduction:6, creditBonus:1_250_000, description:'A global command centre coordinating regional desks, physical assets and bank syndicates.' },
+    { tier:5, name:'Integrated Merchant Tower', minLevel:24, cost:6_000_000, buildDays:30, dailyCost:7_500, pnlBonus:42_000, acceptance:8, equityFactor:.90, durationBonus:3, riskReduction:10, creditBonus:3_000_000, description:'A fully integrated global merchant with institutional funding, specialist desks and permanent crisis capacity.' }
+  ];
+
+  const deskSpecializationCatalog = {
+    generalist: { id:'generalist', name:'General Merchant', icon:'◇', commodities:[], pnlFactor:1, nonCorePnlFactor:1, acceptance:0, equityFactor:1, riskAdjustment:0, description:'Balanced across all physical markets with no concentration bonus or penalty.' },
+    metals: { id:'metals', name:'Metals & Mining', icon:'◆', commodities:['Copper','Aluminium','Iron ore','Steel','Zinc','Nickel'], pnlFactor:1.09, nonCorePnlFactor:.97, acceptance:5, equityFactor:.95, riskAdjustment:-1, description:'Stronger premiums, assays, warehousing and producer relationships across metals.' },
+    energy: { id:'energy', name:'Energy & Molecules', icon:'◉', commodities:['Diesel','LNG'], pnlFactor:1.10, nonCorePnlFactor:.96, acceptance:5, equityFactor:.95, riskAdjustment:1, description:'Expertise in oil products, LNG, tankage, vessel vetting and energy finance.' },
+    agriculture: { id:'agriculture', name:'Agriculture & Softs', icon:'✦', commodities:['Coffee','Wheat','Palm oil','Cocoa','Urea','Soybeans'], pnlFactor:1.085, nonCorePnlFactor:.97, acceptance:5, equityFactor:.96, riskAdjustment:0, description:'Origination, seasonality, quality control and destination distribution expertise.' }
+  };
+
+  const crisisPlaybookCatalog = {
+    diversify: { id:'diversify', name:'Alternative sourcing task force', icon:'↗', cost:25_000, lossFactor:.72, durationReduction:2, acceptance:2, equityFactor:.98, creditBonus:0, financingRateShock:0, description:'Activate backup suppliers, substitute ports and alternative logistics.' },
+    freight: { id:'freight', name:'Freight & insurance cover', icon:'⌁', cost:38_000, lossFactor:.58, durationReduction:1, acceptance:1, equityFactor:1, creditBonus:0, financingRateShock:0, freightRelief:.30, description:'Secure priority capacity, war-risk cover and delay protection.' },
+    liquidity: { id:'liquidity', name:'Emergency liquidity protocol', icon:'$', cost:52_000, lossFactor:.86, durationReduction:0, acceptance:0, equityFactor:.90, creditBonus:600_000, financingRateShock:-.012, description:'Pre-fund margin, draw contingency facilities and protect working capital.' }
+  };
+
+  function hqCurrentTier() {
+    const tier = clamp(Number(state?.hqTier || 1), 1, hqTierCatalog.length);
+    return hqTierCatalog.find(item => item.tier === tier) || hqTierCatalog[0];
+  }
+  function hqNextTier() { return hqTierCatalog.find(item => item.tier === hqCurrentTier().tier + 1) || null; }
+  function hqAdjustments() {
+    const hq = hqCurrentTier();
+    return { ...hq, equityFactor:hq.equityFactor || 1, pnlBonus:hq.pnlBonus || 0, acceptance:hq.acceptance || 0, durationBonus:hq.durationBonus || 0, riskReduction:hq.riskReduction || 0, creditBonus:hq.creditBonus || 0 };
+  }
+  function hqBookValue() {
+    const commissioned = hqTierCatalog.filter(item => item.tier <= hqCurrentTier().tier).reduce((sum,item)=>sum+(item.cost||0),0) * .82;
+    const workInProgress = state?.hqUpgrade ? (state.hqUpgrade.cost || 0) * .68 : 0;
+    return Math.round(commissioned + workInProgress);
+  }
+  function startHQUpgrade() {
+    const next = hqNextTier();
+    if (!next || state.hqUpgrade) return;
+    if (playerLevel() < next.minLevel) return showToast(`${next.name} unlocks at company level ${next.minLevel}.`);
+    if (state.cash < next.cost) return showToast(`The HQ project requires ${money(next.cost)} cash.`);
+    state.cash -= next.cost;
+    state.hqUpgrade = { targetTier:next.tier, daysRemaining:next.buildDays, cost:next.cost, startedAt:state.date };
+    recordJournal('Expansion', `${next.name} construction started`, `${next.buildDays}-day Geneva headquarters project.`, -next.cost, `hq-${next.tier}`);
+    saveState(); renderAll(); showToast(`${next.name} construction started.`);
+  }
+  function processHQUpgradeDay() {
+    const project = state.hqUpgrade;
+    if (!project) return;
+    project.daysRemaining = Math.max(0, (project.daysRemaining || 0) - 1);
+    if (project.daysRemaining > 0) return;
+    const delivered = hqTierCatalog.find(item => item.tier === project.targetTier);
+    state.hqTier = project.targetTier;
+    state.hqUpgrade = null;
+    state.reputation = clamp((state.reputation || 0) + 3, 0, 100);
+    state.worldEventFeed.unshift({ type:'expansion', title:`${delivered?.name || 'Geneva HQ'} completed`, date:state.date, description:'The new headquarters capacity is operational and now supports every trading desk.' });
+    state.worldEventFeed = state.worldEventFeed.slice(0,18);
+    recordJournal('Expansion', `${delivered?.name || 'HQ upgrade'} delivered`, 'Permanent capital, execution and risk-management benefits are now active.', 0, `hq-${state.hqTier}`);
+  }
+
+  function activeDeskSpecialization() { return deskSpecializationCatalog[state?.deskSpecialization] || deskSpecializationCatalog.generalist; }
+  function specializationMatches(opp, specialization = activeDeskSpecialization()) { return !specialization.commodities.length || specialization.commodities.includes(opp?.commodity); }
+  function deskSpecializationAdjustments(opp) {
+    const specialization = activeDeskSpecialization();
+    const core = specializationMatches(opp, specialization);
+    return {
+      specialization,
+      core,
+      pnlFactor: core ? specialization.pnlFactor : specialization.nonCorePnlFactor,
+      acceptance: core ? specialization.acceptance : specialization.id === 'generalist' ? 0 : -2,
+      equityFactor: core ? specialization.equityFactor : 1.02,
+      riskAdjustment: specialization.riskAdjustment || 0
+    };
+  }
+  function chooseDeskSpecialization(id) {
+    const next = deskSpecializationCatalog[id];
+    if (!next || next.id === state.deskSpecialization) return;
+    if (playerLevel() < 3) return showToast('Desk specialisation unlocks at company level 3.');
+    const firstChoice = !state.specializationChosen;
+    const cooldown = 30 - ((state.dayIndex || 0) - (state.specializationChangedDay || -99));
+    if (!firstChoice && cooldown > 0) return showToast(`Board mandate can change again in ${cooldown} days.`);
+    const cost = firstChoice ? 0 : 90_000;
+    if (state.cash < cost) return showToast(`Changing the desk mandate costs ${money(cost)}.`);
+    state.cash -= cost;
+    state.deskSpecialization = id;
+    state.specializationChosen = true;
+    state.specializationChangedDay = state.dayIndex || 0;
+    recordJournal('Strategy', `${next.name} mandate adopted`, firstChoice ? 'Initial desk specialisation selected.' : `Board transition cost ${money(cost)}.`, -cost, id);
+    saveState(); renderAll(); showToast(`${next.name} is now the core desk specialisation.`);
+  }
+
+  function ensureMarketReputation() {
+    state.marketReputation = state.marketReputation || { countries:{}, commodities:{} };
+    state.marketReputation.countries = state.marketReputation.countries || {};
+    state.marketReputation.commodities = state.marketReputation.commodities || {};
+    if (!Number.isFinite(state.marketReputation.countries.Switzerland)) state.marketReputation.countries.Switzerland = 50;
+    if (!Number.isFinite(state.marketReputation.countries.Estonia)) state.marketReputation.countries.Estonia = 35;
+    if (!Number.isFinite(state.marketReputation.countries.Italy)) state.marketReputation.countries.Italy = 35;
+    if (!Number.isFinite(state.marketReputation.commodities.Copper)) state.marketReputation.commodities.Copper = 35;
+    return state.marketReputation;
+  }
+  function marketReputationAdjustments(opp) {
+    const reputation = ensureMarketReputation();
+    const origin = getHub(opp?.origin)?.country;
+    const destination = getHub(opp?.destination)?.country;
+    const countryScores = [origin, destination].filter(Boolean).map(country => reputation.countries[country] ?? 12);
+    const commodityScore = reputation.commodities[opp?.commodity] ?? 12;
+    const score = Math.round((commodityScore * 1.4 + countryScores.reduce((a,b)=>a+b,0)) / (1.4 + countryScores.length));
+    return {
+      score,
+      acceptance: clamp(Math.round((score - 25) / 8), -3, 7),
+      pnlBonus: Math.max(0, Math.round((score - 35) * 420)),
+      equityFactor: clamp(1 - Math.max(0, score - 40) * .0011, .94, 1),
+      complianceReduction: Math.max(0, Math.round((score - 25) * .22))
+    };
+  }
+  function updateMarketReputationAfterDeal(opp, pnl, readiness) {
+    const reputation = ensureMarketReputation();
+    const move = pnl >= 0 && readiness >= 85 ? 4 : pnl < 0 || readiness < 70 ? -3 : 1;
+    const countries = [getHub(opp.origin)?.country, getHub(opp.destination)?.country].filter(Boolean);
+    countries.forEach(country => reputation.countries[country] = clamp((reputation.countries[country] ?? 12) + move, 0, 100));
+    reputation.commodities[opp.commodity] = clamp((reputation.commodities[opp.commodity] ?? 12) + move, 0, 100);
+  }
+
+  function commercialFrameworkFor(oppId) {
+    const framework = state?.commercialFrameworks?.[oppId];
+    return framework && framework.status === 'active' && framework.daysRemaining > 0 ? framework : null;
+  }
+  function commercialFrameworkAdjustments(opp) {
+    const framework = commercialFrameworkFor(opp?.id);
+    if (!framework) return { framework:null, pnlBonus:0, acceptance:0, equityFactor:1, durationBonus:0 };
+    return { framework, pnlBonus:framework.pnlBonus || 0, acceptance:framework.acceptance || 0, equityFactor:framework.equityFactor || 1, durationBonus:framework.durationBonus || 0 };
+  }
+  function signCommercialFramework(oppId) {
+    const opp = getOpportunity(oppId);
+    if (!opp || !isOpportunityUnlocked(opp)) return;
+    state.commercialFrameworks = state.commercialFrameworks || {};
+    if (commercialFrameworkFor(oppId)) return showToast('A framework agreement is already active on this corridor.');
+    if (playerLevel() < 3 || state.completedDeals < 1) return showToast('Framework agreements require level 3 and at least one completed cargo.');
+    const activeCount = Object.values(state.commercialFrameworks).filter(item => item?.status === 'active' && item.daysRemaining > 0).length;
+    if (activeCount >= Math.max(1, hqCurrentTier().tier - 1)) return showToast('Upgrade Geneva HQ to manage more simultaneous framework agreements.');
+    const cost = clamp(Math.round(opp.capital * .025), 45_000, 180_000);
+    if (state.cash < cost) return showToast(`Signing and legal work require ${money(cost)}.`);
+    const parties = partiesForOpportunity(opp);
+    state.cash -= cost;
+    state.commercialFrameworks[oppId] = {
+      opportunityId:oppId, status:'active', signedAt:state.date, daysRemaining:120,
+      commitments:3, lifts:0, cost, shortfallPenalty:Math.round(cost * 1.65),
+      pnlBonus:Math.max(8_000, Math.round(opp.basePnl * .12)), acceptance:6,
+      equityFactor:.95, durationBonus:2, supplierId:parties.supplierId, buyerId:parties.buyerId
+    };
+    recordJournal('Commercial', `${opp.title}: framework signed`, '120-day supplier and buyer framework with three committed cargoes.', -cost, oppId);
+    saveState(); renderAll(); showToast(`Framework signed for ${opp.title}. Three cargoes committed.`);
+  }
+  function registerCommercialFrameworkLift(opp, deal) {
+    const framework = commercialFrameworkFor(opp?.id);
+    if (!framework) return;
+    framework.lifts = (framework.lifts || 0) + 1;
+    deal.commercialFrameworkId = opp.id;
+    if (framework.lifts >= framework.commitments && !framework.fulfilledAt) {
+      framework.fulfilledAt = state.date;
+      state.reputation = clamp((state.reputation || 0) + 2, 0, 100);
+      recordJournal('Commercial', `${opp.title}: commitment fulfilled`, `${framework.lifts}/${framework.commitments} framework cargoes booked.`, 0, opp.id);
+    }
+  }
+  function processCommercialFrameworks() {
+    Object.values(state.commercialFrameworks || {}).forEach(framework => {
+      if (!framework || framework.status !== 'active') return;
+      framework.daysRemaining = Math.max(0, (framework.daysRemaining || 0) - 1);
+      if (framework.daysRemaining > 0) return;
+      const opp = getOpportunity(framework.opportunityId);
+      const shortfall = Math.max(0, (framework.commitments || 0) - (framework.lifts || 0));
+      if (shortfall > 0) {
+        const penalty = Math.round((framework.shortfallPenalty || 0) * shortfall / Math.max(1, framework.commitments || 1));
+        state.cash -= penalty;
+        state.realizedPnl -= penalty;
+        state.reputation = clamp((state.reputation || 0) - Math.min(6, shortfall * 2), 0, 100);
+        recordJournal('Commercial', `${opp?.title || 'Framework'}: take-or-pay shortfall`, `${shortfall} committed cargo${shortfall===1?'':'es'} not lifted.`, -penalty, framework.opportunityId);
+      } else {
+        state.reputation = clamp((state.reputation || 0) + 2, 0, 100);
+        recordJournal('Commercial', `${opp?.title || 'Framework'} completed`, 'All committed cargoes were lifted within the contract period.', 0, framework.opportunityId);
+      }
+      framework.status = shortfall ? 'expired-shortfall' : 'fulfilled';
+    });
+  }
+
+  function crisisResponseFor(eventId) {
+    const response = state?.crisisResponses?.[eventId];
+    if (!response || response.status !== 'active') return null;
+    if (!state.activeGlobalEvents?.some(event => event.id === eventId)) return null;
+    return response;
+  }
+  function crisisResponseAdjustments(event) {
+    const response = crisisResponseFor(event?.id);
+    const playbook = response ? crisisPlaybookCatalog[response.playbookId] : null;
+    return playbook || { lossFactor:1, durationReduction:0, acceptance:0, equityFactor:1, creditBonus:0, financingRateShock:0 };
+  }
+  function activateCrisisResponse(eventId, playbookId) {
+    const active = state.activeGlobalEvents?.find(event => event.id === eventId);
+    const definition = activeEventDefinition(active || {});
+    const playbook = crisisPlaybookCatalog[playbookId];
+    if (!active || !definition || !playbook) return;
+    state.crisisResponses = state.crisisResponses || {};
+    if (crisisResponseFor(eventId)) return showToast('A crisis playbook is already active for this event.');
+    if (state.cash < playbook.cost) return showToast(`${playbook.name} requires ${money(playbook.cost)} cash.`);
+    state.cash -= playbook.cost;
+    state.realizedPnl -= playbook.cost;
+    let recovered = 0;
+    let cargoes = 0;
+    state.activeDeals.forEach(deal => {
+      if (!(deal.globalEventImpacts || []).includes(eventId)) return;
+      const recovery = definition.dealPnl < 0 ? Math.round(-definition.dealPnl * (1 - playbook.lossFactor)) : 0;
+      deal.pnlAdjustments += recovery;
+      deal.duration = Math.max(deal.elapsed + 1, deal.duration - (playbook.durationReduction || 0));
+      recovered += recovery;
+      cargoes += 1;
+    });
+    if (playbook.freightRelief && definition.freightShock > 0) state.freightIndex = clamp(state.freightIndex - definition.freightShock * playbook.freightRelief, 68, 175);
+    state.crisisResponses[eventId] = { eventId, playbookId, status:'active', activatedAt:state.date, cost:playbook.cost, recovered, cargoes };
+    state.riskLedger.unshift({ id:`response-${eventId}-${state.dayIndex}`, date:state.date, category:'Crisis response', title:playbook.name, severity:'low', impact:recovered-playbook.cost, affectedCargoes:cargoes, description:`Response to ${definition.title}.` });
+    state.riskLedger = state.riskLedger.slice(0,40);
+    recordJournal('Risk', `${definition.title}: ${playbook.name}`, `${cargoes} live cargoes protected · recovery ${money(recovered)}.`, recovered-playbook.cost, eventId);
+    saveState(); renderAll(); showToast(`${playbook.name} activated for ${definition.title}.`);
   }
 
   const opportunities = [
@@ -512,7 +739,7 @@
       id: 'maghreb-urea', origin: 'casablanca', destination: 'brescia', via: ['genova'], commodity: 'Urea', quantity: 900,
       capital: 1_800_000, equity: 280_000, basePnl: 64_000, duration: 21, risk: 'Medium', riskClass: 'medium', priceKey: 'urea', recommendedHedge: 70, transportMode: 'Coaster / Truck',
       title: 'Maghreb Nutrients', description: 'Urea parcel from North Africa to the Italyn agricultural market. Fast margin, but quality and port congestion require strong execution.',
-      unlock: (s) => officeOwned('genova') && s.completedDeals >= 2,
+      unlock: (s) => (officeOwned('casablanca') || officeOwned('genova')) && s.completedDeals >= 2,
       event: {
         dayRatio: .48,
         title: 'Congestion at the fertilizer terminal',
@@ -527,7 +754,7 @@
       id: 'asia-aluminium', origin: 'dubai', destination: 'singapore', via: [], commodity: 'Aluminium', quantity: 600,
       capital: 2_800_000, equity: 430_000, basePnl: 96_000, duration: 25, risk: 'Medium', riskClass: 'medium', priceKey: 'aluminium', recommendedHedge: 100, transportMode: 'Multipurpose vessel',
       title: 'Gulf–Asia Aluminium', description: 'Regional arbitrage into Singapore with high turnover and strict documentary discipline.',
-      unlock: (s) => officeOwned('singapore'),
+      unlock: (s) => (officeOwned('singapore') || officeOwned('dubai')),
       event: {
         dayRatio: .36,
         title: 'Letter-of-credit discrepancy',
@@ -542,7 +769,7 @@
       id: 'atlantic-diesel', origin: 'houston', destination: 'rotterdam', via: [], commodity: 'Diesel', quantity: 18000,
       capital: 8_600_000, equity: 1_250_000, basePnl: 210_000, duration: 27, risk: 'Medium', riskClass: 'medium', priceKey: 'crude', recommendedHedge: 90, transportMode: 'Product tanker',
       title: 'Gulf–ARA Distillates', description: 'Energy cargo from the Gulf Coast to the ARA market. Heavy working-capital use, crack/basis risk and strict quality management.',
-      unlock: s => officeOwned('rotterdam') && s.completedDeals >= 3 && s.reputation >= 62,
+      unlock: s => (officeOwned('houston') || officeOwned('rotterdam')) && s.completedDeals >= 3 && s.reputation >= 62,
       event: { dayRatio: .46, title: 'Off-spec sulfur test', text: 'The discharge laboratory reports sulphur content close to the contractual limit.', choices: [
         { id: 'retest-fuel', label: 'Appoint an independent inspector', hint: 'Cost $18,000 · protects the documentary position', pnl: -18_000, days: 2, reputation: 2, result: 'The retest confirms compliance and the buyer accepts the cargo.' },
         { id: 'blend-fuel', label: 'Arrange terminal blending', hint: 'Cost $42,000 · reduces claim and delay risk', pnl: -42_000, days: 3, reputation: 3, result: 'Blending brings the product fully on specification.' },
@@ -553,7 +780,7 @@
       id: 'brazil-coffee', origin: 'santos', destination: 'brescia', via: ['genova'], commodity: 'Coffee', quantity: 600,
       capital: 3_150_000, equity: 470_000, basePnl: 102_000, duration: 38, risk: 'Medium', riskClass: 'medium', priceKey: 'coffee', recommendedHedge: 80, transportMode: 'Container / Truck',
       title: 'Santos Coffee Flow', description: 'Brazilian arabica origination for a European buyer. Quality differentials, FX and phytosanitary documents are central.',
-      unlock: s => officeOwned('genova') && s.completedDeals >= 3 && s.reputation >= 58,
+      unlock: s => (officeOwned('santos') || officeOwned('genova')) && s.completedDeals >= 3 && s.reputation >= 58,
       event: { dayRatio: .58, title: 'Moisture deviation', text: 'The inspection detects moisture above the expected level in part of the bags.', choices: [
         { id: 'dry-coffee', label: 'Recondition and dry the cargo', hint: 'Cost $21,000 · 3 days · preserves quality', pnl: -21_000, days: 3, reputation: 2, result: 'The lot is reconditioned and delivered on specification.' },
         { id: 'discount-coffee', label: 'Grant a quality allowance', hint: 'No delay · uncertain commercial loss', random: true, good: { pnl: -16_000, days: 0, reputation: 1, result: 'The buyer accepts a limited allowance.' }, bad: { pnl: -54_000, days: 0, reputation: -2, result: 'The buyer imposes a large quality differential.' } }
@@ -563,7 +790,7 @@
       id: 'argentina-wheat', origin: 'rosario', destination: 'brescia', via: ['genova'], commodity: 'Wheat', quantity: 5000,
       capital: 2_350_000, equity: 350_000, basePnl: 88_000, duration: 31, risk: 'Medium', riskClass: 'medium', priceKey: 'wheat', recommendedHedge: 75, transportMode: 'Handysize / Truck',
       title: 'Paraná Wheat Parcel', description: 'Grain origination from the Paraná to Northern Italy. Basis, protein content and river logistics determine the outcome.',
-      unlock: s => officeOwned('genova') && s.completedDeals >= 4 && s.reputation >= 60,
+      unlock: s => (officeOwned('rosario') || officeOwned('genova')) && s.completedDeals >= 4 && s.reputation >= 60,
       event: { dayRatio: .28, title: 'Low river level', text: 'The Paraná river level reduces available draft and loadable quantity.', choices: [
         { id: 'lighten-wheat', label: 'Reduce the parcel and buy replacement cargo', hint: 'Cost $24,000 · protects delivery quantity', pnl: -24_000, days: 2, reputation: 2, result: 'The missing quantity is covered with a replacement purchase.' },
         { id: 'wait-river', label: 'Wait for the river level to improve', hint: '5 days · possible laycan penalty', random: true, good: { pnl: -9_000, days: 5, reputation: 0, result: 'The river level rises and the full cargo departs.' }, bad: { pnl: -48_000, days: 8, reputation: -3, result: 'The wait generates deadfreight and a late delivery.' } }
@@ -573,7 +800,7 @@
       id: 'pilbara-iron', origin: 'port-hedland', destination: 'shanghai', via: [], commodity: 'Iron ore', quantity: 55000,
       capital: 7_400_000, equity: 1_150_000, basePnl: 245_000, duration: 34, risk: 'High', riskClass: 'high', priceKey: 'ironore', recommendedHedge: 70, transportMode: 'Panamax bulk carrier',
       title: 'Pilbara–Yangtze Ore', description: 'Large dry-bulk cargo to China. Freight, Fe grade, moisture and port congestion dominate P&L.',
-      unlock: s => officeOwned('singapore') && s.completedDeals >= 6 && s.reputation >= 70,
+      unlock: s => (officeOwned('port-hedland') || officeOwned('singapore')) && s.completedDeals >= 6 && s.reputation >= 70,
       event: { dayRatio: .64, title: 'Shanghai anchorage congestion', text: 'The vessel joins the queue and may exceed allowed laytime.', choices: [
         { id: 'priority-ore', label: 'Buy discharge priority', hint: 'Cost $36,000 · limits demurrage', pnl: -36_000, days: 1, reputation: 2, result: 'The terminal assigns a priority window.' },
         { id: 'queue-ore', label: 'Remain in the queue', hint: 'No upfront cost · uncertain demurrage', random: true, good: { pnl: -18_000, days: 3, reputation: 0, result: 'The queue clears faster than expected.' }, bad: { pnl: -92_000, days: 7, reputation: -4, result: 'The delay generates demurrage and a buyer claim.' } }
@@ -583,7 +810,7 @@
       id: 'qatar-lng', origin: 'doha', destination: 'rotterdam', via: [], commodity: 'LNG', quantity: 65000,
       capital: 12_800_000, equity: 1_900_000, basePnl: 360_000, duration: 22, risk: 'Medium', riskClass: 'medium', priceKey: 'crude', recommendedHedge: 85, transportMode: 'LNG carrier',
       title: 'Qatar LNG Express', description: 'High-value LNG cargo from the Persian Gulf to the ARA market. Strict vetting, cargo quality control and a precision laycan make execution the decisive edge.',
-      unlock: s => officeOwned('rotterdam') && s.completedDeals >= 5 && s.reputation >= 68,
+      unlock: s => (officeOwned('doha') || officeOwned('rotterdam')) && s.completedDeals >= 5 && s.reputation >= 68,
       event: {
         dayRatio: .38,
         title: 'Cargo boil-off deviation',
@@ -599,7 +826,7 @@
       capital: 5_600_000, equity: 820_000, basePnl: 168_000, duration: 42, risk: 'Medium', riskClass: 'medium', priceKey: 'coffee', recommendedHedge: 75, transportMode: 'Container / reefer',
       title: "Côte d'Ivoire Cocoa Flow", description: 'Premium West African cocoa for Italian fine-chocolate manufacturers. Grading certification, humidity control and traceability documentation are the execution-critical variables.',
       tender: true,
-      unlock: s => officeOwned('genova') && s.completedDeals >= 5 && s.reputation >= 66,
+      unlock: s => (officeOwned('abidjan') || officeOwned('genova')) && s.completedDeals >= 5 && s.reputation >= 66,
       event: {
         dayRatio: .42,
         title: 'Off-grade bean discovery',
@@ -614,7 +841,7 @@
       id: 'gulf-soybeans', origin: 'new-orleans', destination: 'rotterdam', via: [], commodity: 'Soybeans', quantity: 25000,
       capital: 9_200_000, equity: 1_350_000, basePnl: 290_000, duration: 28, risk: 'Medium', riskClass: 'medium', priceKey: 'wheat', recommendedHedge: 85, transportMode: 'Panamax bulk carrier',
       title: 'Gulf–ARA Soybean Express', description: 'Large Panamax soybean cargo from the US Gulf to the ARA crushing complex. Basis risk (CBOT vs physical), moisture and protein differentials determine final P&L.',
-      unlock: s => officeOwned('rotterdam') && s.completedDeals >= 6 && s.reputation >= 70,
+      unlock: s => (officeOwned('houston') || officeOwned('rotterdam')) && s.completedDeals >= 6 && s.reputation >= 70,
       event: {
         dayRatio: .35,
         title: 'Moisture content above specification',
@@ -629,7 +856,7 @@
       id: 'shanghai-steel', origin: 'shanghai', destination: 'antwerp', via: [], commodity: 'Steel', quantity: 8000,
       capital: 6_800_000, equity: 980_000, basePnl: 198_000, duration: 36, risk: 'High', riskClass: 'high', priceKey: 'ironore', recommendedHedge: 65, transportMode: 'General cargo vessel',
       title: 'Yangtze Steel Export', description: 'Chinese hot-rolled coil destined for European distribution. Anti-dumping duty risk, mill certificate compliance and strict EU import documentation make this the most legally complex corridor.',
-      unlock: s => officeOwned('singapore') && s.completedDeals >= 7 && s.reputation >= 74,
+      unlock: s => (officeOwned('shanghai') || officeOwned('singapore')) && s.completedDeals >= 7 && s.reputation >= 74,
       event: {
         dayRatio: .52,
         title: 'EU anti-dumping duty investigation',
@@ -644,7 +871,7 @@
       id: 'malaysia-palm', origin: 'klang', destination: 'brescia', via: ['singapore', 'genova'], commodity: 'Palm oil', quantity: 6000,
       capital: 4_200_000, equity: 650_000, basePnl: 128_000, duration: 39, risk: 'Medium', riskClass: 'medium', priceKey: 'crude', recommendedHedge: 70, transportMode: 'Vegetable oil tanker',
       title: 'Sunflower Corridor', description: 'Malaysian CPO for the Italian food industry via Singapore and Genoa. Sustainability certification, FFA assay and moisture control are the execution-critical variables.',
-      unlock: s => officeOwned('singapore') && officeOwned('genova') && s.completedDeals >= 4 && s.reputation >= 64,
+      unlock: s => (officeOwned('klang') || (officeOwned('singapore') && officeOwned('genova'))) && s.completedDeals >= 4 && s.reputation >= 64,
       event: {
         dayRatio: .55,
         title: 'FFA assay above specification',
@@ -659,7 +886,7 @@
       id: 'zambia-zinc', origin: 'durban', destination: 'antwerp', via: [], commodity: 'Zinc',
       quantity: 15000, capital: 4_500_000, equity: 700_000, basePnl: 195_000, duration: 32,
       risk: 'Medium', riskClass: 'medium', priceKey: 'zinc', recommendedHedge: 75,
-      transportMode: 'Supramax bulk', title: 'Zambia Zinc Concentrate', locked: true, unlock: s => officeOwned('rotterdam') && s.completedDeals >= 5 && s.reputation >= 68,
+      transportMode: 'Supramax bulk', title: 'Zambia Zinc Concentrate', locked: true, unlock: s => (officeOwned('durban') || officeOwned('rotterdam')) && s.completedDeals >= 5 && s.reputation >= 68,
       description: 'High-grade zinc concentrate from Zambia\'s Copperbelt. FOB Durban for delivery to ARA smelters. Quality specs: min 52% Zn, max 1.5% Pb.',
       counterparties: { supplierId: 'zambia-zinc-co', buyerId: 'ara-zinc-smelter' },
       events: []
@@ -677,7 +904,7 @@
       id: 'us-lng-export', origin: 'houston', destination: 'rotterdam', via: [], commodity: 'LNG',
       quantity: 70000, capital: 8_800_000, equity: 1_400_000, basePnl: 380_000, duration: 22,
       risk: 'Medium', riskClass: 'medium', priceKey: 'lng', recommendedHedge: 80,
-      transportMode: 'LNG carrier', title: 'US Gulf LNG Cargo', locked: true, unlock: s => officeOwned('rotterdam') && s.completedDeals >= 6 && s.reputation >= 72,
+      transportMode: 'LNG carrier', title: 'US Gulf LNG Cargo', locked: true, unlock: s => (officeOwned('houston') || officeOwned('rotterdam')) && s.completedDeals >= 6 && s.reputation >= 72,
       description: 'FOB LNG from Sabine Pass liquefaction terminal. DES Rotterdam delivery for European utility off-take. Basis: JKM/TTF differential.',
       counterparties: { supplierId: 'gulf-lng-terminal', buyerId: 'dutch-utility-gas' },
       events: []
@@ -839,7 +1066,12 @@
   { id:'metals-specialist', icon:'Zn', title:'Metals Specialist', description:'Close profitable deals in both zinc and nickel in the same career.', achieved: s => { const k=s.history||[]; return k.some(d=>d.priceKey==='zinc'&&(d.pnl||0)>0) && k.some(d=>d.priceKey==='nickel'&&(d.pnl||0)>0); } },
   { id:'lng-pioneer',       icon:'♨',  title:'LNG Pioneer',       description:'Complete your first LNG cargo deal.',                              achieved: s => (s.history||[]).some(d=>d.priceKey==='lng') },
   { id:'quarter-bonus',     icon:'★',  title:'Bonus Quarter',     description:'Hit a quarterly P&L target and earn a performance bonus.',         achieved: s => (s.quarterBonusPaid||0) > 0 },
-  { id:'scenario-planner',  icon:'Σ',  title:'Scenario Planner',  description:'Run five board-level stress tests.', achieved: s => (s.stressTestsRun||0) >= 5 }
+  { id:'scenario-planner',  icon:'Σ',  title:'Scenario Planner',  description:'Run five board-level stress tests.', achieved: s => (s.stressTestsRun||0) >= 5 },
+  { id:'merchant-house', icon:'⌂', title:'Merchant House', description:'Upgrade Geneva headquarters to Tier 3.', achieved:s=>(s.hqTier||1)>=3 },
+  { id:'offtake-master', icon:'§', title:'Offtake Master', description:'Fulfil a long-term commercial framework without shortfall.', achieved:s=>Object.values(s.commercialFrameworks||{}).some(f=>f.status==='fulfilled') },
+  { id:'crisis-commander', icon:'⚠', title:'Crisis Commander', description:'Activate three different crisis response playbooks.', achieved:s=>Object.values(s.crisisResponses||{}).length>=3 },
+  { id:'multinational-house', icon:'🌍', title:'Multinational House', description:'Operate permanent offices in five countries.', achieved:s=>new Set(officeCatalog.filter(o=>(s.offices||[]).includes(o.id)).map(o=>o.country)).size>=5 },
+  { id:'global-footprint', icon:'◎', title:'Global Footprint', description:'Open ten international offices outside Geneva.', achieved:s=>Math.max(0,(s.offices||[]).length-1)>=10 }
   ];
 
   const financingProfiles = {
@@ -1031,11 +1263,25 @@
   ];
 
 
+  // ── v35 global office network ──────────────────────────────────────────────
   const officeCatalog = [
-    { id: 'geneva', name: 'Geneva HQ', hub: 'geneva', cost: 0, dailyCost: 900, minReputation: 0, minDeals: 0, description: 'Group capital, risk management, compliance and banking relationships.', benefit: 'The trading house decision centre.' },
-    { id: 'genova', name: 'Genoa Operations Desk', hub: 'genova', cost: 120_000, dailyCost: 650, minReputation: 54, minDeals: 1, description: 'Local team for port calls, customs, storage and last-mile delivery into Northern Italy.', benefit: 'Unlocks fertilizer trading and cuts ocean routes via Genoa by 2 days.' },
-    { id: 'rotterdam', name: 'Rotterdam Metals Desk', hub: 'rotterdam', cost: 240_000, dailyCost: 1_000, minReputation: 58, minDeals: 2, description: 'Direct access to warehouses, barges and industrial customers in Northern Europe.', benefit: 'Unlocks Rhine–Alps Alloy and reduces charter costs by 5%.' },
-    { id: 'singapore', name: 'Singapore Asia Desk', hub: 'singapore', cost: 480_000, dailyCost: 1_800, minReputation: 68, minDeals: 5, description: 'Asian platform for metals, freight, trade finance and regional client coverage.', benefit: 'Unlocks the Asian market and Gulf–Asia Aluminium.' }
+    { id:'geneva', name:'Geneva Headquarters', city:'Geneva', country:'Switzerland', flag:'🇨🇭', region:'Group HQ', hub:'geneva', cost:0, buildDays:0, dailyCost:900, minLevel:1, minReputation:0, minDeals:0, minHqTier:1, pnlBonus:0, acceptance:0, equityReduction:0, durationBonus:0, riskReduction:0, creditBonus:0, coverageCountries:['Switzerland'], focusCommodities:[], description:'The group command centre for capital, risk, compliance, banks and global strategy.', benefit:'Controls the entire merchant network.' },
+    { id:'genova', name:'Genoa Operations Office', city:'Genoa', country:'Italy', flag:'🇮🇹', region:'Southern Europe', hub:'genova', cost:120_000, buildDays:3, dailyCost:600, minLevel:2, minReputation:18, minDeals:1, minHqTier:1, pnlBonus:4_000, acceptance:2, equityReduction:.01, durationBonus:2, riskReduction:1, creditBonus:50_000, coverageCountries:['Italy'], focusCommodities:['Copper','Aluminium','Urea','Coffee','Wheat','Palm oil','Cocoa'], description:'Port operations, customs, bonded storage and final delivery into Northern Italy.', benefit:'Faster Italian deliveries and stronger buyer relationships.' },
+    { id:'santiago', name:'Santiago Origination Office', city:'Santiago', country:'Chile', flag:'🇨🇱', region:'Andean Americas', hub:'santiago', cost:260_000, buildDays:5, dailyCost:850, minLevel:4, minReputation:24, minDeals:2, minHqTier:1, pnlBonus:9_000, acceptance:3, equityReduction:.015, durationBonus:1, riskReduction:1, creditBonus:100_000, coverageCountries:['Chile'], focusCommodities:['Copper'], description:'Mine relationships, concentrate expertise and local copper origination.', benefit:'Improves Chilean copper margin and supplier access.' },
+    { id:'dubai', name:'Dubai Commercial Office', city:'Dubai', country:'UAE', flag:'🇦🇪', region:'Middle East', hub:'dubai', cost:390_000, buildDays:6, dailyCost:1_150, minLevel:6, minReputation:30, minDeals:3, minHqTier:2, pnlBonus:11_000, acceptance:4, equityReduction:.015, durationBonus:1, riskReduction:1, creditBonus:180_000, coverageCountries:['UAE','Qatar'], focusCommodities:['Copper','Aluminium','Diesel','LNG'], description:'Regional commercial coverage, Islamic trade finance and Gulf supplier access.', benefit:'Stronger Gulf negotiations and funding capacity.' },
+    { id:'casablanca', name:'Casablanca Fertilizer Office', city:'Casablanca', country:'Morocco', flag:'🇲🇦', region:'North Africa', hub:'casablanca', cost:330_000, buildDays:6, dailyCost:900, minLevel:8, minReputation:34, minDeals:3, minHqTier:2, pnlBonus:10_000, acceptance:4, equityReduction:.018, durationBonus:2, riskReduction:2, creditBonus:120_000, coverageCountries:['Morocco'], focusCommodities:['Urea'], description:'Fertilizer origination, quality control and Mediterranean freight execution.', benefit:'Unlocks a durable North African sourcing franchise.' },
+    { id:'rotterdam', name:'Rotterdam Trading Office', city:'Rotterdam', country:'Netherlands', flag:'🇳🇱', region:'Northern Europe', hub:'rotterdam', cost:520_000, buildDays:8, dailyCost:1_450, minLevel:9, minReputation:40, minDeals:4, minHqTier:2, pnlBonus:13_000, acceptance:4, equityReduction:.025, durationBonus:2, riskReduction:2, creditBonus:300_000, coverageCountries:['Netherlands','Belgium','Germany'], focusCommodities:['Aluminium','Diesel','Soybeans','Zinc','LNG'], description:'ARA storage, blending, barges, derivatives and access to industrial buyers.', benefit:'Major European hub with freight, financing and storage advantages.' },
+    { id:'antwerp', name:'Antwerp Industrial Office', city:'Antwerp', country:'Belgium', flag:'🇧🇪', region:'Northern Europe', hub:'antwerp', cost:610_000, buildDays:9, dailyCost:1_550, minLevel:10, minReputation:44, minDeals:4, minHqTier:2, pnlBonus:15_000, acceptance:4, equityReduction:.02, durationBonus:2, riskReduction:2, creditBonus:250_000, coverageCountries:['Belgium','Netherlands','Germany'], focusCommodities:['Steel','Zinc','Nickel'], description:'EU customs, metals warehousing and industrial customer coverage.', benefit:'Reduces legal and execution friction on complex European imports.' },
+    { id:'santos', name:'Santos Soft Commodities Office', city:'Santos', country:'Brazil', flag:'🇧🇷', region:'South America', hub:'santos', cost:680_000, buildDays:10, dailyCost:1_650, minLevel:12, minReputation:48, minDeals:5, minHqTier:2, pnlBonus:17_000, acceptance:5, equityReduction:.02, durationBonus:2, riskReduction:2, creditBonus:260_000, coverageCountries:['Brazil'], focusCommodities:['Coffee','Soybeans'], description:'Farm origination, quality grading, export documentation and port execution.', benefit:'Builds a premium Brazilian origination franchise.' },
+    { id:'rosario', name:'Rosario Grain Office', city:'Rosario', country:'Argentina', flag:'🇦🇷', region:'South America', hub:'rosario', cost:720_000, buildDays:10, dailyCost:1_700, minLevel:13, minReputation:50, minDeals:5, minHqTier:2, pnlBonus:18_000, acceptance:5, equityReduction:.02, durationBonus:2, riskReduction:2, creditBonus:220_000, coverageCountries:['Argentina'], focusCommodities:['Wheat','Soybeans'], description:'Paraná River origination, elevation capacity and agricultural basis expertise.', benefit:'Improves grain margins and river disruption management.' },
+    { id:'singapore', name:'Singapore Asia-Pacific Office', city:'Singapore', country:'Singapore', flag:'🇸🇬', region:'Asia-Pacific', hub:'singapore', cost:1_050_000, buildDays:12, dailyCost:2_500, minLevel:14, minReputation:56, minDeals:6, minHqTier:3, pnlBonus:23_000, acceptance:6, equityReduction:.03, durationBonus:2, riskReduction:3, creditBonus:600_000, coverageCountries:['Singapore','Malaysia','Indonesia'], focusCommodities:['Aluminium','Palm oil','Nickel','Iron ore','LNG'], description:'Regional trading, freight, trade finance and Asian counterparty coverage.', benefit:'A major gateway to Asian commodities and shipping markets.' },
+    { id:'klang', name:'Port Klang Agri Office', city:'Port Klang', country:'Malaysia', flag:'🇲🇾', region:'Southeast Asia', hub:'klang', cost:850_000, buildDays:11, dailyCost:1_950, minLevel:15, minReputation:58, minDeals:6, minHqTier:3, pnlBonus:20_000, acceptance:5, equityReduction:.02, durationBonus:2, riskReduction:2, creditBonus:280_000, coverageCountries:['Malaysia','Indonesia'], focusCommodities:['Palm oil','Nickel'], description:'Sustainability certification, tropical oils and Southeast Asian logistics.', benefit:'Strengthens agri and battery-material origination.' },
+    { id:'abidjan', name:'Abidjan West Africa Office', city:'Abidjan', country:'Ivory Coast', flag:'🇨🇮', region:'West Africa', hub:'abidjan', cost:920_000, buildDays:12, dailyCost:2_050, minLevel:16, minReputation:60, minDeals:7, minHqTier:3, pnlBonus:24_000, acceptance:6, equityReduction:.025, durationBonus:2, riskReduction:3, creditBonus:250_000, coverageCountries:['Ivory Coast'], focusCommodities:['Cocoa'], description:'Cocoa grading, traceability, local financing and export execution.', benefit:'Creates a high-margin West African soft-commodity franchise.' },
+    { id:'shanghai', name:'Shanghai Industrial Office', city:'Shanghai', country:'China', flag:'🇨🇳', region:'North Asia', hub:'shanghai', cost:1_650_000, buildDays:16, dailyCost:3_100, minLevel:18, minReputation:66, minDeals:8, minHqTier:3, pnlBonus:32_000, acceptance:7, equityReduction:.035, durationBonus:2, riskReduction:3, creditBonus:750_000, coverageCountries:['China'], focusCommodities:['Iron ore','Steel','Copper','Nickel'], description:'Industrial demand, mill relationships, customs and local market intelligence.', benefit:'Access to the world’s largest industrial commodity demand centre.' },
+    { id:'durban', name:'Durban Southern Africa Office', city:'Durban', country:'South Africa', flag:'🇿🇦', region:'Southern Africa', hub:'durban', cost:1_350_000, buildDays:15, dailyCost:2_650, minLevel:20, minReputation:68, minDeals:9, minHqTier:3, pnlBonus:29_000, acceptance:6, equityReduction:.03, durationBonus:2, riskReduction:4, creditBonus:450_000, coverageCountries:['South Africa','Zambia'], focusCommodities:['Zinc','Copper','Iron ore'], description:'Mine-to-port coordination, assay control and African corridor logistics.', benefit:'Reduces operational risk on strategic African metals.' },
+    { id:'doha', name:'Doha LNG Office', city:'Doha', country:'Qatar', flag:'🇶🇦', region:'Middle East', hub:'doha', cost:2_100_000, buildDays:18, dailyCost:3_750, minLevel:22, minReputation:72, minDeals:10, minHqTier:4, pnlBonus:40_000, acceptance:8, equityReduction:.04, durationBonus:2, riskReduction:4, creditBonus:1_000_000, coverageCountries:['Qatar','UAE'], focusCommodities:['LNG'], description:'LNG scheduling, vessel vetting, energy contracts and sovereign counterparties.', benefit:'Institutional access to one of the world’s richest gas markets.' },
+    { id:'houston', name:'Houston Energy Office', city:'Houston', country:'USA', flag:'🇺🇸', region:'North America', hub:'houston', cost:2_450_000, buildDays:20, dailyCost:4_150, minLevel:24, minReputation:75, minDeals:11, minHqTier:4, pnlBonus:44_000, acceptance:8, equityReduction:.04, durationBonus:2, riskReduction:4, creditBonus:1_200_000, coverageCountries:['USA'], focusCommodities:['Diesel','LNG','Soybeans'], description:'US Gulf energy, grain exports, derivatives and dollar funding.', benefit:'A deep balance-sheet platform in the largest commodity-finance market.' },
+    { id:'port-hedland', name:'Pilbara Resources Office', city:'Port Hedland', country:'Australia', flag:'🇦🇺', region:'Oceania', hub:'port-hedland', cost:3_200_000, buildDays:24, dailyCost:5_100, minLevel:26, minReputation:80, minDeals:13, minHqTier:4, pnlBonus:55_000, acceptance:9, equityReduction:.05, durationBonus:3, riskReduction:5, creditBonus:1_500_000, coverageCountries:['Australia'], focusCommodities:['Iron ore'], description:'Mine allocations, Capesize scheduling and long-haul dry-bulk execution.', benefit:'Strategic access to a globally dominant resource origin.' }
   ];
 
   const staffCatalog = [
@@ -1157,7 +1403,12 @@
     { id: 'lng-specialist', title: 'LNG Specialist', description: 'Close the Qatar LNG Express deal.', target: 1, progress: s => (s.history||[]).filter(d=>d.opportunityId==='qatar-lng').length, achieved: s => (s.history||[]).some(d=>d.opportunityId==='qatar-lng'), cash: 160_000, reputation: 5 },
     { id: 'strategic-sourcer', title: 'Strategic Sourcer', description: 'Fulfil a three-cargo procurement commitment without a shortfall.', target: 1, progress: s => s.commitmentsFulfilled || 0, achieved: s => (s.commitmentsFulfilled || 0) >= 1, cash: 135_000, reputation: 4 },
     { id: 'control-tower', title: 'Control Tower', description: 'Mitigate congestion on three live cargoes.', target: 3, progress: s => s.congestionMitigations || 0, achieved: s => (s.congestionMitigations || 0) >= 3, cash: 120_000, reputation: 3 },
-    { id: 'scenario-ready', title: 'Scenario Ready', description: 'Run three board-level stress scenarios.', target: 3, progress: s => s.stressTestsRun || 0, achieved: s => (s.stressTestsRun || 0) >= 3, cash: 90_000, reputation: 3 }
+    { id: 'scenario-ready', title: 'Scenario Ready', description: 'Run three board-level stress scenarios.', target: 3, progress: s => s.stressTestsRun || 0, achieved: s => (s.stressTestsRun || 0) >= 3, cash: 90_000, reputation: 3 },
+    { id: 'geneva-merchant-house', title: 'Geneva Merchant House', description: 'Upgrade the headquarters to Tier 3.', target: 3, progress:s=>s.hqTier||1, achieved:s=>(s.hqTier||1)>=3, cash:180_000, credit:300_000, reputation:4 },
+    { id: 'framework-merchant', title: 'Framework Merchant', description: 'Fulfil one three-cargo commercial framework.', target:1, progress:s=>Object.values(s.commercialFrameworks||{}).filter(f=>f.status==='fulfilled').length, achieved:s=>Object.values(s.commercialFrameworks||{}).some(f=>f.status==='fulfilled'), cash:160_000, reputation:4 },
+    { id: 'crisis-room', title: 'Crisis Room', description: 'Activate two response playbooks during global disruptions.', target:2, progress:s=>Object.values(s.crisisResponses||{}).length, achieved:s=>Object.values(s.crisisResponses||{}).length>=2, cash:120_000, reputation:3 },
+    { id:'multinational-network', title:'Multinational Network', description:'Operate offices in five different countries.', target:5, progress:s=>new Set(officeCatalog.filter(o=>(s.offices||[]).includes(o.id)).map(o=>o.country)).size, achieved:s=>new Set(officeCatalog.filter(o=>(s.offices||[]).includes(o.id)).map(o=>o.country)).size>=5, cash:280_000, credit:650_000, reputation:5 },
+    { id:'global-office-platform', title:'Global Office Platform', description:'Open ten offices outside Geneva.', target:10, progress:s=>Math.max(0,(s.offices||[]).length-1), achieved:s=>Math.max(0,(s.offices||[]).length-1)>=10, cash:750_000, credit:1_500_000, reputation:8 }
   ];
 
   const continentPolygons = [
@@ -1175,7 +1426,7 @@
 
   function defaultState() {
     return {
-      version: 33,
+      version: 35,
       profileName: 'Giorgio Bonetta',
       companyName: 'Geneva Commodity Trading Sàrl',
       leaderboardSnapshots: [],
@@ -1193,6 +1444,9 @@
       activeDeals: [],
       fleetAssets: [],
       offices: ['geneva'],
+      officeProjects: [],
+      officeSpend: 0,
+      officeOpenings: 0,
       staff: [],
       completedMissions: [],
       overheadPaid: 0,
@@ -1310,7 +1564,16 @@
       riskLedger: [],
       unlockedCountriesSeen: ['Switzerland','Estonia','Italy'],
       unlockedCommoditiesSeen: ['Copper'],
-      progressionMode: 'expansion'
+      progressionMode: 'expansion',
+      hqTier: 1,
+      hqUpgrade: null,
+      deskSpecialization: 'generalist',
+      specializationChosen: false,
+      specializationChangedDay: -99,
+      marketReputation: { countries:{ Switzerland:50, Estonia:35, Italy:35 }, commodities:{ Copper:35 } },
+      commercialFrameworks: {},
+      crisisResponses: {},
+      frameworkPenalties: 0
     };
   }
 
@@ -1329,9 +1592,12 @@
       }
       if (!raw) return defaultState();
       const loaded = JSON.parse(raw);
-      if (![3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33].includes(loaded.version)) return defaultState();
-      const migrated = { ...defaultState(), ...loaded, version: 33 };
+      if (![3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35].includes(loaded.version)) return defaultState();
+      const migrated = { ...defaultState(), ...loaded, version: 35 };
       migrated.offices = [...new Set(['geneva', ...(migrated.offices || [])])];
+      migrated.officeProjects = migrated.officeProjects || [];
+      migrated.officeSpend = migrated.officeSpend || 0;
+      migrated.officeOpenings = migrated.officeOpenings || Math.max(0, migrated.offices.length - 1);
       migrated.staff = migrated.staff || [];
       migrated.completedMissions = migrated.completedMissions || [];
       migrated.negotiations = migrated.negotiations || {};
@@ -1422,6 +1688,17 @@
       migrated.unlockedCountriesSeen = migrated.unlockedCountriesSeen || ['Switzerland','Estonia','Italy'];
       migrated.unlockedCommoditiesSeen = migrated.unlockedCommoditiesSeen || ['Copper'];
       migrated.progressionMode = migrated.progressionMode || 'expansion';
+      migrated.hqTier = clamp(Number(migrated.hqTier || 1), 1, hqTierCatalog.length);
+      migrated.hqUpgrade = migrated.hqUpgrade || null;
+      migrated.deskSpecialization = deskSpecializationCatalog[migrated.deskSpecialization] ? migrated.deskSpecialization : 'generalist';
+      migrated.specializationChosen = migrated.specializationChosen === true;
+      migrated.specializationChangedDay = Number.isFinite(migrated.specializationChangedDay) ? migrated.specializationChangedDay : -99;
+      migrated.marketReputation = migrated.marketReputation || { countries:{ Switzerland:50, Estonia:35, Italy:35 }, commodities:{ Copper:35 } };
+      migrated.marketReputation.countries = migrated.marketReputation.countries || {};
+      migrated.marketReputation.commodities = migrated.marketReputation.commodities || {};
+      migrated.commercialFrameworks = migrated.commercialFrameworks || {};
+      migrated.crisisResponses = migrated.crisisResponses || {};
+      migrated.frameworkPenalties = migrated.frameworkPenalties || 0;
       migrated.hubBasis = migrated.hubBasis || {};
       migrated.quarterNumber   = migrated.quarterNumber  || 1;
       migrated.quarterTarget   = migrated.quarterTarget  || 500000;
@@ -1483,13 +1760,14 @@
       flags.push('Active customs or sanctions disruption on the route');
       score += 18;
     }
-    score = clamp(score, 0, 100);
+    const franchise = marketReputationAdjustments(opp);
+    score = clamp(score - franchise.complianceReduction, 0, 100);
     const review = state.complianceReviews?.[opp.id];
     const reviewed = !!(review && review.cycle === state.marketCycle && review.status === 'approved');
     const blocked = counterparties.some(cp => cp.kyc === 'Blocked') || (review && review.cycle === state.marketCycle && review.status === 'rejected');
     const requiresReview = flags.length > 0 || score >= 34;
     const status = blocked ? 'Blocked' : reviewed ? 'Approved' : requiresReview ? 'Review required' : 'Clear';
-    const cost = Math.max(9_000, Math.round(6_000 + score * 420));
+    const cost = Math.max(7_000, Math.round((6_000 + score * 420) * (1 - Math.min(.28, franchise.complianceReduction * .008))));
     return { status, canTrade: !blocked && (!requiresReview || reviewed), score, flags, reviewed, requiresReview, cost, supplier, buyer };
   }
 
@@ -1613,7 +1891,7 @@
   function exportCareer() {
     const payload = {
       product: 'World of Trade',
-      schemaVersion: 23,
+      schemaVersion: 35,
       exportedAt: new Date().toISOString(),
       state
     };
@@ -1630,10 +1908,13 @@
       if (!imported || typeof imported !== 'object' || !Array.isArray(imported.activeDeals) || !Array.isArray(imported.history)) {
         throw new Error('Invalid World of Trade career file');
       }
-      const migrated = { ...defaultState(), ...imported, version: 33 };
+      const migrated = { ...defaultState(), ...imported, version: 35 };
       migrated.activeDeals = (migrated.activeDeals || []).map(hydrateDealOperations);
       migrated.fleetAssets = (migrated.fleetAssets || []).filter(asset => vesselCatalog.some(vessel => vessel.id === asset.catalogId));
       migrated.offices = [...new Set(['geneva', ...(migrated.offices || [])])];
+      migrated.officeProjects = migrated.officeProjects || [];
+      migrated.officeSpend = migrated.officeSpend || 0;
+      migrated.officeOpenings = migrated.officeOpenings || Math.max(0, migrated.offices.length - 1);
       migrated.tutorialEnabled = migrated.tutorialEnabled ?? true;
       migrated.tutorialStep = Number.isFinite(migrated.tutorialStep) ? migrated.tutorialStep : 0;
       migrated.tutorialDismissed = migrated.tutorialDismissed ?? false;
@@ -1670,6 +1951,17 @@
       migrated.shopOrders = migrated.shopOrders || [];
       migrated.shopSpent = migrated.shopSpent || 0;
       migrated.shopDeliveries = migrated.shopDeliveries || 0;
+      migrated.hqTier = clamp(Number(migrated.hqTier || 1), 1, hqTierCatalog.length);
+      migrated.hqUpgrade = migrated.hqUpgrade || null;
+      migrated.deskSpecialization = deskSpecializationCatalog[migrated.deskSpecialization] ? migrated.deskSpecialization : 'generalist';
+      migrated.specializationChosen = migrated.specializationChosen === true;
+      migrated.specializationChangedDay = Number.isFinite(migrated.specializationChangedDay) ? migrated.specializationChangedDay : -99;
+      migrated.marketReputation = migrated.marketReputation || { countries:{ Switzerland:50, Estonia:35, Italy:35 }, commodities:{ Copper:35 } };
+      migrated.marketReputation.countries = migrated.marketReputation.countries || {};
+      migrated.marketReputation.commodities = migrated.marketReputation.commodities || {};
+      migrated.commercialFrameworks = migrated.commercialFrameworks || {};
+      migrated.crisisResponses = migrated.crisisResponses || {};
+      migrated.frameworkPenalties = migrated.frameworkPenalties || 0;
       state = migrated;
       initializeCounterparties();
       initializeCompetitiveMarket();
@@ -2084,13 +2376,67 @@
   function hasStaff(id) { return (state?.staff || []).includes(id); }
   function getOffice(id) { return officeCatalog.find(o => o.id === id); }
   function getStaff(id) { return staffCatalog.find(member => member.id === id); }
-  function officeUnlocked(office) { return state.reputation >= office.minReputation && state.completedDeals >= office.minDeals; }
+  function activeOfficeProject(id) { return (state?.officeProjects || []).find(project => project.officeId === id); }
+  function activeOfficeProjectCount() { return (state?.officeProjects || []).length; }
+  function officeUnlocked(office) {
+    return playerLevel() >= (office.minLevel || 1)
+      && state.reputation >= (office.minReputation || 0)
+      && state.completedDeals >= (office.minDeals || 0)
+      && hqCurrentTier().tier >= (office.minHqTier || 1);
+  }
+  function officeLockReason(office) {
+    if (playerLevel() < (office.minLevel || 1)) return `Company level ${office.minLevel}`;
+    if (hqCurrentTier().tier < (office.minHqTier || 1)) return `Geneva HQ Tier ${office.minHqTier}`;
+    if (state.completedDeals < (office.minDeals || 0)) return `${office.minDeals} completed deals`;
+    if (state.reputation < (office.minReputation || 0)) return `Reputation ${office.minReputation}`;
+    return '';
+  }
+  function officeBookValue() {
+    const commissioned = officeCatalog.filter(o => o.id !== 'geneva' && officeOwned(o.id)).reduce((sum,o)=>sum+(o.cost||0)*.82,0);
+    const workInProgress = (state.officeProjects || []).reduce((sum,p)=>sum+(p.cost||0)*.68,0);
+    return Math.round(commissioned + workInProgress);
+  }
+  function officeCountries() { return new Set(officeCatalog.filter(o=>officeOwned(o.id)).map(o=>o.country)); }
+  function officeCoverageMatch(office, opp) {
+    if (!opp || office.id === 'geneva') return { direct:false, regional:false, focus:false };
+    const routeHubs=[opp.origin,opp.destination,...(opp.via||[])].map(getHub).filter(Boolean);
+    const countries=new Set(routeHubs.map(h=>h.country));
+    const direct = routeHubs.some(h=>h.id===office.hub) || countries.has(office.country);
+    const regional = !direct && (office.coverageCountries||[]).some(country=>countries.has(country));
+    const focus = (office.focusCommodities||[]).includes(opp.commodity);
+    return { direct, regional, focus };
+  }
+  function officeNetworkAdjustments(opp) {
+    const result={pnlBonus:0,durationBonus:0,acceptance:0,equityFactor:1,riskReduction:0,financingRateReduction:0,sources:[]};
+    officeCatalog.filter(o=>officeOwned(o.id)).forEach(office=>{
+      const match=officeCoverageMatch(office,opp);
+      if (!match.direct && !match.regional) return;
+      const weight=match.direct?1:.55;
+      const focusBoost=match.focus?1.2:.85;
+      result.pnlBonus += Math.round((office.pnlBonus||0)*weight*focusBoost);
+      result.durationBonus += (office.durationBonus||0)*weight;
+      result.acceptance += (office.acceptance||0)*weight*(match.focus?1.15:1);
+      result.equityFactor *= Math.max(.82,1-(office.equityReduction||0)*weight*(match.focus?1.15:1));
+      result.riskReduction += (office.riskReduction||0)*weight;
+      result.financingRateReduction += Math.min(.012,(office.creditBonus||0)/150_000_000*weight);
+      result.sources.push(office.name);
+    });
+    result.pnlBonus=Math.min(75_000,Math.round(result.pnlBonus));
+    result.durationBonus=Math.min(5,Math.round(result.durationBonus));
+    result.acceptance=Math.min(12,Math.round(result.acceptance));
+    result.riskReduction=Math.min(15,Math.round(result.riskReduction));
+    return result;
+  }
+  function officeNetworkRiskReduction() {
+    return Math.min(14, officeCatalog.filter(o=>officeOwned(o.id)).reduce((sum,o)=>sum+(o.riskReduction||0),0)*.35);
+  }
   function staffUnlocked(member) { return state.reputation >= member.minReputation; }
   function dailyOverhead() {
     const officeCost = officeCatalog.filter(o => officeOwned(o.id)).reduce((sum,o)=>sum+o.dailyCost,0);
     const salaryCost = staffCatalog.filter(member => hasStaff(member.id)).reduce((sum,member)=>sum+member.dailySalary,0);
     const assetOperatingCost = shopFacilityOperatingCost() + ownedFleetMaintenance();
-    return Math.round((officeCost + salaryCost + assetOperatingCost) * activeDoctrine().overheadFactor);
+    const hqOperatingCost = hqCurrentTier().dailyCost || 0;
+    return Math.round((officeCost + salaryCost + assetOperatingCost + hqOperatingCost) * activeDoctrine().overheadFactor);
   }
   function shopDefinition(id) { return shopCatalog.find(item => item.id === id); }
   function shopAssetRecord(id) {
@@ -2118,7 +2464,7 @@
     return shopCatalog.reduce((sum,item)=>sum+(item.builderBonus||0)*shopOwnedQuantity(item.id),0);
   }
   function activeShopOrders() { return (state.shopOrders || []).length; }
-  function activeProjectCount() { return activeConstructionCount() + activeShopOrders(); }
+  function activeProjectCount() { return activeConstructionCount() + activeShopOrders() + activeOfficeProjectCount() + (state.hqUpgrade ? 1 : 0); }
   function shopItemMatches(item, opp) {
     if (item.category === 'fleet') return false;
     if (item.matchHubs && !item.matchHubs.some(hub => [opp.origin,opp.destination,...(opp.via||[])].includes(hub))) return false;
@@ -2372,7 +2718,8 @@
   function activeCrisisDefinitions() { return (state.activeGlobalEvents || []).map(active => ({ ...activeEventDefinition(active), ...active })).filter(Boolean); }
   function effectiveCreditLimit() {
     const penalty = activeCrisisDefinitions().reduce((sum, event) => sum + (event.creditPenalty || 0), 0);
-    return Math.max(1_000_000, (state.creditLimit - penalty) * activeDoctrine().creditFactor);
+    const responseCredit = activeCrisisDefinitions().reduce((sum, event) => sum + (crisisResponseAdjustments(event).creditBonus || 0), 0);
+    return Math.max(1_000_000, (state.creditLimit + hqAdjustments().creditBonus + responseCredit - penalty) * activeDoctrine().creditFactor);
   }
   function difficultySettings() {
     if (state.difficulty === 'guided') return { acceptance: 7, marginRate: .04, eventLoss: .82, emergencyRate: .009, riskPenalty: -6 };
@@ -2486,6 +2833,10 @@
 
   function competitionPenalty(opp) {
     const tender = rivalTenderFor(opp.id);
+    const specialization = deskSpecializationAdjustments(opp);
+    const franchise = marketReputationAdjustments(opp);
+    const framework = commercialFrameworkAdjustments(opp);
+    const hq = hqAdjustments();
     if (!tender || tender.status === 'player_reserved') return 0;
     return Math.max(0, (tender.pressure - 35) * .18);
   }
@@ -2602,20 +2953,27 @@
     const capitalPolicy = activeCapitalPolicy();
     const procurement = procurementAgreementAdjustments(opp);
     const route = routeConditionFor(opp);
+    const specialization = deskSpecializationAdjustments(opp);
+    const franchise = marketReputationAdjustments(opp);
+    const framework = commercialFrameworkAdjustments(opp);
+    const hq = hqAdjustments();
+    const office = officeNetworkAdjustments(opp);
     // Credit rating modifier: A=+3, BBB=0, BB=-4, B=-9
     const _ratingMod = { 'A': 3, 'BBB': 0, 'BB': -4, 'B': -9 };
     const _creditMod = _ratingMod[buyer?.creditRating] ?? 0;
-    return clamp(54 + state.reputation * .18 + (relationship - 50) * .45 + (buyer?.credit || 70) * .08 + commercial.acceptance + payment.acceptance + pricing.acceptance + delivery.acceptance + (financing.acceptance || 0) + vertical.acceptanceBonus + shop.acceptanceBonus + difficultySettings().acceptance + regime.acceptance + season.acceptance + doctrine.acceptance + procurement.acceptance - route.acceptancePenalty - competitionPenalty(opp) + _creditMod + crisisAdjustments(opp).acceptanceShock, 5, 97);
+    return clamp(54 + state.reputation * .18 + (relationship - 50) * .45 + (buyer?.credit || 70) * .08 + commercial.acceptance + payment.acceptance + pricing.acceptance + delivery.acceptance + (financing.acceptance || 0) + vertical.acceptanceBonus + shop.acceptanceBonus + difficultySettings().acceptance + regime.acceptance + season.acceptance + doctrine.acceptance + procurement.acceptance + specialization.acceptance + franchise.acceptance + framework.acceptance + hq.acceptance + office.acceptance - route.acceptancePenalty - competitionPenalty(opp) + _creditMod + crisisAdjustments(opp).acceptanceShock, 5, 97);
   }
   function crisisAdjustments(opp) {
     return activeCrisisDefinitions().filter(event => event.affects?.(opp)).reduce((acc, event) => {
-      acc.duration += event.dealDays || 0;
-      acc.pnl += event.dealPnl || 0;
+      const response = crisisResponseAdjustments(event);
+      acc.duration += Math.max(0, (event.dealDays || 0) - (response.durationReduction || 0));
+      const rawPnl = event.dealPnl || 0;
+      acc.pnl += rawPnl < 0 ? Math.round(rawPnl * (response.lossFactor || 1)) : rawPnl;
       acc.pnlFactor *= event.pnlFactor || 1;
-      acc.equityFactor *= event.equityFactor || 1;
-      acc.financingRateShock += event.financingRateShock || 0;
-      acc.acceptanceShock += event.acceptanceShock || 0;
-      acc.labels.push(event.title);
+      acc.equityFactor *= (event.equityFactor || 1) * (response.equityFactor || 1);
+      acc.financingRateShock += (event.financingRateShock || 0) + (response.financingRateShock || 0);
+      acc.acceptanceShock += (event.acceptanceShock || 0) + (response.acceptance || 0);
+      acc.labels.push(response.id ? `${event.title} · ${response.name}` : event.title);
       return acc;
     }, { duration: 0, pnl: 0, pnlFactor: 1, equityFactor: 1, financingRateShock: 0, acceptanceShock: 0, labels: [] });
   }
@@ -2635,16 +2993,20 @@
     const capitalPolicy = activeCapitalPolicy();
     const procurement = procurementAgreementAdjustments(opp);
     const route = routeConditionFor(opp);
+    const specialization = deskSpecializationAdjustments(opp);
+    const franchise = marketReputationAdjustments(opp);
+    const framework = commercialFrameworkAdjustments(opp);
+    const hq = hqAdjustments();
     const tender = rivalTenderFor(opp.id);
     const competitionCost = Math.round(Math.max(0, (tender?.pressure || 0) - 45) * 240 * procurement.competitionFactor);
     const financeStaffFactor = hasStaff('trade-finance-manager') ? .9 : 1;
-    const equity = Math.min(offer.capital, Math.round(offer.equity * payment.equityFactor * financeStaffFactor * crisis.equityFactor * structure.financing.equityFactor * vertical.equityFactor * shop.equityFactor * regime.equityFactor * doctrine.equityFactor * procurement.equityFactor * capitalPolicy.equityFactor));
+    const equity = Math.min(offer.capital, Math.round(offer.equity * payment.equityFactor * financeStaffFactor * crisis.equityFactor * structure.financing.equityFactor * vertical.equityFactor * shop.equityFactor * regime.equityFactor * doctrine.equityFactor * procurement.equityFactor * capitalPolicy.equityFactor * specialization.equityFactor * franchise.equityFactor * framework.equityFactor * hq.equityFactor * office.equityFactor));
     const borrowed = Math.max(0, offer.capital - equity);
     const _carrierStrat = selectedCarrierStrategies[opp.id] || 'spot';
     const _vc = _carrierStrat === 'spot' ? vesselClassFor(opp.id) : vesselClasses.supramax;
     const vesselPnlBonus = Math.round(offer.basePnl * (_vc.pnlMod || 0));
-    const basePnl = Math.round(offer.basePnl * regime.pnlFactor * doctrine.pnlFactor * capitalPolicy.pnlFactor * crisis.pnlFactor) + commercial.pnl + pricing.pnl + delivery.pnl + office.pnlBonus + crisis.pnl + structure.financing.pnl + structure.insurance.pnl + structure.inspection.pnl + vertical.pnlBonus + shop.pnlBonus + procurement.pnlBonus - competitionCost - route.freightCost + vesselPnlBonus;
-    const financingRate = structure.financing.rate * capitalPolicy.financingRateFactor + crisis.financingRateShock;
+    const basePnl = Math.round(offer.basePnl * regime.pnlFactor * doctrine.pnlFactor * capitalPolicy.pnlFactor * crisis.pnlFactor * specialization.pnlFactor) + commercial.pnl + pricing.pnl + delivery.pnl + office.pnlBonus + crisis.pnl + structure.financing.pnl + structure.insurance.pnl + structure.inspection.pnl + vertical.pnlBonus + shop.pnlBonus + procurement.pnlBonus + franchise.pnlBonus + framework.pnlBonus + hq.pnlBonus - competitionCost - route.freightCost + vesselPnlBonus;
+    const financingRate = Math.max(.018, structure.financing.rate * capitalPolicy.financingRateFactor + crisis.financingRateShock - office.financingRateReduction);
     const estimatedInterest = borrowed * financingRate * Math.max(10, offer.duration + delivery.duration - office.durationBonus - vertical.durationBonus - shop.durationBonus + crisis.duration + regime.duration) / 360;
     const expectedPnl = basePnl - estimatedInterest;
     return {
@@ -2657,7 +3019,7 @@
       estimatedInterest,
       financingRate,
       expectedPnl,
-      duration: Math.max(10, offer.duration + delivery.duration - office.durationBonus - vertical.durationBonus - shop.durationBonus + crisis.duration + regime.duration + route.delayDays - procurement.durationBonus + (_vc.durationMod || 0)),
+      duration: Math.max(10, offer.duration + delivery.duration - office.durationBonus - vertical.durationBonus - shop.durationBonus - framework.durationBonus - hq.durationBonus + crisis.duration + regime.duration + route.delayDays - procurement.durationBonus + (_vc.durationMod || 0)),
       acceptance: negotiationAcceptance(opp, negotiation),
       crisisLabels: crisis.labels,
       marketRegime: regime,
@@ -2668,6 +3030,10 @@
       procurementAgreement: procurement.agreement,
       procurementBonus: procurement.pnlBonus,
       procurementSavings: procurement.pnlBonus + Math.round(route.freightCost * .15),
+      commercialFramework: framework.framework,
+      deskSpecialization: specialization.specialization,
+      marketReputationScore: franchise.score,
+      hqTier: hq.tier,
       verticalSources: vertical.sources,
       shopSources: shop.sources,
       structure,
@@ -2684,23 +3050,69 @@
     return Math.round(vessel.charterCost * factor);
   }
   function opportunityOfficeAdjustments(opp) {
-    let durationBonus = 0;
-    let pnlBonus = 0;
-    if (officeOwned('genova') && (opp.via || []).includes('genova')) { durationBonus += 2; pnlBonus += 4_000; }
-    if (officeOwned('singapore') && (opp.origin === 'singapore' || opp.destination === 'singapore')) { durationBonus += 2; pnlBonus += 8_000; }
-    return { durationBonus, pnlBonus };
+    return officeNetworkAdjustments(opp);
+  }
+  function officeAvailabilitySnapshot() {
+    const available=officeCatalog.filter(office=>office.id!=='geneva' && !officeOwned(office.id) && !activeOfficeProject(office.id) && officeUnlocked(office));
+    const affordable=available.filter(office=>state.cash>=office.cost);
+    const projects=state.officeProjects||[];
+    return { available, affordable, projects };
+  }
+  function renderOfficeRailStatus() {
+    const badge=$('#officeBadge');
+    const button=$('#openOfficesButton');
+    if(!badge||!button) return;
+    const snapshot=officeAvailabilitySnapshot();
+    const count=snapshot.projects.length || snapshot.affordable.length || snapshot.available.length;
+    badge.textContent=String(count);
+    badge.classList.toggle('hidden',count===0);
+    badge.classList.toggle('building',snapshot.projects.length>0);
+    button.title=snapshot.projects.length
+      ? `${snapshot.projects.length} international office project${snapshot.projects.length===1?'':'s'} underway · O`
+      : snapshot.affordable.length
+        ? `${snapshot.affordable.length} office${snapshot.affordable.length===1?'':'s'} ready to open · O`
+        : 'Global Office Network · O';
+  }
+  function openOfficeNetwork() {
+    openLeftDrawer('expansion');
+    setTimeout(()=>{
+      const target=$('#globalOfficeSummary');
+      target?.scrollIntoView({behavior:motionEnabled()?'smooth':'auto',block:'start'});
+    },60);
   }
   function openOffice(id) {
     const office = getOffice(id);
-    if (!office || officeOwned(id)) return;
-    if (!officeUnlocked(office)) return showToast(`You need reputation ${office.minReputation} and ${office.minDeals} completed deals.`);
-    if (state.cash < office.cost) return showToast('Insufficient liquidity to open this desk.');
+    if (!office || officeOwned(id) || activeOfficeProject(id)) return;
+    if (!officeUnlocked(office)) return showToast(`Office locked: ${officeLockReason(office)} required.`);
+    if (activeProjectCount() >= builderSlots()) return showToast('All project teams are busy. Complete a construction project first.');
+    if (state.cash < office.cost) return showToast(`Opening ${office.name} requires ${money(office.cost)} cash.`);
     state.cash -= office.cost;
-    state.offices.push(id);
-    state.reputation = clamp(state.reputation + 1, 0, 100);
-    evaluateMissions();
+    state.officeSpend = (state.officeSpend || 0) + office.cost;
+    state.officeProjects = state.officeProjects || [];
+    state.officeProjects.push({ id:`office-project-${state.sequence++}`, officeId:id, daysRemaining:office.buildDays, totalDays:office.buildDays, cost:office.cost, startedAt:state.date });
+    recordJournal('Expansion', `${office.name} approved`, `${office.buildDays}-day international office project started in ${office.country}.`, -office.cost, id);
+    activeLeftTab='expansion';
     saveState(); renderAll(); focusOnHub(office.hub);
-    showToast(`${office.name} opened. New opportunities are available.`);
+    showToast(`${office.name} project started. Opening in ${office.buildDays} days.`);
+  }
+  function completeOfficeProject(project) {
+    const office=getOffice(project.officeId); if(!office || officeOwned(office.id)) return;
+    state.offices.push(office.id);
+    state.offices=[...new Set(state.offices)];
+    state.creditLimit += office.creditBonus || 0;
+    state.reputation=clamp(state.reputation+2,0,100);
+    state.officeOpenings=(state.officeOpenings||0)+1;
+    state.worldEventFeed.unshift({type:'expansion',title:`${office.name} opened`,date:state.date,description:`The ${office.city} team is operational. Local market, execution and financing benefits are now active.`});
+    state.worldEventFeed=state.worldEventFeed.slice(0,18);
+    recordJournal('Expansion', `${office.name} opened`, `${office.country} joined the permanent World of Trade office network.`, 0, office.id);
+    addXp(70,'global office');
+    evaluateMissions();
+  }
+  function processOfficeProjectsDay() {
+    (state.officeProjects||[]).forEach(project=>{ project.daysRemaining=Math.max(0,(project.daysRemaining||0)-1); });
+    const completed=(state.officeProjects||[]).filter(project=>project.daysRemaining<=0);
+    completed.forEach(completeOfficeProject);
+    state.officeProjects=(state.officeProjects||[]).filter(project=>project.daysRemaining>0);
   }
   function hireStaff(id) {
     const member = getStaff(id);
@@ -3071,6 +3483,7 @@
         state.worldEventFeed.unshift({ type: 'resolved', id, title: `${definition?.title || id} resolved`, date: state.date, description: 'Operating conditions are gradually returning to normal and temporary freight premia are unwinding.' });
       });
       state.activeGlobalEvents = state.activeGlobalEvents.filter(event => !expired.includes(event.id));
+      expired.forEach(id => { if (state.crisisResponses?.[id]) state.crisisResponses[id].status = 'expired'; });
       refreshRouteConditions();
     }
     if (state.marketCycleDay >= 7) refreshOpportunityMarket();
@@ -3348,7 +3761,7 @@
     const riskScore = clamp(
       creditUtilization * 30 + concentration * 20 + Math.min(1, netFlatExposure / 1_500_000) * 26 + Math.min(1, netFxExposure / 800_000) * 12 + (liquidityCoverage < 1 ? 18 : liquidityCoverage < 1.5 ? 8 : 0) + Math.min(24, systemicRisk),
       0, 100
-    ) - (hasStaff('risk-analyst') ? 8 : 0) + difficultySettings().riskPenalty + activeDoctrine().riskAdjustment + activeCapitalPolicy().riskAdjustment;
+    ) - (hasStaff('risk-analyst') ? 8 : 0) - hqAdjustments().riskReduction - officeNetworkRiskReduction() + difficultySettings().riskPenalty + activeDoctrine().riskAdjustment + activeCapitalPolicy().riskAdjustment + deskSpecializationAdjustments(null).riskAdjustment;
     const stressLoss = netFlatExposure * .08 + netFxExposure * .05 + stats.creditUsed * .012 + Math.max(0, -(state.riskPnlImpact || 0)) * .15;
     return { ...stats, grossByCommodity, netFlatExposure, netFxExposure, marginRequirement, stressLoss, systemicRisk, creditUtilization, concentration, liquidityReserve, liquidityCoverage, riskScore: clamp(riskScore, 0, 100) };
   }
@@ -3358,7 +3771,7 @@
     const marginCollateral = state.activeDeals.reduce((sum, d) => sum + (d.marginCollateral || 0), 0);
     const activePnl = state.activeDeals.reduce((sum, d) => sum + computeUnrealizedPnl(d), 0);
     const creditUsed = state.activeDeals.reduce((sum, d) => sum + d.borrowed, 0);
-    const assetValue = investmentBookValue() + shopBookValue();
+    const assetValue = investmentBookValue() + shopBookValue() + hqBookValue() + officeBookValue();
     const nav = state.cash + invested + marginCollateral + activePnl + assetValue;
     return { invested, marginCollateral, activePnl, creditUsed, creditAvailable: effectiveCreditLimit() - creditUsed, assetValue, nav };
   }
@@ -3376,7 +3789,7 @@
   function tradingHouseValuation() {
     const stats = portfolioStats();
     const earnings = Math.max(0, state.realizedPnl || 0);
-    const assetValue = investmentBookValue() + shopBookValue();
+    const assetValue = investmentBookValue() + shopBookValue() + hqBookValue() + officeBookValue();
     const relationshipValue = Object.values(state.counterparties||{}).reduce((sum,cp)=>sum+Math.max(0,(cp.relationship||50)-45)*4_000,0);
     const executionValue = state.completedDeals * 35_000 + (state.reputation||0)*9_000;
     const value = Math.max(stats.nav, stats.nav + earnings*1.8 + assetValue*.35 + relationshipValue + executionValue);
@@ -3862,7 +4275,8 @@
       return [o.origin, o.destination, ...(o.via || [])].includes(hub.id);
     })) return true;
     if (layers.opportunities) {
-      // Keep future markets visible as dim locked nodes so expansion feels tangible.
+      // Keep future markets and prospective office cities visible so expansion feels tangible.
+      if (getOffice(hub.id)) return true;
       if (!countryUnlocked(hub.country)) return true;
       return opportunities.some(o => [o.origin,o.destination,...(o.via||[])].includes(hub.id));
     }
@@ -3891,6 +4305,35 @@
       ctx.arc(p.x, p.y, (lockedMarket ? 2.4 : (selectedHub ? 5 : 3.4)) * pulse, 0, Math.PI*2);
       ctx.fill();
       ctx.shadowBlur = 0;
+      const prospectiveOffice=getOffice(hub.id);
+      if (prospectiveOffice && hub.id!=='geneva' && !officeOwned(hub.id) && !activeOfficeProject(hub.id)) {
+        const canOpen=officeUnlocked(prospectiveOffice);
+        ctx.strokeStyle=canOpen?'#7fffa8':'#7f8ba3';
+        ctx.globalAlpha=clamp(p.z*(canOpen?1.15:.7),.15,canOpen?.85:.42);
+        ctx.lineWidth=canOpen?1.5:1;
+        ctx.setLineDash(canOpen?[4,2]:[2,4]);
+        ctx.beginPath();
+        ctx.arc(p.x,p.y,canOpen?7.2:6.2,0,Math.PI*2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+      if (officeOwned(hub.id) && hub.id !== 'geneva') {
+        ctx.strokeStyle = '#ffd34e';
+        ctx.globalAlpha = clamp(p.z * 1.5, .35, .95);
+        ctx.lineWidth = selectedHub ? 2.4 : 1.6;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, selectedHub ? 9 : 6.8, 0, Math.PI*2);
+        ctx.stroke();
+      }
+      if (activeOfficeProject(hub.id)) {
+        ctx.strokeStyle = '#7de8ff';
+        ctx.setLineDash([3,3]);
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 8 + Math.sin(animationTime*.005)*1.5, 0, Math.PI*2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
       if (selectedHub) {
         ctx.strokeStyle = color;
         ctx.globalAlpha = .45;
@@ -3905,7 +4348,9 @@
         ctx.font = `${selectedHub ? 700 : 600} ${selectedHub ? 10 : 8}px Inter, sans-serif`;
         ctx.textAlign = 'center';
         ctx.fillStyle = selectedHub ? '#f4fbff' : 'rgba(218,233,241,.78)';
-        ctx.fillText(`${lockedMarket ? '🔒 ' : ''}${hub.name.toUpperCase()}`, p.x, p.y - (selectedHub ? 14 : 10));
+        const officeLabel=getOffice(hub.id);
+        const officePrefix=officeLabel&&hub.id!=='geneva'&&!officeOwned(hub.id)?`${officeUnlocked(officeLabel)?'OFFICE READY':'OFFICE L'+officeLabel.minLevel} · `:'';
+        ctx.fillText(`${lockedMarket ? '🔒 ' : ''}${officePrefix}${hub.name.toUpperCase()}`, p.x, p.y - (selectedHub ? 14 : 10));
       }
       ctx.restore();
       markerHitboxes.push({ id: hub.id, x: p.x, y: p.y, r: selectedHub ? 15 : 11, z: p.z });
@@ -4193,7 +4638,7 @@
 
   const drawerLabels = {
     portfolio: 'Trading desk', inventory: 'Physical inventory', operations: 'Operations center', supply: 'Supply chain control', contracts: 'Contracts & credit',
-    fleet: 'Fleet desk', risk: 'Risk dashboard', opportunities: 'Opportunity market', rivals: 'Competitive intelligence', strategy: 'Board strategy',
+    fleet: 'Fleet desk', risk: 'Risk dashboard', opportunities: 'Opportunity market', rivals: 'Competitive intelligence', strategy: 'Board strategy', expansion: 'Strategic growth office',
     counterparties: 'Commercial network', compliance: 'Compliance desk', events: 'Global intelligence', finance: 'Treasury desk', performance: 'Performance office',
     academy: 'WoT Academy', empire: 'Trading empire', shop: 'Empire shop', hq: 'Headquarters',
     career: 'Career progression', leaderboard: 'Career League'
@@ -4205,7 +4650,7 @@
   }
 
   const searchModuleIcons = {
-    portfolio:'◇', inventory:'▣', operations:'≋', supply:'⛓', contracts:'§', fleet:'⌁', risk:'!', opportunities:'◎', rivals:'⚔', strategy:'◈',
+    portfolio:'◇', inventory:'▣', operations:'≋', supply:'⛓', contracts:'§', fleet:'⌁', risk:'!', opportunities:'◎', rivals:'⚔', strategy:'◈', expansion:'↗',
     counterparties:'○', compliance:'✓', events:'⚠', finance:'$', performance:'Σ', academy:'A', empire:'▲', shop:'▦', hq:'⌂', career:'↗', leaderboard:'#'
   };
 
@@ -4565,6 +5010,7 @@
     $('#globeLegend')?.setAttribute('aria-hidden', String(!layersOpen));
     $('#openDeskButton')?.classList.toggle('active', leftDrawerOpen);
     $('#openShopButton')?.classList.toggle('active', leftDrawerOpen && activeLeftTab === 'shop');
+    $('#openOfficesButton')?.classList.toggle('active', leftDrawerOpen && activeLeftTab === 'expansion');
     $('#toggleOverviewButton')?.classList.toggle('active', overviewOpen);
     $('#toggleMarketsButton')?.classList.toggle('active', marketsOpen);
     $('#toggleLayersButton')?.classList.toggle('active', layersOpen);
@@ -4906,7 +5352,11 @@
       contractLifecycle: { nominated: true, loaded: false, delivered: false, invoiced: false, paid: false },
       procurementAgreementId: economics.procurementAgreement?.supplierId || null,
       routeCondition: { ...economics.routeCondition },
-      routeMitigated: false
+      routeMitigated: false,
+      deskSpecialization: economics.deskSpecialization?.id || state.deskSpecialization,
+      marketReputationAtBooking: economics.marketReputationScore || 0,
+      hqTierAtBooking: economics.hqTier || state.hqTier,
+      commercialFrameworkId: economics.commercialFramework?.opportunityId || null
     };
     deal.operations = makeDealOperations(opp, deal.id, fleetAsset);
     if (opp.distressed) { state.distressedOpportunity = null; }
@@ -4926,6 +5376,7 @@
     state.cash -= deal.equity + deal.marginCollateral;
     state.activeDeals.push(deal);
     registerProcurementLift(opp, deal, economics);
+    registerCommercialFrameworkLift(opp, deal);
     state.negotiations[opp.id] = { ...negotiation, status: 'consumed' };
     recordJournal('Deal opened', opp.title, `${getHub(opp.origin).name} → ${getHub(opp.destination).name} · ${economics.quantity.toLocaleString('en-US')} t · hedge ${deal.hedgeRatio}% · ${deal.complianceStatus}`, -(deal.equity + deal.marginCollateral), deal.id);
     saveState();
@@ -5126,6 +5577,7 @@
     const opsRep = readiness >= 92 ? 2 : readiness < 70 ? -2 : 0;
     const baseRep = pnl >= 0 ? 2 : -3;
     state.reputation = clamp(state.reputation + baseRep + opsRep + deal.reputationAdjustments, 0, 100);
+    updateMarketReputationAfterDeal(opp, pnl, readiness);
     [deal.supplierId, deal.buyerId].filter(Boolean).forEach(counterpartyId => {
       const relationship = getCounterpartyState(counterpartyId);
       relationship.deals = (relationship.deals || 0) + 1;
@@ -5545,6 +5997,9 @@
     processShopDay();
     processCreditLimitRequests();
     processProcurementAgreements();
+    processCommercialFrameworks();
+    processOfficeProjectsDay();
+    processHQUpgradeDay();
 
     let eventTriggered = false;
     for (const deal of [...state.activeDeals]) {
@@ -6479,6 +6934,110 @@
     mandates.innerHTML=boardMandateData().map(item=>{const pct=clamp(item.progress/item.target*100,0,100);return `<div class="mandate-card"><div><span>${item.label}</span><strong>${pct>=100?'Complete':`${Math.round(pct)}%`}</strong></div><p>${item.copy}</p><div class="mandate-track"><i style="width:${pct}%"></i></div><small>${typeof item.target==='number'&&item.target>=1_000_000?`${money(item.progress,true)} / ${money(item.target,true)}`:`${Math.min(item.progress,item.target)} / ${item.target}`}</small></div>`}).join('');
   }
 
+
+  function renderGlobalOfficeNetwork() {
+    const summary=$('#globalOfficeSummary');
+    const roadmap=$('#officeUnlockRoadmap');
+    const pipeline=$('#globalOfficePipeline');
+    const network=$('#globalOfficeNetwork');
+    if(!summary||!roadmap||!pipeline||!network) return;
+    const active=officeCatalog.filter(o=>officeOwned(o.id));
+    const projects=state.officeProjects||[];
+    const countries=new Set(active.map(o=>o.country));
+    const next=officeCatalog.find(o=>o.id!=='geneva'&&!officeOwned(o.id)&&!activeOfficeProject(o.id));
+    const availableNow=officeCatalog.filter(o=>o.id!=='geneva'&&!officeOwned(o.id)&&!activeOfficeProject(o.id)&&officeUnlocked(o));
+    const nextLevelOffice=officeCatalog.filter(o=>o.id!=='geneva'&&!officeOwned(o.id)&&!activeOfficeProject(o.id)&&o.minLevel>playerLevel()).sort((a,b)=>a.minLevel-b.minLevel)[0];
+    summary.innerHTML=`<div><span>Countries covered</span><strong>${countries.size}</strong></div><div><span>International offices</span><strong>${Math.max(0,active.length-1)}/${officeCatalog.length-1}</strong></div><div><span>Ready to open</span><strong>${availableNow.length}</strong></div><div><span>Network book value</span><strong>${money(officeBookValue(),true)}</strong></div>`;
+    const roadmapItems=officeCatalog.filter(o=>o.id!=='geneva'&&!officeOwned(o.id)).sort((a,b)=>a.minLevel-b.minLevel).slice(0,8);
+    roadmap.innerHTML=`<div class="office-roadmap-heading"><div><span>Level expansion roadmap</span><strong>${nextLevelOffice?`Next level unlock: ${nextLevelOffice.city} at L${nextLevelOffice.minLevel}`:'All international locations unlocked'}</strong></div><small>Reach the company level, satisfy commercial requirements, then fund the local opening project.</small></div><div class="office-roadmap-track">${roadmapItems.map(office=>{const project=activeOfficeProject(office.id), unlocked=officeUnlocked(office); const cls=project?'building':unlocked?'ready':'locked'; return `<button class="office-roadmap-node ${cls}" data-office-roadmap="${office.id}"><span>${office.flag}</span><b>L${office.minLevel}</b><strong>${office.city}</strong><small>${project?`${project.daysRemaining}d left`:unlocked?'Ready':officeLockReason(office)}</small></button>`;}).join('')}</div>`;
+    $$('[data-office-roadmap]',roadmap).forEach(button=>button.addEventListener('click',()=>{const id=button.dataset.officeRoadmap; focusOnHub(getOffice(id)?.hub); document.getElementById(`office-card-${id}`)?.scrollIntoView({behavior:motionEnabled()?'smooth':'auto',block:'center'});}));
+    pipeline.innerHTML=projects.length?projects.map(project=>{const office=getOffice(project.officeId);const pct=Math.max(4,100*(1-project.daysRemaining/project.totalDays));return `<article class="office-project-card"><div><span>${office.flag} ${office.country}</span><strong>${office.name}</strong><small>${project.daysRemaining} days remaining</small></div><div class="progress-track"><span style="width:${pct}%"></span></div></article>`;}).join(''):`<div class="empty-card">No office is under construction. ${next?`The next available location is ${next.city} at level ${next.minLevel}.`:''}</div>`;
+    network.innerHTML=officeCatalog.map(office=>{
+      const owned=officeOwned(office.id), project=activeOfficeProject(office.id), unlocked=officeUnlocked(office), lock=officeLockReason(office);
+      const status=owned?'ACTIVE':project?'BUILDING':unlocked?'AVAILABLE':'LOCKED';
+      const progress=project?Math.max(4,100*(1-project.daysRemaining/project.totalDays)):0;
+      return `<article id="office-card-${office.id}" class="global-office-card ${owned?'owned':project?'building':unlocked?'available':'locked'}">
+        <div class="office-card-banner"><span class="office-flag">${office.flag}</span><div><small>${office.region}</small><h3>${office.city}</h3><b>${office.country}</b></div><em>${status}</em></div>
+        <p>${office.description}</p>
+        <div class="office-benefit">${office.benefit}</div>
+        <div class="office-stat-grid"><div><span>Unlock</span><strong>Level ${office.minLevel}</strong></div><div><span>Opening cost</span><strong>${office.cost?money(office.cost):'Included'}</strong></div><div><span>Build time</span><strong>${office.buildDays||0}d</strong></div><div><span>Daily overhead</span><strong>${money(office.dailyCost)}</strong></div></div>
+        <div class="office-specialties">${(office.focusCommodities||[]).map(c=>`<span>${c}</span>`).join('')||'<span>Group management</span>'}</div>
+        ${project?`<div class="office-build-progress"><div><span>International expansion project</span><strong>${project.daysRemaining}d</strong></div><div class="progress-track"><span style="width:${progress}%"></span></div></div>`:''}
+        ${office.id==='geneva'?'':`<button class="button ${owned?'secondary':'primary'} office-open-button" data-open-global-office="${office.id}" ${owned||project||!unlocked||state.cash<office.cost||activeProjectCount()>=builderSlots()?'disabled':''}>${owned?'Office active':project?`Opening · ${project.daysRemaining}d`:!unlocked?`Requires ${lock}`:state.cash<office.cost?'Insufficient cash':'Open office'}</button>`}
+      </article>`;
+    }).join('');
+    $$('[data-open-global-office]',network).forEach(button=>button.addEventListener('click',()=>openOffice(button.dataset.openGlobalOffice)));
+    renderOfficeRailStatus();
+  }
+
+  function renderExpansion() {
+    const summary = $('#expansionSummary');
+    const hqPanel = $('#hqGrowthPanel');
+    const specializationList = $('#deskSpecialisationList');
+    const reputationGrid = $('#marketReputationGrid');
+    const frameworkList = $('#commercialFrameworkList');
+    const responseList = $('#crisisResponseList');
+    const officeNetwork = $('#globalOfficeNetwork');
+    if (!summary || !hqPanel || !specializationList || !reputationGrid || !frameworkList || !responseList || !officeNetwork) return;
+    ensureMarketReputation();
+    const hq = hqCurrentTier();
+    const nextHq = hqNextTier();
+    const specialization = activeDeskSpecialization();
+    const frameworks = Object.values(state.commercialFrameworks || {}).filter(item => item && item.status === 'active');
+    const avgMarketRepEntries = [...Object.values(state.marketReputation.countries || {}), ...Object.values(state.marketReputation.commodities || {})];
+    const avgMarketRep = avgMarketRepEntries.length ? Math.round(avgMarketRepEntries.reduce((a,b)=>a+b,0)/avgMarketRepEntries.length) : 0;
+    summary.innerHTML = `
+      <div><span>Geneva HQ</span><strong>Tier ${hq.tier} · ${hq.name}</strong></div>
+      <div><span>Core desk</span><strong>${specialization.name}</strong></div>
+      <div><span>Market credibility</span><strong>${avgMarketRep}/100</strong></div>
+      <div><span>International offices</span><strong>${Math.max(0,state.offices.length-1)}</strong></div>`;
+
+    const project = state.hqUpgrade;
+    hqPanel.innerHTML = `<article class="hq-growth-card current">
+      <div class="growth-card-head"><div><span>Current headquarters</span><strong>${hq.name}</strong></div><span class="status-pill low">Tier ${hq.tier}</span></div>
+      <p>${hq.description}</p>
+      <div class="growth-benefit-grid"><div><span>Deal edge</span><strong>+${money(hq.pnlBonus)}</strong></div><div><span>Credit capacity</span><strong>+${money(hq.creditBonus,true)}</strong></div><div><span>Risk reduction</span><strong>-${hq.riskReduction}</strong></div><div><span>Overhead</span><strong>${money(hq.dailyCost)}/day</strong></div></div>
+    </article>${nextHq ? `<article class="hq-growth-card next ${project ? 'building' : ''}">
+      <div class="growth-card-head"><div><span>${project ? 'Construction in progress' : 'Next headquarters tier'}</span><strong>${nextHq.name}</strong></div><span class="status-pill ${playerLevel()>=nextHq.minLevel?'medium':'high'}">Level ${nextHq.minLevel}</span></div>
+      <p>${nextHq.description}</p>
+      <div class="growth-benefit-grid"><div><span>Project cost</span><strong>${money(nextHq.cost)}</strong></div><div><span>Build time</span><strong>${nextHq.buildDays} days</strong></div><div><span>Deal edge</span><strong>+${money(nextHq.pnlBonus)}</strong></div><div><span>Credit</span><strong>+${money(nextHq.creditBonus,true)}</strong></div></div>
+      ${project ? `<div class="build-progress-card"><strong>${project.daysRemaining} days remaining</strong><div class="progress-track"><span style="width:${Math.max(4,100*(1-project.daysRemaining/nextHq.buildDays))}%"></span></div></div>` : `<button class="button primary" id="startHqUpgradeButton" ${playerLevel()<nextHq.minLevel||state.cash<nextHq.cost?'disabled':''}>Build ${nextHq.name}</button>`}
+    </article>` : '<div class="success-box">Maximum Geneva headquarters tier reached.</div>'}`;
+    $('#startHqUpgradeButton')?.addEventListener('click', startHQUpgrade);
+    renderGlobalOfficeNetwork();
+
+    const cooldown = Math.max(0, 30 - ((state.dayIndex || 0) - (state.specializationChangedDay || -99)));
+    specializationList.innerHTML = Object.values(deskSpecializationCatalog).map(item => {
+      const active = item.id === specialization.id;
+      const locked = playerLevel() < 3;
+      const canChange = !active && !locked && (!state.specializationChosen || cooldown === 0);
+      const core = item.commodities.length ? item.commodities.join(' · ') : 'All commodity groups';
+      return `<article class="specialisation-card ${active?'active':''} ${locked?'locked':''}"><div class="specialisation-icon">${item.icon}</div><div class="specialisation-copy"><span>${active?'Active board mandate':'Desk mandate'}</span><strong>${item.name}</strong><p>${item.description}</p><small>${core}</small></div><div class="specialisation-stats"><b>${item.pnlFactor>1?`+${Math.round((item.pnlFactor-1)*100)}% core margin`:'Balanced margin'}</b><b>${item.acceptance?`+${item.acceptance} acceptance`:'No concentration penalty'}</b></div><button class="button ${active?'secondary':'primary'}" data-select-specialization="${item.id}" ${active||!canChange?'disabled':''}>${active?'Selected':locked?'Unlocks at level 3':cooldown?`Board lock ${cooldown}d`:state.specializationChosen?'Switch mandate · $90K':'Choose free'}</button></article>`;
+    }).join('');
+    $$('[data-select-specialization]', specializationList).forEach(button => button.addEventListener('click', () => chooseDeskSpecialization(button.dataset.selectSpecialization)));
+
+    const countryRows = Object.entries(state.marketReputation.countries || {}).sort((a,b)=>b[1]-a[1]).slice(0,10).map(([name,score]) => ({ name, score, type:'Country' }));
+    const commodityRows = Object.entries(state.marketReputation.commodities || {}).sort((a,b)=>b[1]-a[1]).slice(0,8).map(([name,score]) => ({ name, score, type:'Commodity' }));
+    reputationGrid.innerHTML = [...countryRows,...commodityRows].map(item => `<div class="market-reputation-card"><div><span>${item.type}</span><strong>${item.name}</strong></div><b>${Math.round(item.score)}</b><div class="progress-track"><span style="width:${clamp(item.score,0,100)}%"></span></div><small>${item.score>=70?'Preferred merchant':item.score>=45?'Established':item.score>=25?'Developing':'New entrant'}</small></div>`).join('') || '<div class="empty-card">Complete cargoes to build a commercial franchise.</div>';
+
+    const activeFrameworkIds = new Set(frameworks.map(item => item.opportunityId));
+    const candidates = opportunities.filter(isOpportunityUnlocked).filter(opp => !activeFrameworkIds.has(opp.id)).slice(0,6);
+    const cards = [...frameworks.map(framework => ({ framework, opp:getOpportunity(framework.opportunityId) })), ...candidates.map(opp => ({ framework:null, opp }))];
+    frameworkList.innerHTML = cards.map(({framework,opp}) => {
+      if (!opp) return '';
+      const cost = clamp(Math.round(opp.capital * .025),45_000,180_000);
+      return `<article class="framework-card ${framework?'active':''}"><div class="framework-head"><div><span>${framework?'Active commercial agreement':'Available corridor'}</span><strong>${opp.title}</strong></div><span class="status-pill ${framework?'low':'medium'}">${framework?`${framework.daysRemaining}d`:'120 days'}</span></div><p>${getHub(opp.origin).name} → ${getHub(opp.destination).name} · ${opp.commodity}</p>${framework?`<div class="framework-progress"><strong>${framework.lifts}/${framework.commitments} committed cargoes</strong><div class="progress-track"><span style="width:${Math.min(100,framework.lifts/framework.commitments*100)}%"></span></div></div><div class="management-benefit">+${money(framework.pnlBonus)} per cargo · +${framework.acceptance} acceptance · -${framework.durationBonus} days</div>`:`<div class="management-benefit">Priority supply and buyer offtake · 3 committed cargoes · take-or-pay applies</div><button class="button secondary" data-sign-framework="${opp.id}" ${playerLevel()<3||state.completedDeals<1||state.cash<cost?'disabled':''}>Sign framework · ${money(cost)}</button>`}</article>`;
+    }).join('') || '<div class="empty-card">No corridors are currently eligible for a framework agreement.</div>';
+    $$('[data-sign-framework]', frameworkList).forEach(button => button.addEventListener('click', () => signCommercialFramework(button.dataset.signFramework)));
+
+    const activeEvents = activeCrisisDefinitions();
+    responseList.innerHTML = activeEvents.length ? activeEvents.map(event => {
+      const response = crisisResponseFor(event.id);
+      return `<article class="crisis-playbook-card ${response?'protected':''}"><div class="crisis-playbook-head"><div><span>${event.category || 'Global risk'} · ${event.remaining}d</span><strong>${event.title}</strong></div><span class="status-pill ${event.severity || 'medium'}">${response?'Response active':'Unmitigated'}</span></div><p>${event.description}</p>${response?`<div class="success-box">${crisisPlaybookCatalog[response.playbookId]?.name} · ${money(response.cost)} spent · ${money(response.recovered || 0)} cargo recovery.</div>`:`<div class="playbook-actions">${Object.values(crisisPlaybookCatalog).map(playbook => `<button data-crisis-response="${event.id}" data-playbook="${playbook.id}"><span>${playbook.icon}</span><strong>${playbook.name}</strong><small>${money(playbook.cost)} · loss protection ${Math.round((1-playbook.lossFactor)*100)}%</small></button>`).join('')}</div>`}</article>`;
+    }).join('') : '<div class="empty-card">No active global shock requires a response. Maintain liquidity for the next crisis.</div>';
+    $$('[data-crisis-response]', responseList).forEach(button => button.addEventListener('click', () => activateCrisisResponse(button.dataset.crisisResponse, button.dataset.playbook)));
+  }
+
   function renderCounterparties() {
     const summary = $('#counterpartySummary');
     const container = $('#counterpartyList');
@@ -6789,7 +7348,7 @@
     const _qLabel    = ['Q1','Q2','Q3','Q4'][(_qNum - 1) % 4] + ' Year ' + Math.ceil(_qNum / 4);
     const _qColor    = _qPct >= 100 ? 'var(--green)' : _qPct >= 60 ? 'var(--orange)' : 'var(--red)';
     summary.innerHTML = `
-      <div><span>Regional desks</span><strong>${state.offices.length}/${officeCatalog.length}</strong></div>
+      <div><span>Global offices</span><strong>${state.offices.length}/${officeCatalog.length}</strong></div>
       <div><span>Team members</span><strong>${state.staff.length}/${staffCatalog.length}</strong></div>
       <div><span>Daily overhead</span><strong>${money(dailyOverhead())}</strong></div>
       <div><span>Total overhead paid</span><strong>${money(state.overheadPaid || 0, true)}</strong></div>
@@ -6800,12 +7359,14 @@
       </div>`;
     officesContainer.innerHTML = officeCatalog.map(office => {
       const owned = officeOwned(office.id);
+      const project = activeOfficeProject(office.id);
       const unlocked = officeUnlocked(office);
-      return `<div class="management-card ${owned ? 'owned' : unlocked ? '' : 'locked'}">
-        <div class="management-head"><div><span>Regional office</span><strong>${office.name}</strong></div><span class="status-pill ${owned ? 'low' : unlocked ? 'medium' : 'high'}">${owned ? 'Active' : unlocked ? 'Available' : 'Locked'}</span></div>
+      return `<div class="management-card ${owned ? 'owned' : project ? 'building' : unlocked ? '' : 'locked'}">
+        <div class="management-head"><div><span>${office.flag} ${office.region}</span><strong>${office.name}</strong></div><span class="status-pill ${owned ? 'low' : project ? 'medium' : unlocked ? 'medium' : 'high'}">${owned ? 'Active' : project ? `${project.daysRemaining}d` : unlocked ? 'Available' : `Level ${office.minLevel}`}</span></div>
         <p>${office.description}</p><div class="management-benefit">${office.benefit}</div>
-        <div class="management-grid"><div><span>Opening cost</span><strong>${office.cost ? money(office.cost) : 'Included'}</strong></div><div><span>Daily cost</span><strong>${money(office.dailyCost)}</strong></div></div>
-        ${office.id === 'geneva' ? '' : `<button class="button secondary management-action" data-open-office="${office.id}" ${owned || !unlocked || state.cash < office.cost ? 'disabled' : ''}>${owned ? 'Desk active' : unlocked ? 'Open regional desk' : `Requires rep ${office.minReputation}`}</button>`}
+        <div class="management-grid"><div><span>Opening cost</span><strong>${office.cost ? money(office.cost) : 'Included'}</strong></div><div><span>Build / daily cost</span><strong>${office.buildDays || 0}d · ${money(office.dailyCost)}</strong></div></div>
+        ${project?`<div class="progress-track"><span style="width:${Math.max(4,100*(1-project.daysRemaining/project.totalDays))}%"></span></div>`:''}
+        ${office.id === 'geneva' ? '' : `<button class="button secondary management-action" data-open-office="${office.id}" ${owned || project || !unlocked || state.cash < office.cost || activeProjectCount()>=builderSlots() ? 'disabled' : ''}>${owned ? 'Office active' : project ? 'Under construction' : unlocked ? 'Open international office' : `Requires ${officeLockReason(office)}`}</button>`}
       </div>`;
     }).join('');
     staffContainer.innerHTML = staffCatalog.map(member => {
@@ -7066,6 +7627,7 @@
     renderOpportunityList();
     renderRivals();
     renderStrategy();
+    renderExpansion();
     renderCounterparties();
     renderCompliance();
     renderWorldEvents();
@@ -7089,7 +7651,7 @@
       <div class="inspector-grid">
         <div class="inspector-stat"><span>Risk level</span><strong>${hub.risk}</strong></div>
         <div class="inspector-stat"><span>Available routes</span><strong>${related.length}</strong></div>
-        <div class="inspector-stat"><span>WoT presence</span><strong>${officeOwned(hub.id) ? 'Regional desk' : hub.id === 'geneva' ? 'Headquarters' : 'No office'}</strong></div>
+        <div class="inspector-stat"><span>WoT presence</span><strong>${officeOwned(hub.id) ? 'Regional office active' : activeOfficeProject(hub.id) ? `Opening in ${activeOfficeProject(hub.id).daysRemaining}d` : hub.id === 'geneva' ? 'Headquarters' : 'No office'}</strong></div>
         <div class="inspector-stat"><span>Commodity access</span><strong>${hub.commodities.length}</strong></div>
       </div>
       <div class="inspector-section"><h3>Local market</h3>
@@ -7585,6 +8147,7 @@
     renderLayers();
     renderBriefing();
     renderTutorialCoach();
+    renderOfficeRailStatus();
   }
 
   function configureDifficulty(level) {
@@ -7597,6 +8160,10 @@
     state.riskPnlImpact = 0; state.riskLedger = [];
     state.unlockedCountriesSeen = ['Switzerland','Estonia','Italy'];
     state.unlockedCommoditiesSeen = ['Copper'];
+    state.hqTier = 1; state.hqUpgrade = null;
+    state.deskSpecialization = 'generalist'; state.specializationChosen = false; state.specializationChangedDay = -99;
+    state.marketReputation = { countries:{ Switzerland:50, Estonia:35, Italy:35 }, commodities:{ Copper:35 } };
+    state.commercialFrameworks = {}; state.crisisResponses = {};
     state.navHistory = [state.cash,state.cash,state.cash];
     state.marketRegime = generateMarketRegime(1);
     initializeCompetitiveMarket(true);
@@ -7666,7 +8233,7 @@
       state.xp -= xpForLevel(state.xpLevel);
       state.xpLevel += 1;
       const unlockedNow = newlyUnlockedAtLevel(state.xpLevel);
-      _lastUnlockMessage = [...unlockedNow.commodities.map(x=>`${x} market`), ...unlockedNow.countries.map(x=>`${x} corridor`)].join(' · ');
+      _lastUnlockMessage = [...unlockedNow.commodities.map(x=>`${x} market`), ...unlockedNow.countries.map(x=>`${x} corridor`), ...(unlockedNow.offices||[])].join(' · ');
       leveled = true;
       const reward = 4000 + state.xpLevel * 2500;
       state.cash += reward;
@@ -7847,6 +8414,7 @@
   const wotIcons = {
     openDeskButton: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2.5"/><path d="M3 9h18M9 9v11"/></svg>',
     openShopButton: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8h12l-1 12H7L6 8z"/><path d="M9 8a3 3 0 0 1 6 0"/></svg>',
+    openOfficesButton: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21V8l8-5 8 5v13"/><path d="M8 21v-6h8v6M8 10h.01M12 10h.01M16 10h.01"/></svg>',
     toggleOverviewButton: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v9l7 4"/><circle cx="12" cy="12" r="9"/></svg>',
     toggleMarketsButton: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 5v14M5 9h4M9 6v10M12 5v14M12 8h4M16 6v9M19 5v14"/></svg>',
     toggleLayersButton: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l9 5-9 5-9-5 9-5z"/><path d="M3 13l9 5 9-5"/></svg>',
@@ -7982,6 +8550,7 @@
     $('#closeLeftPanel')?.addEventListener('click', closeLeftDrawer);
     $('#openDeskButton')?.addEventListener('click', () => leftDrawerOpen ? closeLeftDrawer() : openLeftDrawer(activeLeftTab));
     $('#openShopButton')?.addEventListener('click', () => openLeftDrawer('shop'));
+    $('#openOfficesButton')?.addEventListener('click', openOfficeNetwork);
     $('#toggleOverviewButton')?.addEventListener('click', () => { overviewOpen = !overviewOpen; marketsOpen = false; syncOverlayUI(); });
     $('#toggleMarketsButton')?.addEventListener('click', () => { marketsOpen = !marketsOpen; overviewOpen = false; syncOverlayUI(); });
     $('#toggleLayersButton')?.addEventListener('click', () => { layersOpen = !layersOpen; syncOverlayUI(); });
@@ -8022,6 +8591,7 @@
         if (event.key.toLowerCase() === 'r') { event.preventDefault(); return openLeftDrawer('risk'); }
         if (event.key.toLowerCase() === 'p') { event.preventDefault(); return openLeftDrawer('performance'); }
         if (event.key.toLowerCase() === 's') { event.preventDefault(); return openLeftDrawer('shop'); }
+        if (event.key.toLowerCase() === 'o') { event.preventDefault(); return openOfficeNetwork(); }
         if (event.key.toLowerCase() === 'n') { event.preventDefault(); return advanceDay(); }
         if (event.key === '?' || (event.shiftKey && event.key === '/')) { event.preventDefault(); return toggleShortcutsOverlay(); }
         if (event.key.toLowerCase() === 'g') { event.preventDefault(); return openGlossaryDialog(); }
