@@ -1,3 +1,26 @@
+# World of Trade v44 — Interfaccia mobile ripulita
+
+## Problema risolto
+
+Su telefono l'interfaccia risultava confusa. La causa principale: le **23 schede dei moduli** venivano disposte in una griglia fino a 8 colonne, creando un muro di pulsantini minuscoli, e l'intestazione del pannello arrivava a occupare **152px di altezza** sottraendo spazio ai contenuti.
+
+## Cosa cambia sotto i 900px
+
+- **Barra dei moduli a riga singola scorrevole**: le schede diventano pillole affiancate che si scorrono lateralmente con aggancio (snap), invece di una griglia a più righe.
+- **Bersagli comodi al dito**: schede alte almeno 42px, pulsanti della barra comandi 46px, icone 40px.
+- **Scheda attiva evidente**: pillola dorata in rilievo, le altre in blu scuro.
+- **Intestazione da 152px a 60px**: quasi 100px di spazio restituiti ai contenuti.
+- **Meno rumore visivo**: ombre delle card alleggerite e sfocatura dei pannelli ridotta (giova anche alla fluidità).
+- **Più respiro**: spaziatura maggiore tra le card e liste a colonna singola.
+
+## Sotto i 620px
+
+- Metriche in alto su due colonne compatte ma leggibili.
+- Il globo viene leggermente sfocato quando un pannello è aperto, così il contenuto in primo piano si stacca.
+- Titoli di sezione ridimensionati.
+
+---
+
 # World of Trade v43 — Terra fisica anche senza WebGL
 
 ## Problema risolto

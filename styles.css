@@ -3790,3 +3790,77 @@ p, .inspector-subtitle, .empty-card, .glossary-entry p, .notif-msg, .incoterm-no
   .fleet-art svg { width: 52px; height: 40px; }
   .fleet-name { font-size: 14px; }
 }
+
+
+/* ═══════════════════════════════════════════════════════════════════════
+   v44 — PULIZIA MOBILE: meno confusione, bersagli grandi
+   ═══════════════════════════════════════════════════════════════════════ */
+@media (max-width: 900px) {
+
+  /* 1. Le 23 schede non sono più un muro a griglia: una sola riga scorrevole */
+  .left-panel .panel-tabs {
+    display: flex !important;
+    grid-template-columns: none !important;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scroll-snap-type: x proximity;
+    scrollbar-width: none;
+    gap: 7px;
+    padding: 8px 10px;
+  }
+  .left-panel .panel-tabs::-webkit-scrollbar { display: none; }
+
+  .left-panel .panel-tab {
+    flex: 0 0 auto;
+    scroll-snap-align: start;
+    min-height: 42px;              /* bersaglio comodo al dito */
+    padding: 0 15px !important;
+    font-size: 13.5px !important;
+    border-radius: 13px;
+    color: #cfe0f8;
+    background: linear-gradient(180deg, #26457f, #1a3160);
+    border: 2px solid rgba(150,200,255,.28);
+    box-shadow: 0 3px 0 rgba(6,14,40,.5), inset 0 1px 0 rgba(255,255,255,.14);
+    white-space: nowrap;
+  }
+  .left-panel .panel-tab.active {
+    color: #3a2400;
+    background: linear-gradient(180deg, #ffe488, #f0a01c);
+    border-color: rgba(255,255,255,.5);
+    box-shadow: 0 3px 0 #b8760c, inset 0 1px 0 rgba(255,255,255,.6);
+  }
+
+  /* 2. L'intestazione torna a una riga sola: più spazio ai contenuti */
+  .left-panel { grid-template-rows: 60px 1fr !important; }
+
+  /* 3. Bersagli comodi anche nella barra comandi */
+  .command-button { min-height: 46px; padding: 6px 11px; }
+  .icon-button, .profile-button { min-width: 40px; min-height: 40px; }
+
+  /* 4. Meno rumore visivo: ombre e sfocature più leggere sul telefono */
+  .glass-panel { backdrop-filter: blur(12px); }
+  .opportunity-card.v39, .investment-card.v40,
+  .shop-item-card.v41, .fleet-card.v42, .charter-card.v42 {
+    box-shadow: 0 5px 0 rgba(6,14,40,.4), 0 9px 16px rgba(3,9,28,.4), inset 0 2px 0 rgba(255,255,255,.1);
+  }
+
+  /* 5. Respiro tra le card e liste a colonna singola */
+  .left-section { padding: 12px !important; }
+  .opportunity-list, .investment-list, .shop-catalog-list,
+  .fleet-list, .charter-market-list { gap: 14px !important; }
+}
+
+@media (max-width: 620px) {
+  /* Metriche in alto: due sole colonne, più compatte ma leggibili */
+  .top-metrics { grid-template-columns: 1fr 1fr !important; gap: 7px; }
+  .top-metric { min-height: 60px; padding: 7px 10px; }
+
+  /* Il globo non deve competere con i pannelli aperti */
+  body.overlay-active .globe-stage { filter: blur(2px) brightness(.7); }
+
+  /* Titoli di sezione più contenuti */
+  .section-head h2 { font-size: 18px; }
+  .left-section > .section-head { margin-bottom: 10px; }
+}
