@@ -988,6 +988,13 @@
       priority: { label: 'Priority window', duration: -3, pnl: -9_000, acceptance: 10 },
       standard: { label: 'Standard window', duration: 0, pnl: 0, acceptance: 0 },
       flexible: { label: 'Flexible window', duration: 4, pnl: 7_000, acceptance: -9 }
+    },
+    incoterm: {
+      exw: { label: 'EXW · Ex Works', pnl: -18_000, acceptance: -9, equityFactor: .9, duration: -5, description: 'Buyer collects at origin and bears all freight, insurance and risk. You net the least but tie up little capital and carry minimal logistics risk.' },
+      fob: { label: 'FOB · Free On Board', pnl: 0, acceptance: 0, equityFactor: 1, duration: 0, description: 'You deliver over the ship\'s rail at the load port; the buyer arranges and pays ocean freight and insurance. The physical-trade benchmark.' },
+      cfr: { label: 'CFR · Cost & Freight', pnl: 13_000, acceptance: 6, equityFactor: 1.06, duration: 2, description: 'You pay the ocean freight to the destination port (buyer insures). Captures freight margin but adds working capital and freight risk.' },
+      cif: { label: 'CIF · Cost, Insurance & Freight', pnl: 18_000, acceptance: 9, equityFactor: 1.08, duration: 2, description: 'You pay freight and marine insurance to destination. Higher price and easier acceptance, more capital and execution exposure.' },
+      ddp: { label: 'DDP · Delivered Duty Paid', pnl: 28_000, acceptance: 14, equityFactor: 1.16, duration: 5, description: 'You deliver cleared, duty-paid at the buyer\'s door and bear virtually all cost and risk. Best price and conversion, heaviest capital and operational load.' }
     }
   };
 
@@ -3031,7 +3038,7 @@
     if (stored && stored.cycle === state.marketCycle) return stored;
     const transient = selectedNegotiationDrafts[oppId];
     if (transient && transient.cycle === state.marketCycle) return transient;
-    const draft = { cycle: state.marketCycle, status: 'draft', commercial: 'market', payment: 'delivery', pricing: 'fixed', delivery: 'standard', attempts: 0 };
+    const draft = { cycle: state.marketCycle, status: 'draft', commercial: 'market', payment: 'delivery', pricing: 'fixed', delivery: 'standard', incoterm: 'fob', attempts: 0 };
     selectedNegotiationDrafts[oppId] = draft;
     return draft;
   }
@@ -3049,6 +3056,7 @@
     const payment = negotiationProfiles.payment[negotiation.payment];
     const pricing = negotiationProfiles.pricing[negotiation.pricing || 'fixed'];
     const delivery = negotiationProfiles.delivery[negotiation.delivery];
+    const incoterm = negotiationProfiles.incoterm[negotiation.incoterm || 'fob'] || negotiationProfiles.incoterm.fob;
     const financing = financingProfiles[financingSelection(opp)] || financingProfiles.revolver;
     const vertical = investmentAdjustments(opp);
     const shop = shopAdjustments(opp);
@@ -3066,7 +3074,7 @@
     // Credit rating modifier: A=+3, BBB=0, BB=-4, B=-9
     const _ratingMod = { 'A': 3, 'BBB': 0, 'BB': -4, 'B': -9 };
     const _creditMod = _ratingMod[buyer?.creditRating] ?? 0;
-    return clamp(54 + state.reputation * .18 + (relationship - 50) * .45 + (buyer?.credit || 70) * .08 + commercial.acceptance + payment.acceptance + pricing.acceptance + delivery.acceptance + (financing.acceptance || 0) + vertical.acceptanceBonus + shop.acceptanceBonus + difficultySettings().acceptance + regime.acceptance + season.acceptance + doctrine.acceptance + procurement.acceptance + specialization.acceptance + franchise.acceptance + framework.acceptance + hq.acceptance + office.acceptance - route.acceptancePenalty - competitionPenalty(opp) + _creditMod + crisisAdjustments(opp).acceptanceShock, 5, 97);
+    return clamp(54 + state.reputation * .18 + (relationship - 50) * .45 + (buyer?.credit || 70) * .08 + commercial.acceptance + payment.acceptance + pricing.acceptance + delivery.acceptance + incoterm.acceptance + (financing.acceptance || 0) + vertical.acceptanceBonus + shop.acceptanceBonus + difficultySettings().acceptance + regime.acceptance + season.acceptance + doctrine.acceptance + procurement.acceptance + specialization.acceptance + franchise.acceptance + framework.acceptance + hq.acceptance + office.acceptance - route.acceptancePenalty - competitionPenalty(opp) + _creditMod + crisisAdjustments(opp).acceptanceShock, 5, 97);
   }
   function crisisAdjustments(opp) {
     return activeCrisisDefinitions().filter(event => event.affects?.(opp)).reduce((acc, event) => {
@@ -3088,6 +3096,7 @@
     const payment = negotiationProfiles.payment[negotiation.payment] || negotiationProfiles.payment.delivery;
     const pricing = negotiationProfiles.pricing[negotiation.pricing || 'fixed'] || negotiationProfiles.pricing.fixed;
     const delivery = negotiationProfiles.delivery[negotiation.delivery] || negotiationProfiles.delivery.standard;
+    const incoterm = negotiationProfiles.incoterm[negotiation.incoterm || 'fob'] || negotiationProfiles.incoterm.fob;
     const office = opportunityOfficeAdjustments(opp);
     const crisis = crisisAdjustments(opp);
     const vertical = investmentAdjustments(opp);
@@ -3105,14 +3114,14 @@
     const tender = rivalTenderFor(opp.id);
     const competitionCost = Math.round(Math.max(0, (tender?.pressure || 0) - 45) * 240 * procurement.competitionFactor);
     const financeStaffFactor = hasStaff('trade-finance-manager') ? .9 : 1;
-    const equity = Math.min(offer.capital, Math.round(offer.equity * payment.equityFactor * financeStaffFactor * crisis.equityFactor * structure.financing.equityFactor * vertical.equityFactor * shop.equityFactor * regime.equityFactor * doctrine.equityFactor * procurement.equityFactor * capitalPolicy.equityFactor * specialization.equityFactor * franchise.equityFactor * framework.equityFactor * hq.equityFactor * office.equityFactor));
+    const equity = Math.min(offer.capital, Math.round(offer.equity * payment.equityFactor * incoterm.equityFactor * financeStaffFactor * crisis.equityFactor * structure.financing.equityFactor * vertical.equityFactor * shop.equityFactor * regime.equityFactor * doctrine.equityFactor * procurement.equityFactor * capitalPolicy.equityFactor * specialization.equityFactor * franchise.equityFactor * framework.equityFactor * hq.equityFactor * office.equityFactor));
     const borrowed = Math.max(0, offer.capital - equity);
     const _carrierStrat = selectedCarrierStrategies[opp.id] || 'spot';
     const _vc = _carrierStrat === 'spot' ? vesselClassFor(opp.id) : vesselClasses.supramax;
     const vesselPnlBonus = Math.round(offer.basePnl * (_vc.pnlMod || 0));
-    const basePnl = Math.round(offer.basePnl * regime.pnlFactor * doctrine.pnlFactor * capitalPolicy.pnlFactor * crisis.pnlFactor * specialization.pnlFactor) + commercial.pnl + pricing.pnl + delivery.pnl + office.pnlBonus + crisis.pnl + structure.financing.pnl + structure.insurance.pnl + structure.inspection.pnl + vertical.pnlBonus + shop.pnlBonus + procurement.pnlBonus + franchise.pnlBonus + framework.pnlBonus + hq.pnlBonus - competitionCost - route.freightCost + vesselPnlBonus;
+    const basePnl = Math.round(offer.basePnl * regime.pnlFactor * doctrine.pnlFactor * capitalPolicy.pnlFactor * crisis.pnlFactor * specialization.pnlFactor) + commercial.pnl + pricing.pnl + delivery.pnl + incoterm.pnl + office.pnlBonus + crisis.pnl + structure.financing.pnl + structure.insurance.pnl + structure.inspection.pnl + vertical.pnlBonus + shop.pnlBonus + procurement.pnlBonus + franchise.pnlBonus + framework.pnlBonus + hq.pnlBonus - competitionCost - route.freightCost + vesselPnlBonus;
     const financingRate = Math.max(.018, structure.financing.rate * capitalPolicy.financingRateFactor + crisis.financingRateShock - office.financingRateReduction);
-    const estimatedInterest = borrowed * financingRate * Math.max(10, offer.duration + delivery.duration - office.durationBonus - vertical.durationBonus - shop.durationBonus + crisis.duration + regime.duration) / 360;
+    const estimatedInterest = borrowed * financingRate * Math.max(10, offer.duration + delivery.duration + incoterm.duration - office.durationBonus - vertical.durationBonus - shop.durationBonus + crisis.duration + regime.duration) / 360;
     const expectedPnl = basePnl - estimatedInterest;
     return {
       ...offer,
@@ -3124,7 +3133,7 @@
       estimatedInterest,
       financingRate,
       expectedPnl,
-      duration: Math.max(10, offer.duration + delivery.duration - office.durationBonus - vertical.durationBonus - shop.durationBonus - framework.durationBonus - hq.durationBonus + crisis.duration + regime.duration + route.delayDays - procurement.durationBonus + (_vc.durationMod || 0)),
+      duration: Math.max(10, offer.duration + delivery.duration + incoterm.duration - office.durationBonus - vertical.durationBonus - shop.durationBonus - framework.durationBonus - hq.durationBonus + crisis.duration + regime.duration + route.delayDays - procurement.durationBonus + (_vc.durationMod || 0)),
       acceptance: negotiationAcceptance(opp, negotiation),
       crisisLabels: crisis.labels,
       marketRegime: regime,
@@ -3144,7 +3153,7 @@
       structure,
       initialMargin: initialMarginFor(opp, Number(selectedHedgeRatios[opp.id] ?? opp.recommendedHedge ?? 100), offer.quantity, offer.capital),
       pricingProfile: pricing,
-      terms: { commercial: negotiation.commercial, payment: negotiation.payment, pricing: negotiation.pricing || 'fixed', delivery: negotiation.delivery }
+      terms: { commercial: negotiation.commercial, payment: negotiation.payment, pricing: negotiation.pricing || 'fixed', delivery: negotiation.delivery, incoterm: negotiation.incoterm || 'fob' }
     };
   }
   function effectiveEquity(opp) { return opportunityEconomics(opp).equity; }
@@ -5288,7 +5297,7 @@
     const draft = { ...negotiationFor(oppId) };
     const attempts = (draft.attempts || 0) + 1;
     const probability = negotiationAcceptance(opp, draft);
-    const roll = deterministicRandom(`${opp.id}-${state.marketCycle}-${attempts}-${draft.commercial}-${draft.payment}-${draft.pricing||'fixed'}-${draft.delivery}`) * 100;
+    const roll = deterministicRandom(`${opp.id}-${state.marketCycle}-${attempts}-${draft.commercial}-${draft.payment}-${draft.pricing||'fixed'}-${draft.delivery}-${draft.incoterm||'fob'}`) * 100;
     const accepted = roll <= probability;
     const parties = partiesForOpportunity(opp);
     const buyerState = getCounterpartyState(parties.buyerId);
@@ -7860,6 +7869,10 @@
         <label>Delivery window<select id="deliveryTermSelect">
           ${Object.entries(negotiationProfiles.delivery).map(([id,item])=>`<option value="${id}" ${negotiation.delivery===id?'selected':''}>${item.label}</option>`).join('')}
         </select></label>
+        <label>Incoterm<select id="incotermSelect">
+          ${Object.entries(negotiationProfiles.incoterm).map(([id,item])=>`<option value="${id}" ${(negotiation.incoterm||'fob')===id?'selected':''}>${item.label}</option>`).join('')}
+        </select></label>
+        <div class="incoterm-note">${negotiationProfiles.incoterm[negotiation.incoterm||'fob']?.description || ''}</div>
         <div class="negotiation-result ${accepted?'accepted':rejected?'rejected':''}">
           ${accepted ? 'Offer accepted: terms are locked until the market refresh.' : rejected ? 'Offer rejected: change at least one term and submit it again.' : 'The probability combines price, payment terms, reputation, buyer relationship and live rival pressure.'}
         </div>
@@ -7995,6 +8008,7 @@
         <div class="timeline-mini-row"><i></i><span>Quantity</span><strong>${deal.quantity || opp.quantity} t</strong></div>
         <div class="timeline-mini-row"><i></i><span>Payment</span><strong>${negotiationProfiles.payment[deal.commercialTerms?.payment]?.label || 'Contract terms'}</strong></div>
         <div class="timeline-mini-row"><i></i><span>Pricing formula</span><strong>${negotiationProfiles.pricing[deal.commercialTerms?.pricing || 'fixed']?.label || 'Fixed price'}</strong></div>
+        <div class="timeline-mini-row"><i></i><span>Incoterm</span><strong>${negotiationProfiles.incoterm[deal.commercialTerms?.incoterm || 'fob']?.label || 'FOB · Free On Board'}</strong></div>
         ${(deal.globalEventImpacts||[]).length ? `<div class="global-impact-box"><strong>Global events affecting this cargo</strong><span>${deal.globalEventImpacts.map(id=>globalEventCatalog.find(e=>e.id===id)?.title||id).join(' · ')}</span></div>` : ''}
       </div>
       ${routeTool}
@@ -8134,8 +8148,8 @@
         const exposure = physicalNotional(opp, econ.quantity, econ.capital) * Math.max(0, 1 - Number(hedgeInput.value) / 100);
         $('#residualExposureValue').textContent = money(exposure, true);
       });
-      ['commercial','payment','pricing','delivery'].forEach(field => {
-        const id = field === 'commercial' ? '#commercialTermSelect' : field === 'payment' ? '#paymentTermSelect' : field === 'pricing' ? '#pricingTermSelect' : '#deliveryTermSelect';
+      ['commercial','payment','pricing','delivery','incoterm'].forEach(field => {
+        const id = field === 'commercial' ? '#commercialTermSelect' : field === 'payment' ? '#paymentTermSelect' : field === 'pricing' ? '#pricingTermSelect' : field === 'delivery' ? '#deliveryTermSelect' : '#incotermSelect';
         $(id)?.addEventListener('change', event => {
           setNegotiationDraft(opp.id, field, event.target.value);
           renderInspector();

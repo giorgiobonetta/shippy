@@ -1,3 +1,29 @@
+# World of Trade v37.1 — Pre-launch QA pass
+
+- Full automated QA sweep before Google Play: no syntax errors, no undefined function references (1,547 defined symbols checked), and no dead UI wires (every wired element exists in the markup).
+- Headless boot verified: the game starts, renders all 22 command panels, and handles opportunity selection, Incoterm changes, contract negotiation and 70+ simulated days with zero runtime errors.
+- Fix: the negotiation accept/reject seed now includes the Incoterm, so re-submitting an offer after changing only the Incoterm re-evaluates correctly.
+- Android bundle (assets/www) kept byte-identical to the web build.
+
+---
+
+# World of Trade v37 — Incoterms & Physical-Trade Realism
+
+## Added
+
+- **Incoterms as a first-class contract term** (EXW · FOB · CFR · CIF · DDP) in the deal negotiation, with realistic, monotonic effects:
+  - Higher seller responsibility (CFR → CIF → DDP) raises the achievable price and the buyer's acceptance, but also increases the working capital tied up and the execution duration.
+  - Lower responsibility (FOB, EXW) frees capital and risk but reduces price and acceptance.
+- Each Incoterm shows an accurate plain-language explanation of who bears freight, insurance, cost and risk.
+- The chosen Incoterm is stored on the deal and shown in the deal review.
+
+## Notes
+
+- Fully backward compatible: existing `wot-v35` careers keep working; deals without an Incoterm default to FOB.
+- Change mirrored into the Android app bundle (`assets/www`).
+
+---
+
 # World of Trade v36 — Android App Edition
 
 - Added a native Android Studio application project.
