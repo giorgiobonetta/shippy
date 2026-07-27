@@ -1,3 +1,14 @@
+# World of Trade v36 — Android App Edition
+
+- Added a native Android Studio application project.
+- Bundled the complete game inside the APK for offline startup.
+- Added secure HTTPS-style local asset loading with WebViewAssetLoader.
+- Added native career import/export, haptics and background autosave.
+- Added fullscreen landscape handling and Android safe-area/touch optimizations.
+- Added Android launcher icons and Android 12+ splash styling.
+- Added a GitHub Actions workflow that produces a downloadable debug APK.
+- Kept the Vercel/PWA web version in the repository root.
+
 # World of Trade v35.3 — Real Earth Edition
 
 ## Added

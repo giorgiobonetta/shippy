@@ -1,14 +1,18 @@
 {
   "name": "World of Trade",
   "short_name": "World of Trade",
-  "description": "Build a Geneva commodity trader into a multinational merchant with offices across global resource markets.",
+  "description": "Build a Geneva commodity trader into a global merchant \u2014 native app edition.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "orientation": "landscape",
   "background_color": "#05070c",
   "theme_color": "#174fa6",
-  "categories": ["games", "education", "finance"],
+  "categories": [
+    "games",
+    "education",
+    "finance"
+  ],
   "icons": [
     {
       "src": "world-of-trade-premium-icon-192.png",
@@ -22,5 +26,10 @@
       "type": "image/png",
       "purpose": "any maskable"
     }
+  ],
+  "id": "com.worldoftrade.game",
+  "display_override": [
+    "fullscreen",
+    "standalone"
   ]
 }

@@ -4,18 +4,18 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="description" content="World of Trade — the global physical commodity trading, shipping, supply-chain, risk and industrial strategy simulator." />
-  <meta name="theme-color" content="#1f6fe0" />
+  <meta name="theme-color" content="#061334" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="icon" href="world-of-trade-premium-icon-192.png" type="image/png" />
   <link rel="apple-touch-icon" href="world-of-trade-premium-icon-192.png" />
   <link rel="preload" as="image" href="world-of-trade-premium-logo.webp" type="image/webp" fetchpriority="high" />
   <link rel="preload" as="image" href="earth_day_realistic_2048.webp" type="image/webp" fetchpriority="high" />
-  <title>World of Trade — Physical Commodity Trading Simulator</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Baloo+2:wght@600;700;800&display=swap" onload="this.onload=null;this.rel='stylesheet'" />
-  <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Baloo+2:wght@600;700;800&display=swap" /></noscript>
-  <link rel="stylesheet" href="styles.css?v=35.3.0" />
+  <title>World of Trade — Native App Edition</title>
+<link rel="stylesheet" href="styles.css?v=36.0.0" />
+  <link rel="stylesheet" href="native-shell.css?v=36.0.0" />
   <script>
     (() => {
       const boot = window.__WOT_BOOT__ = { startedAt: Date.now(), status: 'HTML loaded', progress: 4, failed: false };
@@ -608,6 +608,7 @@
       <div class="dialog-actions"><button value="cancel" class="button secondary" data-i18n="btn.cancel">Cancel</button><button value="save" class="button primary" data-i18n="btn.save">Save changes</button></div>
     </form>
   </dialog>
-  <script type="module" src="app.js?v=35.3.0"></script>
+  <script src="native-bridge.js?v=36.0.0"></script>
+  <script type="module" src="app.js?v=36.0.0"></script>
 </body>
 </html>

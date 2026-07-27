@@ -1877,6 +1877,14 @@
   }
 
   function downloadTextFile(filename, content, type = 'application/json') {
+    if (window.WorldOfTradeNative?.saveTextFile) {
+      try {
+        window.WorldOfTradeNative.saveTextFile(filename, content, type);
+        return;
+      } catch (error) {
+        console.warn('Native file export unavailable; using browser download.', error);
+      }
+    }
     const blob = new Blob([content], { type });
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement('a');
@@ -3255,6 +3263,8 @@
       markSaveStatus('Save failed');
     }
   }
+
+  window.__WOT_NATIVE_SAVE__ = () => saveState(true);
 
   function getOpportunity(id) { return opportunities.find(o => o.id === id); }
   function getHub(id) { return hubs.find(h => h.id === id); }
@@ -8770,7 +8780,7 @@
     showToast('World of Trade installed as an app.', 'success');
   });
 
-  if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+  if (!window.__WOT_NATIVE_APP__ && 'serviceWorker' in navigator && location.protocol.startsWith('http')) {
     window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' }).catch(() => {}));
   }
 
@@ -8812,6 +8822,7 @@
   window.__WOT_APP_READY__ = true;
   window.__WOT_SET_BOOT_STATUS__?.(bootWarnings.length ? 'Ready — some optional features were repaired' : 'Ready', 100);
   window.dispatchEvent(new CustomEvent('wot-ready', { detail: { warnings: bootWarnings } }));
+  try { window.WorldOfTradeNative?.appReady?.(); } catch (error) {}
 })();
 })().catch(error => {
   console.error('World of Trade failed to start', error);

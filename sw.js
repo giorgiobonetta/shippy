@@ -1,6 +1,6 @@
-const CACHE_NAME = 'world-of-trade-v35-3-real-earth';
+const CACHE_NAME = 'world-of-trade-v36-app-edition';
 const CORE = [
-  './', './index.html', './styles.css?v=35.3.0', './app.js?v=35.3.0',
+  './', './index.html', './styles.css?v=36.0.0', './native-shell.css?v=36.0.0', './native-bridge.js?v=36.0.0', './app.js?v=36.0.0',
   './three.module.min.js', './earth_day_realistic_2048.webp', './earth_normal_2048.jpg',
   './earth_specular_2048.jpg', './earth_clouds_realistic_2048.webp', './earth_night_realistic_2048.webp',
   './countries-lowres.geojson', './manifest.webmanifest', './world-of-trade-icon.svg',

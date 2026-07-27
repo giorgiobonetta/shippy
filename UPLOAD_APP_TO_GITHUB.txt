@@ -1,0 +1,8 @@
+UPLOAD THE COMPLETE CONTENTS OF THIS FOLDER TO THE ROOT OF YOUR EXISTING REPOSITORY.
+
+Important new folders:
+- android-app
+- .github/workflows
+
+The existing root index.html remains the Vercel website.
+After commit: GitHub > Actions > Build Android App > Run workflow.
