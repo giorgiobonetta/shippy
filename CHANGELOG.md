@@ -1,3 +1,26 @@
+# World of Trade v38 — Leggibilità e grafica da gioco
+
+## Testo leggibile (problema risolto)
+
+- **Ingranditi 397 stili di testo**: prima 221 regole usavano font sotto i 10px (fino a 6px), illeggibili su telefono. Ora la dimensione minima è 11,5px e la gerarchia visiva è preservata.
+- Numeri e valori (NAV, liquidità, prezzi, XP, oro) resi più grandi, spessi e con cifre tabellari.
+- Etichette, pulsanti e tab ingranditi; su telefono i testi di servizio crescono ulteriormente.
+
+## Niente più testo fuori schermo (problema risolto)
+
+- Aggiunto un livello anti-overflow completo: il testo va a capo invece di uscire dai riquadri.
+- Gli elementi in flex/grid possono restringersi correttamente (causa principale degli sconfinamenti).
+- Le griglie dense passano a 2 colonne sotto 1024px e a 1 colonna sotto 620px.
+- Card, select, immagini e dock comandi non superano mai la larghezza dello schermo; il dock scorre invece di traboccare.
+- Eliminato lo scroll orizzontale della pagina.
+
+## Stile grafico
+
+- Adottato il font arrotondato **Fredoka / Baloo 2** (stile giochi mobile premium) su tutta l'interfaccia.
+- Titoli con peso pieno e ombra netta; etichette in maiuscoletto; pulsanti con testo più grande e marcato.
+
+---
+
 # World of Trade v37.1 — Pre-launch QA pass
 
 - Full automated QA sweep before Google Play: no syntax errors, no undefined function references (1,547 defined symbols checked), and no dead UI wires (every wired element exists in the markup).
