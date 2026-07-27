@@ -4162,6 +4162,66 @@
       .catch(() => {});
   }
 
+
+  // ── v43 Terra fisica nel fallback 2D (continenti pieni, non solo contorni) ──
+  function drawPhysicalLandmasses(cx, cy, radius) {
+    if (!geoCoastlines?.length) return false;
+    // Ricava le misure dal canvas se i parametri non sono validi
+    if (!Number.isFinite(cx) || !Number.isFinite(cy)) {
+      const w = canvasRect?.width || ctx?.canvas?.width || 0;
+      const h = canvasRect?.height || ctx?.canvas?.height || 0;
+      cx = w * .5; cy = h * .5;
+    }
+    if (!(radius > 0)) radius = desiredGlobeRadius();
+    if (!Number.isFinite(cx) || !Number.isFinite(cy) || !(radius > 0)) return false;
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+    ctx.clip();
+
+    // Terreno: verde vegetazione al centro, tinte aride verso i bordi
+    const land = ctx.createRadialGradient(cx - radius * .3, cy - radius * .36, radius * .08, cx, cy, radius * 1.05);
+    land.addColorStop(0,   '#7bbf63');
+    land.addColorStop(.42, '#4f9a4a');
+    land.addColorStop(.72, '#3d7a41');
+    land.addColorStop(1,   '#2b5733');
+    ctx.fillStyle = land;
+
+    let drawn = 0;
+    for (const ring of geoCoastlines) {
+      if (!ring || ring.length < 3) continue;
+      let open = false, visible = 0;
+      ctx.beginPath();
+      for (const [lon, lat] of ring) {
+        const p = project(lon, lat);
+        if (p.z > 0.02) {
+          if (!open) { ctx.moveTo(p.x, p.y); open = true; } else ctx.lineTo(p.x, p.y);
+          visible++;
+        } else if (open) { open = false; }
+      }
+      if (visible >= 3) { ctx.closePath(); ctx.fill(); drawn++; }
+    }
+
+    // Rilievo morbido e ombreggiatura del terminatore
+    const shade = ctx.createRadialGradient(cx - radius * .34, cy - radius * .4, radius * .1, cx, cy, radius);
+    shade.addColorStop(0, 'rgba(255,244,214,0.18)');
+    shade.addColorStop(.5, 'rgba(255,255,255,0)');
+    shade.addColorStop(1, 'rgba(2,8,20,0.42)');
+    ctx.fillStyle = shade;
+    ctx.beginPath(); ctx.arc(cx, cy, radius, 0, Math.PI * 2); ctx.fill();
+
+    ctx.restore();
+
+    // Alone atmosferico
+    const halo = ctx.createRadialGradient(cx, cy, radius * .92, cx, cy, radius * 1.09);
+    halo.addColorStop(0, 'rgba(120,200,255,0)');
+    halo.addColorStop(.55, 'rgba(120,200,255,0.20)');
+    halo.addColorStop(1, 'rgba(120,200,255,0)');
+    ctx.fillStyle = halo;
+    ctx.beginPath(); ctx.arc(cx, cy, radius * 1.09, 0, Math.PI * 2); ctx.fill();
+    return drawn > 0;
+  }
+
   function drawGeoBorders() {
     if (!canvasRect) return;
     const radius = desiredGlobeRadius();
@@ -4194,8 +4254,8 @@
       drawLines(geoCoastlines,  'rgba(225,238,245,0.16)', 0.46, null);
       drawLines(geoBorderLines, 'rgba(210,225,235,0.075)', 0.28, [1,4]);
     } else {
-      drawLines(geoCoastlines,  'rgba(140,220,190,0.55)', 0.90, null);
-      drawLines(geoBorderLines, 'rgba(140,220,190,0.30)', 0.55, [2,3]);
+      drawLines(geoCoastlines,  'rgba(18,48,38,0.55)', 0.85, null);
+      drawLines(geoBorderLines, 'rgba(245,252,255,0.20)', 0.45, [2,3]);
     }
     ctx.restore();
   }
@@ -4216,9 +4276,10 @@
 
     if (!earthRenderer || !earthWebGLReady) {
       const ocean = ctx.createRadialGradient(cx - radius * .28, cy - radius * .34, radius * .05, cx, cy, radius);
-      ocean.addColorStop(0, '#1d5068');
-      ocean.addColorStop(.55, '#0b2637');
-      ocean.addColorStop(1, '#04111c');
+      ocean.addColorStop(0, '#3d8fc4');
+      ocean.addColorStop(.45, '#1f5f92');
+      ocean.addColorStop(.78, '#123f6b');
+      ocean.addColorStop(1, '#08203c');
       ctx.fillStyle = ocean;
       ctx.beginPath();
       ctx.arc(cx, cy, radius, 0, Math.PI * 2);
@@ -4228,8 +4289,15 @@
       ctx.arc(cx, cy, radius, 0, Math.PI * 2);
       ctx.clip();
       drawGraticule();
-      if (!geoBorderLines) drawContinents();
       ctx.restore();
+      // Terre emerse piene: Terra fisica anche senza WebGL
+      const filled = drawPhysicalLandmasses(cx, cy, radius);
+      if (!filled && !geoBorderLines) {
+        ctx.save();
+        ctx.beginPath(); ctx.arc(cx, cy, radius, 0, Math.PI * 2); ctx.clip();
+        drawContinents();
+        ctx.restore();
+      }
     }
 
     if (geoBorderLines || geoCoastlines) drawGeoBorders();
@@ -4301,8 +4369,8 @@
 
   function drawContinents() {
     ctx.save();
-    ctx.fillStyle = 'rgba(57, 110, 104, .48)';
-    ctx.strokeStyle = 'rgba(116, 218, 190, .23)';
+    ctx.fillStyle = 'rgba(74, 148, 72, .92)';
+    ctx.strokeStyle = 'rgba(24, 58, 40, .5)';
     ctx.lineWidth = .8;
     for (const dense of denseContinents) {
       const visible = dense.map(([lon, lat]) => ({...project(lon, lat), lon, lat})).filter(p => p.z > -.02);

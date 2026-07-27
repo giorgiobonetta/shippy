@@ -1,3 +1,24 @@
+# World of Trade v43 — Terra fisica anche senza WebGL
+
+## Problema risolto
+
+Quando la scheda grafica 3D (WebGL) non è disponibile — cosa che può capitare su alcuni telefoni, WebView Android o browser con accelerazione disattivata — il gioco ripiegava su un disegno che tracciava **soltanto i contorni degli stati**, lasciando il globo vuoto.
+
+## Cosa cambia
+
+- **Continenti pieni**: le terre emerse vengono ora riempite con un gradiente di terreno (verde vegetazione al centro, tinte più aride verso i bordi) usando i 288 profili costieri reali dei 177 paesi.
+- **Oceano vero**: gradiente oceanico più profondo e realistico (azzurro illuminato → blu profondo), al posto del vecchio grigio-verde spento.
+- **Illuminazione**: ombreggiatura del terminatore giorno/notte e alone atmosferico azzurro attorno al pianeta.
+- **Coste e confini rivisti**: con le terre piene, le coste diventano un bordo scuro sobrio e i confini un tratteggio tenue, invece delle vecchie linee verdi fluorescenti.
+- **Doppia rete di sicurezza**: se manca anche il file geografico, il disegno procedurale di riserva ora usa terre verdi piene invece di macchie slavate.
+- La funzione ricava da sola le misure del globo se non le riceve, così non resta mai inerte.
+
+## Nota
+
+La Terra in alta definizione con texture fotografiche resta quella predefinita quando WebGL funziona: questa modifica riguarda il ripiego, che ora mostra comunque un pianeta fisico completo.
+
+---
+
 # World of Trade v42 — Flotta ridisegnata
 
 ## Quarta schermata portata a qualità gioco
