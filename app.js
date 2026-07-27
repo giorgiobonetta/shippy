@@ -6840,6 +6840,22 @@
     $$('[data-open-receivable]', receivables).forEach(button => button.addEventListener('click',()=>selectDeal(button.dataset.openReceivable)));
   }
 
+
+  // ── v42 illustrazioni navi ───────────────────────────────────────────────
+  const vesselArt = {
+    bulker: `<svg viewBox="0 0 52 40" fill="none"><defs><linearGradient id="bkH" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7fa8d8"/><stop offset="1" stop-color="#2f5b8f"/></linearGradient></defs><path d="M3 26h46l-5 9H8z" fill="#2f5b8f" stroke="#16304f" stroke-width="1.7" stroke-linejoin="round"/><path d="M6 26V18h30v8z" fill="#4a7fbd" stroke="#16304f" stroke-width="1.6"/><rect x="10" y="19" width="6" height="6" rx="1" fill="#22405f"/><rect x="19" y="19" width="6" height="6" rx="1" fill="#22405f"/><rect x="28" y="19" width="6" height="6" rx="1" fill="#22405f"/><rect x="38" y="13" width="9" height="13" rx="1.6" fill="#e8f1fb" stroke="#41607f" stroke-width="1.5"/><path d="M40 17h5M40 21h5" stroke="#41607f" stroke-width="1.3" stroke-linecap="round"/><path d="M8 30h32" stroke="#fff" stroke-opacity=".4" stroke-width="1.8" stroke-linecap="round"/><path d="M2 38c4-1.8 6-1.8 10 0s6 1.8 10 0 6-1.8 10 0 6 1.8 10 0" stroke="#7fd2ff" stroke-width="2" stroke-linecap="round" fill="none"/></svg>`,
+    tanker: `<svg viewBox="0 0 52 40" fill="none"><path d="M3 26h46l-5 9H8z" fill="#3a5f4a" stroke="#1c3227" stroke-width="1.7" stroke-linejoin="round"/><path d="M6 26v-7h34v7z" fill="#57876a" stroke="#1c3227" stroke-width="1.6"/><circle cx="14" cy="22" r="2.4" fill="#cfe6d8" stroke="#1c3227" stroke-width="1.2"/><circle cx="23" cy="22" r="2.4" fill="#cfe6d8" stroke="#1c3227" stroke-width="1.2"/><circle cx="32" cy="22" r="2.4" fill="#cfe6d8" stroke="#1c3227" stroke-width="1.2"/><path d="M14 19v-4h18v4" stroke="#9fc9ad" stroke-width="1.6" fill="none"/><rect x="41" y="13" width="8" height="13" rx="1.6" fill="#e8f1fb" stroke="#41607f" stroke-width="1.5"/><path d="M8 30h32" stroke="#fff" stroke-opacity=".35" stroke-width="1.8" stroke-linecap="round"/><path d="M2 38c4-1.8 6-1.8 10 0s6 1.8 10 0 6-1.8 10 0 6 1.8 10 0" stroke="#7fd2ff" stroke-width="2" stroke-linecap="round" fill="none"/></svg>`,
+    barge: `<svg viewBox="0 0 52 40" fill="none"><path d="M6 27h40l-4 8H10z" fill="#8a6a3c" stroke="#4d3a1d" stroke-width="1.7" stroke-linejoin="round"/><rect x="11" y="20" width="24" height="7" rx="1.4" fill="#a98551" stroke="#4d3a1d" stroke-width="1.5"/><rect x="14" y="22" width="5" height="4" rx=".8" fill="#6b5029"/><rect x="21" y="22" width="5" height="4" rx=".8" fill="#6b5029"/><rect x="28" y="22" width="5" height="4" rx=".8" fill="#6b5029"/><rect x="37" y="18" width="8" height="9" rx="1.4" fill="#e8f1fb" stroke="#41607f" stroke-width="1.4"/><path d="M2 38c4-1.8 6-1.8 10 0s6 1.8 10 0 6-1.8 10 0 6 1.8 10 0" stroke="#7fd2ff" stroke-width="2" stroke-linecap="round" fill="none"/></svg>`,
+    general: `<svg viewBox="0 0 52 40" fill="none"><path d="M3 26h46l-5 9H8z" fill="#8a4634" stroke="#4d2317" stroke-width="1.7" stroke-linejoin="round"/><rect x="8" y="19" width="9" height="7" rx="1.2" fill="#e2603f" stroke="#4d2317" stroke-width="1.4"/><rect x="19" y="17" width="8" height="9" rx="1.2" fill="#f2865f" stroke="#4d2317" stroke-width="1.4"/><path d="M30 26V12l9 6" stroke="#ffce3d" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/><rect x="40" y="15" width="8" height="11" rx="1.5" fill="#e8f1fb" stroke="#41607f" stroke-width="1.5"/><path d="M8 30h32" stroke="#fff" stroke-opacity=".4" stroke-width="1.8" stroke-linecap="round"/><path d="M2 38c4-1.8 6-1.8 10 0s6 1.8 10 0 6-1.8 10 0 6 1.8 10 0" stroke="#7fd2ff" stroke-width="2" stroke-linecap="round" fill="none"/></svg>`
+  };
+  function vesselArtFor(vessel) {
+    const c = String(vessel?.vesselClass || '').toLowerCase();
+    if (c.includes('tanker')) return { svg: vesselArt.tanker, cls: 'va-tanker' };
+    if (c.includes('barge')) return { svg: vesselArt.barge, cls: 'va-barge' };
+    if (c.includes('bulk') || c.includes('panamax') || c.includes('handysize')) return { svg: vesselArt.bulker, cls: 'va-bulker' };
+    return { svg: vesselArt.general, cls: 'va-general' };
+  }
+
   function renderFleet() {
     const summary = $('#fleetSummary');
     const container = $('#fleetList');
@@ -6859,8 +6875,13 @@
       container.innerHTML = state.fleetAssets.map(asset => {
         const vessel = getVesselCatalog(asset.catalogId);
         const deal = asset.assignedDealId ? getActiveDeal(asset.assignedDealId) : null;
-        return `<button class="fleet-card ${selected.type === 'vessel' && selected.id === asset.id ? 'selected' : ''}" data-fleet-asset="${asset.id}">
-          <div class="fleet-card-head"><div><span>${vessel.vesselClass}</span><strong>${vessel.name}</strong></div><span class="status-pill ${asset.status === 'assigned' ? 'medium' : 'low'}">${asset.status}</span></div>
+        const fart = vesselArtFor(vessel);
+        return `<button class="fleet-card v42 ${selected.type === 'vessel' && selected.id === asset.id ? 'selected' : ''}" data-fleet-asset="${asset.id}">
+          <div class="fleet-hero">
+            <span class="fleet-art ${fart.cls}">${fart.svg}${asset.ownership==='owned'?'<b class="fleet-own">★</b>':''}</span>
+            <span class="fleet-id"><span class="fleet-class">${vessel.vesselClass}</span><strong class="fleet-name">${vessel.name}</strong></span>
+            <span class="status-pill ${asset.status === 'assigned' ? 'medium' : 'low'}">${asset.status}</span>
+          </div>
           <div class="fleet-grid">
             <div><span>Position</span><strong>${getHub(asset.positionHub)?.name || 'At sea'}</strong></div>
             <div><span>Capacity</span><strong>${vessel.capacity.toLocaleString('en-US')} t</strong></div>
@@ -6877,8 +6898,13 @@
       const owned = state.fleetAssets.some(asset => asset.catalogId === vessel.id);
       const displayedHire = charterHireCost(vessel);
       const canAfford = state.cash >= displayedHire;
-      return `<div class="charter-card ${unlocked ? '' : 'locked'}">
-        <div class="fleet-card-head"><div><span>${vessel.vesselClass}</span><strong>${vessel.name}</strong></div><span class="status-pill ${unlocked ? 'low' : 'high'}">${unlocked ? 'Available' : 'Locked'}</span></div>
+      const cart = vesselArtFor(vessel);
+      return `<div class="charter-card v42 ${unlocked ? '' : 'locked'}">
+        <div class="fleet-hero">
+          <span class="fleet-art ${cart.cls}">${cart.svg}</span>
+          <span class="fleet-id"><span class="fleet-class">${vessel.vesselClass}</span><strong class="fleet-name">${vessel.name}</strong></span>
+          <span class="status-pill ${unlocked ? 'low' : 'high'}">${unlocked ? 'Available' : 'Locked'}</span>
+        </div>
         <p>${vessel.description}</p>
         <div class="fleet-grid">
           <div><span>Capacity</span><strong>${vessel.capacity.toLocaleString('en-US')} t</strong></div>
@@ -6958,6 +6984,33 @@
       })()}`;
   }
 
+
+  // ── v39 icone commodity illustrate (SVG) ─────────────────────────────────
+  const commodityArt = {
+    metal: { cls:'i-metal', svg:`<svg viewBox="0 0 48 48" fill="none"><defs><linearGradient id="cuA" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffd9b0"/><stop offset="1" stop-color="#c2661f"/></linearGradient><linearGradient id="cuB" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#ffcb95"/><stop offset="1" stop-color="#a9540f"/></linearGradient></defs><path d="M6 30h20l6-5H12z" fill="url(#cuB)" stroke="#7a3b08" stroke-width="1.6" stroke-linejoin="round"/><path d="M6 30v6h20v-6z" fill="url(#cuA)" stroke="#7a3b08" stroke-width="1.6" stroke-linejoin="round"/><path d="M26 30l6-5v6l-6 5z" fill="#8e4610" stroke="#7a3b08" stroke-width="1.6" stroke-linejoin="round"/><path d="M16 19h20l6-5H22z" fill="url(#cuB)" stroke="#7a3b08" stroke-width="1.6" stroke-linejoin="round"/><path d="M16 19v6h20v-6z" fill="url(#cuA)" stroke="#7a3b08" stroke-width="1.6" stroke-linejoin="round"/><path d="M36 19l6-5v6l-6 5z" fill="#8e4610" stroke="#7a3b08" stroke-width="1.6" stroke-linejoin="round"/><path d="M9 32h6M19 21h6" stroke="#fff" stroke-opacity=".55" stroke-width="2" stroke-linecap="round"/></svg>` },
+    silver:{ cls:'i-silver', svg:`<svg viewBox="0 0 48 48" fill="none"><defs><linearGradient id="agA" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#eef4fb"/><stop offset="1" stop-color="#8d9aab"/></linearGradient><linearGradient id="agB" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#dfe8f3"/><stop offset="1" stop-color="#78869a"/></linearGradient></defs><path d="M6 30h20l6-5H12z" fill="url(#agB)" stroke="#4e5a6b" stroke-width="1.6" stroke-linejoin="round"/><path d="M6 30v6h20v-6z" fill="url(#agA)" stroke="#4e5a6b" stroke-width="1.6" stroke-linejoin="round"/><path d="M26 30l6-5v6l-6 5z" fill="#68758a" stroke="#4e5a6b" stroke-width="1.6" stroke-linejoin="round"/><path d="M16 19h20l6-5H22z" fill="url(#agB)" stroke="#4e5a6b" stroke-width="1.6" stroke-linejoin="round"/><path d="M16 19v6h20v-6z" fill="url(#agA)" stroke="#4e5a6b" stroke-width="1.6" stroke-linejoin="round"/><path d="M36 19l6-5v6l-6 5z" fill="#68758a" stroke="#4e5a6b" stroke-width="1.6" stroke-linejoin="round"/><path d="M9 32h6M19 21h6" stroke="#fff" stroke-opacity=".7" stroke-width="2" stroke-linecap="round"/></svg>` },
+    oil:   { cls:'i-oil', svg:`<svg viewBox="0 0 48 48" fill="none"><defs><linearGradient id="oiA" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#8c99ad"/><stop offset=".45" stop-color="#4a586e"/><stop offset="1" stop-color="#28323f"/></linearGradient></defs><rect x="12" y="8" width="24" height="32" rx="4" fill="url(#oiA)" stroke="#1b2430" stroke-width="1.8"/><ellipse cx="24" cy="9.5" rx="12" ry="3.6" fill="#9aa8bc" stroke="#1b2430" stroke-width="1.6"/><path d="M12 18h24M12 30h24" stroke="#1b2430" stroke-width="1.8"/><path d="M16 12v24" stroke="#fff" stroke-opacity=".28" stroke-width="2.4" stroke-linecap="round"/><path d="M24 20c3 3.4 5 6 5 8.2a5 5 0 0 1-10 0c0-2.2 2-4.8 5-8.2z" fill="#12181f"/><path d="M22 26.5c.2-1.2 1-2.3 1.8-3" stroke="#7fd2ff" stroke-opacity=".8" stroke-width="1.6" stroke-linecap="round"/></svg>` },
+    gas:   { cls:'i-gas', svg:`<svg viewBox="0 0 48 48" fill="none"><defs><linearGradient id="gsA" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#bfe9ff"/><stop offset="1" stop-color="#3d90c9"/></linearGradient></defs><ellipse cx="24" cy="26" rx="15" ry="13" fill="url(#gsA)" stroke="#1d5c85" stroke-width="1.8"/><path d="M9 26a15 13 0 0 1 30 0" fill="#e6f6ff" fill-opacity=".35"/><path d="M24 13V7M18 9l-2-3M30 9l2-3" stroke="#1d5c85" stroke-width="2" stroke-linecap="round"/><path d="M15 22c2.5-2 5-2 7 0" stroke="#fff" stroke-opacity=".8" stroke-width="2" stroke-linecap="round"/></svg>` },
+    grain: { cls:'i-grain', svg:`<svg viewBox="0 0 48 48" fill="none"><defs><linearGradient id="wgA" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffe9a8"/><stop offset="1" stop-color="#c98a12"/></linearGradient></defs><path d="M24 42V16" stroke="#8a5f0c" stroke-width="2.6" stroke-linecap="round"/><g fill="url(#wgA)" stroke="#8a5f0c" stroke-width="1.4" stroke-linejoin="round"><path d="M24 6c3 2.6 4 5.4 0 9-4-3.6-3-6.4 0-9z"/><path d="M24 14c3 2.6 4 5.4 0 9-4-3.6-3-6.4 0-9z"/><path d="M24 22c3 2.6 4 5.4 0 9-4-3.6-3-6.4 0-9z"/><path d="M23 15c-1.4 3.6-3.6 5.2-7.6 4 1.6-3.8 4-5 7.6-4z"/><path d="M25 15c1.4 3.6 3.6 5.2 7.6 4-1.6-3.8-4-5-7.6-4z"/><path d="M23 23c-1.4 3.6-3.6 5.2-7.6 4 1.6-3.8 4-5 7.6-4z"/><path d="M25 23c1.4 3.6 3.6 5.2 7.6 4-1.6-3.8-4-5-7.6-4z"/></g></svg>` },
+    ore:   { cls:'i-ore', svg:`<svg viewBox="0 0 48 48" fill="none"><defs><linearGradient id="irA" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#cfd7e2"/><stop offset="1" stop-color="#5d6674"/></linearGradient></defs><path d="M8 36l7-13 8 5 6-9 11 17z" fill="url(#irA)" stroke="#3a4250" stroke-width="1.8" stroke-linejoin="round"/><circle cx="17" cy="20" r="4" fill="#98a2b1" stroke="#3a4250" stroke-width="1.6"/><circle cx="30" cy="16" r="3" fill="#b6c0cd" stroke="#3a4250" stroke-width="1.6"/><path d="M12 33l4-6" stroke="#fff" stroke-opacity=".4" stroke-width="2" stroke-linecap="round"/></svg>` },
+    bean:  { cls:'i-bean', svg:`<svg viewBox="0 0 48 48" fill="none"><defs><linearGradient id="cfA" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#a96a3d"/><stop offset="1" stop-color="#4e2a13"/></linearGradient></defs><ellipse cx="18" cy="20" rx="9" ry="11" transform="rotate(-25 18 20)" fill="url(#cfA)" stroke="#3a1d0c" stroke-width="1.7"/><path d="M14 13c3 4 3 10 0 14" stroke="#2a1409" stroke-width="1.8" stroke-linecap="round"/><ellipse cx="30" cy="30" rx="9" ry="11" transform="rotate(-25 30 30)" fill="url(#cfA)" stroke="#3a1d0c" stroke-width="1.7"/><path d="M26 23c3 4 3 10 0 14" stroke="#2a1409" stroke-width="1.8" stroke-linecap="round"/></svg>` },
+    fert:  { cls:'i-fert', svg:`<svg viewBox="0 0 48 48" fill="none"><defs><linearGradient id="feA" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f3f7ff"/><stop offset="1" stop-color="#b9c6da"/></linearGradient></defs><path d="M14 14h20l4 26H10z" fill="url(#feA)" stroke="#5b6879" stroke-width="1.8" stroke-linejoin="round"/><path d="M14 14c0-3 2-5 10-5s10 2 10 5" fill="#dde6f2" stroke="#5b6879" stroke-width="1.8"/><circle cx="20" cy="26" r="2.4" fill="#7fc98a"/><circle cx="28" cy="30" r="2.4" fill="#7fc98a"/><circle cx="24" cy="21" r="2.4" fill="#7fc98a"/></svg>` },
+    steel: { cls:'i-steel', svg:`<svg viewBox="0 0 48 48" fill="none"><defs><linearGradient id="stA" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#dbe4f0"/><stop offset="1" stop-color="#6f7c8e"/></linearGradient></defs><rect x="7" y="26" width="34" height="7" rx="2" fill="url(#stA)" stroke="#3f4a59" stroke-width="1.7"/><rect x="11" y="18" width="26" height="7" rx="2" fill="url(#stA)" stroke="#3f4a59" stroke-width="1.7"/><rect x="15" y="10" width="18" height="7" rx="2" fill="url(#stA)" stroke="#3f4a59" stroke-width="1.7"/><path d="M10 29h7M14 21h6M18 13h5" stroke="#fff" stroke-opacity=".6" stroke-width="2" stroke-linecap="round"/></svg>` }
+  };
+  const commodityArtMap = {
+    copper:'metal', aluminium:'silver', zinc:'silver', nickel:'silver',
+    crude:'oil', lng:'gas', wheat:'grain', coffee:'bean', urea:'fert', ironore:'ore'
+  };
+  function commodityArtFor(opp) {
+    const label = String(opp.commodity || '').toLowerCase();
+    if (label.includes('steel')) return commodityArt.steel;
+    if (label.includes('cocoa') || label.includes('coffee')) return commodityArt.bean;
+    if (label.includes('soy') || label.includes('palm') || label.includes('wheat')) return commodityArt.grain;
+    if (label.includes('diesel')) return commodityArt.oil;
+    const key = commodityArtMap[opp.priceKey] || 'metal';
+    return commodityArt[key] || commodityArt.metal;
+  }
+
   function renderOpportunityList() {
     const container = $('#opportunityList');
     const summary = $('#marketCycleSummary');
@@ -6989,16 +7042,40 @@
       const rivalWon = tender?.status === 'awarded';
       const status = !unlocked ? `L${opportunityProgressionRequirements(opp).requiredLevel}` : rivalWon ? `${rival.name} won` : !available ? 'Taken' : negotiation?.status === 'accepted' ? 'Tender secured' : negotiation?.status === 'rejected' ? 'Revise bid' : `${economics.expiresIn}d left`;
       const statusClass = !unlocked || rivalWon || !available ? 'high' : negotiation?.status === 'accepted' ? 'low' : negotiation?.status === 'rejected' ? 'medium' : opp.riskClass;
-      return `<button class="opportunity-card ${selectedClass} ${unlocked && available ? '' : 'locked'}" data-opportunity-id="${opp.id}" ${unlocked && available ? '' : 'disabled'}>
-        <div class="opportunity-card-head"><span class="route-name">${origin.name} <span class="route-arrow">→</span> ${destination.name}</span><span class="status-pill ${statusClass}">${status}</span></div>
-        <div class="offer-line"><strong>${economics.quantity.toLocaleString('en-US')} t ${opp.commodity}</strong><span>Cycle ${state.marketCycle}</span></div>
-        <div class="deal-card-meta"><div><span>Expected P&amp;L</span><strong>${money(economics.expectedPnl)}</strong></div><div><span>Required equity</span><strong>${money(economics.equity, true)}</strong></div></div>
-        <div class="opportunity-card-meta"><div><span>Duration</span><strong>${economics.duration} days</strong></div><div><span>Acceptance</span><strong>${Math.round(economics.acceptance)}%</strong></div></div>
-        <div class="seasonal-demand-row"><span>Seasonal flow · ${seasonalDemand(opp).label}</span><strong>${Math.round(seasonalDemand(opp).factor*100)}</strong></div>
-        <div class="tender-pressure-row"><span>Rival interest · ${rival.name}</span><strong>${tender?.pressure || 0}%</strong></div>
-        <div class="tender-pressure-track"><span style="width:${tender?.pressure || 0}%"></span></div>
-        ${!unlocked ? `<div class="unlock-requirement"><strong>Locked expansion</strong><span>${unlockReason(opp)}</span></div>` : ''}
+      const art = commodityArtFor(opp);
+      const acc = Math.round(economics.acceptance);
+      const accClass = acc >= 70 ? 'green' : acc >= 45 ? '' : 'red';
+      const pressure = tender?.pressure || 0;
+      const season = seasonalDemand(opp);
+      const isHot = unlocked && available && economics.expectedPnl > 0 && (acc >= 70 || pressure >= 60);
+      const ctaLabel = !unlocked ? `🔒 Level ${opportunityProgressionRequirements(opp).requiredLevel} required`
+        : rivalWon ? 'Lost to rival'
+        : !available ? 'No longer available'
+        : negotiation?.status === 'accepted' ? 'Open the deal'
+        : 'Negotiate the deal';
+      return `<button class="opportunity-card v39 ${selectedClass} ${unlocked && available ? '' : 'locked'} ${isHot ? 'hot' : ''}" data-opportunity-id="${opp.id}" ${unlocked && available ? '' : 'disabled'}>
+        ${isHot ? '<span class="opp-ribbon">HOT</span>' : ''}
+        <div class="opp-top">
+          <span class="opp-icon ${art.cls}">${art.svg}</span>
+          <span class="opp-route">
+            <span class="opp-r">${origin.name} <span class="route-arrow">→</span> ${destination.name}</span>
+            <span class="opp-q">${economics.quantity.toLocaleString('en-US')} t · ${opp.commodity}</span>
+          </span>
+          <span class="status-pill ${statusClass}">${status}</span>
+        </div>
+        <div class="opp-stats">
+          <div class="opp-stat"><span class="k">Expected P&amp;L</span><strong class="v gold">${money(economics.expectedPnl)}</strong></div>
+          <div class="opp-stat"><span class="k">Equity</span><strong class="v">${money(economics.equity, true)}</strong></div>
+          <div class="opp-stat"><span class="k">Duration</span><strong class="v">${economics.duration} d</strong></div>
+          <div class="opp-stat"><span class="k">Acceptance</span><strong class="v ${accClass}">${acc}%</strong></div>
+        </div>
+        <div class="opp-meter-row"><span>Rival interest · ${rival.name}</span><b>${pressure}%</b></div>
+        <div class="opp-meter rival"><span style="width:${pressure}%"></span></div>
+        <div class="opp-meter-row"><span>Seasonal flow · ${season.label}</span><b>${Math.round(season.factor*100)}</b></div>
+        <div class="opp-meter season"><span style="width:${Math.round(clamp(season.factor*70, 4, 100))}%"></span></div>
         ${economics.crisisLabels.length ? `<div class="crisis-tag">Impacted · ${economics.crisisLabels.join(', ')}</div>` : ''}
+        ${!unlocked ? `<div class="unlock-requirement"><strong>Locked expansion</strong><span>${unlockReason(opp)}</span></div>` : ''}
+        <span class="opp-cta ${unlocked && available ? '' : 'lock'}">${ctaLabel}</span>
       </button>`;
     }).join('');
     $$('[data-opportunity-id]', container).forEach(button => button.addEventListener('click', () => selectOpportunity(button.dataset.opportunityId)));
@@ -7383,6 +7460,14 @@
     $$('[data-academy-answer]',lessons).forEach(button=>button.addEventListener('click',()=>completeAcademyLesson(button.dataset.academyAnswer,button.dataset.answerIndex)));
   }
 
+
+  // ── v40 illustrazioni per filiera industriale ────────────────────────────
+  const chainArt = {
+    upstream: `<svg viewBox="0 0 48 48" fill="none"><defs><linearGradient id="upA" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffd79a"/><stop offset="1" stop-color="#c07a20"/></linearGradient><linearGradient id="upR" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#a9b4c4"/><stop offset="1" stop-color="#5d6675"/></linearGradient></defs><path d="M6 40h36" stroke="#3a4250" stroke-width="2.6" stroke-linecap="round"/><path d="M14 40V18l10-8 10 8v22" fill="url(#upA)" stroke="#7d4c0c" stroke-width="1.8" stroke-linejoin="round"/><path d="M24 10l10 8H14z" fill="#ffe6bb" stroke="#7d4c0c" stroke-width="1.7" stroke-linejoin="round"/><rect x="20" y="26" width="8" height="14" rx="1.5" fill="#6b4310" stroke="#3f2708" stroke-width="1.5"/><path d="M17 22h14" stroke="#7d4c0c" stroke-width="1.8" stroke-linecap="round"/><path d="M7 36l4-6 4 3 3-4" stroke="url(#upR)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" fill="none"/><circle cx="34" cy="31" r="3" fill="#cfd7e2" stroke="#3a4250" stroke-width="1.5"/></svg>`,
+    midstream: `<svg viewBox="0 0 48 48" fill="none"><defs><linearGradient id="mdA" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#dfe9f6"/><stop offset=".5" stop-color="#9fb0c6"/><stop offset="1" stop-color="#6a7789"/></linearGradient></defs><path d="M5 41h38" stroke="#3a4250" stroke-width="2.6" stroke-linecap="round"/><rect x="8" y="18" width="14" height="23" rx="2" fill="url(#mdA)" stroke="#41506a" stroke-width="1.8"/><ellipse cx="15" cy="18" rx="7" ry="2.6" fill="#eaf2fb" stroke="#41506a" stroke-width="1.6"/><rect x="27" y="24" width="13" height="17" rx="2" fill="url(#mdA)" stroke="#41506a" stroke-width="1.8"/><ellipse cx="33.5" cy="24" rx="6.5" ry="2.4" fill="#eaf2fb" stroke="#41506a" stroke-width="1.6"/><path d="M22 30h5M22 35h5" stroke="#41506a" stroke-width="2" stroke-linecap="round"/><path d="M11 24v12M31 29v9" stroke="#fff" stroke-opacity=".55" stroke-width="2.2" stroke-linecap="round"/><path d="M5 30h3" stroke="#7fd2ff" stroke-width="2.4" stroke-linecap="round"/></svg>`,
+    downstream: `<svg viewBox="0 0 48 48" fill="none"><defs><linearGradient id="dwA" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#cfe0f5"/><stop offset="1" stop-color="#69809c"/></linearGradient></defs><path d="M5 41h38" stroke="#3a4250" stroke-width="2.6" stroke-linecap="round"/><path d="M8 41V24l9 5v-5l9 5V17h14v24z" fill="url(#dwA)" stroke="#3c4b60" stroke-width="1.8" stroke-linejoin="round"/><rect x="30" y="9" width="5" height="9" rx="1" fill="#8fa3bb" stroke="#3c4b60" stroke-width="1.5"/><path d="M32.5 8c1.6-2 .4-3.4 0-4.6" stroke="#bcd3ea" stroke-width="1.8" stroke-linecap="round"/><rect x="12" y="32" width="5" height="9" rx="1" fill="#41536b" stroke="#2c3a4c" stroke-width="1.3"/><rect x="21" y="32" width="5" height="9" rx="1" fill="#41536b" stroke="#2c3a4c" stroke-width="1.3"/><rect x="32" y="24" width="8" height="6" rx="1" fill="#dceaf9" stroke="#3c4b60" stroke-width="1.4"/></svg>`
+  };
+
   function renderEmpire() {
     const summary=$('#investmentSummary'), queue=$('#builderQueue'), container=$('#investmentList');
     if(!summary||!queue||!container) return;
@@ -7398,13 +7483,50 @@
     container.innerHTML=visible.map(asset=>{
       const r=investmentRecord(asset.id), level=r.level||0, target=level+1, max=level>=asset.maxLevel, unlocked=investmentUnlocked(asset), building=Boolean(r.buildingTo), cost=max?0:investmentCost(asset,target), days=max?0:investmentBuildDays(asset,target);
       const benefits=[asset.dailyIncome?`${money(asset.dailyIncome*level)}/day`:null,asset.pnlBonus?`+${money(asset.pnlBonus*level)} deal edge`:null,asset.durationBonus&&level?`-${asset.durationBonus*level} days`:null].filter(Boolean).join(' · ');
-      return `<article class="investment-card chain-${asset.chain} ${building?'building':''} ${!unlocked?'locked':''}" data-investment-card="${asset.id}"><div class="investment-card-top"><div class="asset-icon">${asset.icon}</div><div><span>${asset.chain}</span><strong>${asset.name}</strong><small>${getHub(asset.hub)?.name||''}</small></div><b>L${level}/${asset.maxLevel}</b></div><p>${asset.description}</p><div class="asset-level-track">${Array.from({length:asset.maxLevel},(_,i)=>`<i class="${i<level?'filled':''} ${r.buildingTo===i+1?'building':''}"></i>`).join('')}</div><div class="investment-benefit">${level?benefits:'No active benefit — build level 1'}</div><div class="investment-economics"><div><span>Upgrade cost</span><strong>${max?'MAX':money(cost)}</strong></div><div><span>Build time</span><strong>${max?'—':`${days} days`}</strong></div></div><button class="button ${building?'secondary':'primary'} investment-action" data-build-investment="${asset.id}" ${max||building||!unlocked||state.cash<cost||activeProjectCount()>=builderSlots()?'disabled':''}>${building?`Building L${r.buildingTo} · ${r.daysRemaining}d`:max?'Maximum level':unlocked?`Build level ${target}`:`Requires rep ${asset.minReputation} · ${asset.minDeals} deals`}</button></article>`;
+      const buildPct = building ? Math.round((1 - r.daysRemaining / Math.max(1, investmentBuildDays(asset, r.buildingTo))) * 100) : 0;
+      const noCash = !max && state.cash < cost;
+      const noTeam = activeProjectCount() >= builderSlots();
+      const btnLabel = building ? `Building L${r.buildingTo} · ${r.daysRemaining}d`
+        : max ? 'MAX LEVEL'
+        : !unlocked ? `🔒 Rep ${asset.minReputation} · ${asset.minDeals} deals`
+        : noTeam ? 'All teams busy'
+        : noCash ? `Need ${money(cost)}`
+        : `UPGRADE · ${money(cost)}`;
+      return `<article class="investment-card v40 chain-${asset.chain} ${building?'building':''} ${!unlocked?'locked':''} ${max?'maxed':''}" data-investment-card="${asset.id}">
+        <div class="inv-top">
+          <span class="inv-art art-${asset.chain}">${chainArt[asset.chain] || chainArt.upstream}
+            <b class="inv-lvl">${level}</b>
+          </span>
+          <span class="inv-id">
+            <span class="inv-chain">${asset.chain}</span>
+            <strong class="inv-name">${asset.name}</strong>
+            <span class="inv-hub">${getHub(asset.hub)?.name||''} · ${asset.commodity||''}</span>
+          </span>
+        </div>
+        <div class="inv-pips">${Array.from({length:asset.maxLevel},(_,i)=>`<i class="${i<level?'filled':''} ${r.buildingTo===i+1?'building':''}"></i>`).join('')}<em>L${level}/${asset.maxLevel}</em></div>
+        <p class="inv-desc">${asset.description}</p>
+        <div class="inv-benefit">${level?benefits:'No active benefit — build level 1'}</div>
+        ${building ? `<div class="inv-progress"><div class="inv-progress-row"><span>Building L${r.buildingTo}</span><b>${r.daysRemaining} d</b></div><div class="inv-progress-track"><span style="width:${buildPct}%"></span></div></div>`
+        : `<div class="inv-econ">
+            <div class="inv-cell"><span class="k">Cost</span><strong class="v ${noCash?'red':'gold'}">${max?'—':money(cost)}</strong></div>
+            <div class="inv-cell"><span class="k">Time</span><strong class="v">${max?'—':days+' d'}</strong></div>
+          </div>`}
+        <button class="inv-btn ${building?'busy':''} ${max?'maxed':''} ${(!unlocked||noCash||noTeam)?'blocked':''}" data-build-investment="${asset.id}" ${max||building||!unlocked||noCash||noTeam?'disabled':''}>${btnLabel}</button>
+      </article>`;
     }).join('');
     $$('[data-empire-chain]').forEach(button=>button.classList.toggle('active',button.dataset.empireChain===selectedEmpireChain));
     $$('[data-empire-chain]').forEach(button=>button.onclick=()=>{selectedEmpireChain=button.dataset.empireChain;renderEmpire();});
     $$('[data-build-investment]',container).forEach(button=>button.onclick=()=>startInvestment(button.dataset.buildInvestment));
     $$('[data-investment-card]',container).forEach(card=>card.addEventListener('click',event=>{if(event.target.closest('button'))return;selectInvestment(card.dataset.investmentCard);}));
   }
+
+
+  // ── v41 illustrazioni categorie negozio ──────────────────────────────────
+  const shopArt = {
+    fleet: `<svg viewBox="0 0 48 48" fill="none"><defs><linearGradient id="shH" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ff9a6b"/><stop offset="1" stop-color="#c1442a"/></linearGradient><linearGradient id="shS" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#eaf3ff"/><stop offset="1" stop-color="#9fb2c9"/></linearGradient></defs><path d="M4 34h40l-4 7H8z" fill="url(#shH)" stroke="#7e2a17" stroke-width="1.8" stroke-linejoin="round"/><rect x="12" y="24" width="9" height="10" rx="1.5" fill="#d84b2f" stroke="#7e2a17" stroke-width="1.5"/><rect x="23" y="26" width="8" height="8" rx="1.5" fill="#f2694a" stroke="#7e2a17" stroke-width="1.5"/><rect x="30" y="20" width="10" height="14" rx="2" fill="url(#shS)" stroke="#54637a" stroke-width="1.6"/><path d="M32 24h6M32 28h6" stroke="#54637a" stroke-width="1.5" stroke-linecap="round"/><path d="M8 37h30" stroke="#fff" stroke-opacity=".45" stroke-width="2" stroke-linecap="round"/><path d="M4 44c4-2 6-2 10 0s6 2 10 0 6-2 10 0 6 2 10 0" stroke="#7fd2ff" stroke-width="2.2" stroke-linecap="round" fill="none"/></svg>`,
+    storage: `<svg viewBox="0 0 48 48" fill="none"><defs><linearGradient id="stW" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffd98f"/><stop offset="1" stop-color="#c4881c"/></linearGradient></defs><path d="M5 41h38" stroke="#3a4250" stroke-width="2.6" stroke-linecap="round"/><path d="M9 41V21l15-9 15 9v20z" fill="url(#stW)" stroke="#7d4c0c" stroke-width="1.8" stroke-linejoin="round"/><path d="M24 12l15 9H9z" fill="#ffe9bb" stroke="#7d4c0c" stroke-width="1.7" stroke-linejoin="round"/><rect x="19" y="28" width="10" height="13" rx="1.5" fill="#8a5a12" stroke="#4d3208" stroke-width="1.5"/><path d="M19 33h10" stroke="#4d3208" stroke-width="1.4"/><rect x="12" y="26" width="5" height="5" rx="1" fill="#fff3d6" stroke="#7d4c0c" stroke-width="1.3"/><rect x="31" y="26" width="5" height="5" rx="1" fill="#fff3d6" stroke="#7d4c0c" stroke-width="1.3"/></svg>`,
+    infrastructure: `<svg viewBox="0 0 48 48" fill="none"><defs><linearGradient id="crA" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffe07a"/><stop offset="1" stop-color="#e0951a"/></linearGradient></defs><path d="M4 41h40" stroke="#3a4250" stroke-width="2.6" stroke-linecap="round"/><path d="M14 41V9" stroke="url(#crA)" stroke-width="4.5" stroke-linecap="round"/><path d="M14 11h22" stroke="url(#crA)" stroke-width="4" stroke-linecap="round"/><path d="M36 11v9" stroke="#c9d4e3" stroke-width="2.2" stroke-linecap="round"/><rect x="31" y="20" width="10" height="8" rx="1.6" fill="#8fb7e8" stroke="#3f5a80" stroke-width="1.6"/><path d="M9 41c0-6 2-9 5-9s5 3 5 9" fill="#c9d4e3" stroke="#4b5769" stroke-width="1.6"/><path d="M18 11l-4 6 4 6" stroke="#e0951a" stroke-width="2" stroke-linejoin="round" fill="none"/></svg>`
+  };
 
   function renderShop() {
     const summary=$('#shopSummary'), queue=$('#shopBuildQueue'), catalog=$('#shopCatalogList');
@@ -7430,16 +7552,26 @@
       const lockText=officeMissing?`Requires ${getOffice(item.requiresOffice)?.name}`:`Requires rep ${item.minReputation} · ${item.minDeals} deals`;
       const busy=activeProjectCount()>=builderSlots();
       const status=pending?`${pending} building`:owned?`${owned}/${item.maxOwned} owned`:'Available';
-      return `<article class="shop-item-card category-${item.category} ${!unlocked?'locked':''} ${pending?'building':''}">
+      const noCash = state.cash < item.cost;
+      return `<article class="shop-item-card v41 category-${item.category} ${!unlocked?'locked':''} ${pending?'building':''} ${maxed?'maxed':''}">
         <div class="shop-ribbon">${item.category==='fleet'?'SHIPYARD':item.category==='storage'?'STORAGE':'LOGISTICS'}</div>
-        <div class="shop-item-visual"><span>${item.icon}</span><em>${status}</em></div>
-        <div class="shop-item-copy"><span>${item.category}</span><h3>${item.name}</h3><p>${item.description}</p></div>
-        <div class="shop-benefit"><b>Permanent benefit</b><span>${item.benefit}</span></div>
-        <div class="shop-item-meta">
-          <div><span>Price</span><strong>${money(item.cost)}</strong></div>
-          <div><span>Build time</span><strong>${item.buildDays} days</strong></div>
-          <div><span>Owned</span><strong>${owned}/${item.maxOwned}</strong></div>
-          <div><span>Daily upkeep</span><strong>${money(item.maintenance||item.dailyCost||0)}</strong></div>
+        <div class="shop-hero">
+          <span class="shop-art sa-${item.category}">${shopArt[item.category] || shopArt.infrastructure}
+            ${owned?`<b class="shop-own">×${owned}</b>`:''}
+          </span>
+          <span class="shop-head">
+            <span class="shop-cat">${item.category}</span>
+            <strong class="shop-name">${item.name}</strong>
+            <span class="shop-status ${pending?'is-building':owned?'is-owned':''}">${status}</span>
+          </span>
+        </div>
+        <p class="shop-desc">${item.description}</p>
+        <div class="shop-benefit v41"><b>Permanent benefit</b><span>${item.benefit}</span></div>
+        <div class="shop-grid">
+          <div class="shop-cell"><span class="k">Price</span><strong class="v ${noCash?'red':'gold'}">${money(item.cost)}</strong></div>
+          <div class="shop-cell"><span class="k">Build time</span><strong class="v">${item.buildDays} d</strong></div>
+          <div class="shop-cell"><span class="k">Owned</span><strong class="v">${owned}/${item.maxOwned}</strong></div>
+          <div class="shop-cell"><span class="k">Upkeep</span><strong class="v">${money(item.maintenance||item.dailyCost||0)}</strong></div>
         </div>
         <div class="shop-level-pips">${Array.from({length:item.maxOwned},(_,i)=>`<i class="${i<owned?'owned':i<owned+pending?'building':''}"></i>`).join('')}</div>
         <button class="shop-buy-button" data-buy-shop-item="${item.id}" ${!unlocked||maxed||busy||state.cash<item.cost?'disabled':''}>

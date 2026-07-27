@@ -1,3 +1,91 @@
+# World of Trade v42 — Flotta ridisegnata
+
+## Quarta schermata portata a qualità gioco
+
+- **Illustrazioni delle navi** disegnate in SVG e scelte automaticamente dalla classe del vascello:
+  - portarinfuse con stive e boccaporti (Handysize, Panamax, bulker),
+  - petroliera con manifold e tubazioni (MR product tanker),
+  - chiatta fluviale con carico coperto (river barge),
+  - multipurpose con gru di bordo e container (Coaster, Multipurpose).
+- Ogni nave galleggia su un'onda azzurra; le navi di proprietà hanno la **stella dorata** nell'angolo.
+- **Dati in celle leggibili**: capacità, posizione, blocco di noleggio, nolo anticipato — con etichette in maiuscoletto e valori a 14,5px.
+- **Barra di vita del noleggio** con incavo e riflesso; striscia dorata per le navi possedute con il costo di mantenimento.
+- **Pulsante di noleggio** azzurro in stile gioco, con stato disabilitato parlante (requisiti, già controllata, liquidità).
+- Card selezionata con contorno oro; card bloccate desaturate.
+
+## Verifiche
+
+- 8 card del mercato noleggi renderizzate, tutte con illustrazione; 4 tipi di nave rappresentati.
+- Dati reali corretti (es. Handysize · MV Ocean Pioneer · 32.000 t · Santiago · 75 giorni · $95.000).
+- Avvio e simulazione senza errori; bundle Android allineato.
+
+---
+
+# World of Trade v41 — Negozio ridisegnato
+
+## Terza schermata portata a qualità gioco
+
+- **Illustrazioni per categoria** disegnate in SVG: nave portacontainer con onde (flotta), magazzino con tetto e portoni (stoccaggio), gru portuale con container (infrastrutture).
+- **Contatore dei posseduti** come badge dorato "×N" sull'illustrazione.
+- **Nastro di categoria** colorato per tipo (cantiere arancio, stoccaggio oro, logistica azzurro).
+- **Riquadro beneficio permanente** verde, ben separato dalla descrizione.
+- **Quattro celle dati**: prezzo, tempo di costruzione, posseduti, mantenimento giornaliero. Il prezzo diventa rosso se manca la liquidità.
+- **Pulsante d'acquisto a due righe**: azione grande (`BUY & BUILD`, `ORDER MORE`, `MAX`, `LOCKED`) più la riga di dettaglio con costo e giorni, o il motivo del blocco.
+- Card bloccate desaturate, bordo oro a capacità piena, bordo azzurro durante la costruzione.
+
+## Correzione di coerenza
+
+- Riportate in inglese le etichette che avevo introdotto in italiano nelle schermate Impero e Negozio: la lingua base del gioco è l'inglese e la traduzione italiana è gestita dall'apposito interruttore, quindi non devono convivere.
+
+## Verifiche
+
+- 11 card negozio renderizzate, tutte con illustrazione; tutte e 3 le categorie presenti.
+- Dati reali corretti (es. Handysize Workhorse · $1.150.000 · 8 giorni · mantenimento $1.450).
+- Avvio e simulazione senza errori; bundle Android allineato.
+
+---
+
+# World of Trade v40 — Schermata Impero ridisegnata
+
+## Seconda schermata portata a qualità gioco
+
+- **Illustrazioni per filiera industriale** disegnate in SVG: castelletto di miniera con roccia e carrello (upstream), serbatoi e tubazioni di terminale (midstream), stabilimento con ciminiere e fumo (downstream).
+- **Stemma del livello** in stile gioco: badge dorato con il numero, agganciato all'angolo dell'illustrazione.
+- **Barra dei livelli a segmenti**: segmenti dorati per i livelli costruiti, segmento azzurro pulsante per quello in costruzione, contatore L{x}/{max}.
+- **Riquadro beneficio** verde con i vantaggi attivi dell'asset.
+- **Costo e tempo** in celle dedicate; il costo diventa rosso se non hai abbastanza liquidità.
+- **Barra di avanzamento cantiere** con giorni rimanenti quando l'asset è in costruzione.
+- **Pulsante di potenziamento parlante**: `UPGRADE · $260.000`, oppure `Costruzione L2 · 5gg`, `MAX LEVEL`, `Tutte le squadre occupate`, `Servono $X`, o requisiti di sblocco.
+- Card bloccate desaturate, bordo oro al massimo livello, bordo azzurro durante i lavori.
+
+## Verifiche
+
+- 12 card renderizzate, tutte con illustrazione e stemma; tutte e 3 le filiere rappresentate.
+- Dati reali corretti (es. Atacama Copper Mine · Santiago · costo $260.000 · 7 giorni).
+- Avvio e simulazione senza errori; bundle Android allineato.
+
+---
+
+# World of Trade v39 — Schermata Mercato ridisegnata
+
+## Grafica da gioco vero (prima schermata rifatta)
+
+- **Icone commodity illustrate a mano in SVG**: lingotti di rame con riflessi metallici, barile di greggio con goccia, covone di grano, minerale di ferro, bombola LNG, chicchi di caffè/cacao, sacco di fertilizzante, billette d'acciaio, lingotti chiari per alluminio/zinco/nichel. Ogni card mostra l'icona giusta con ombreggiatura e luce, al posto dei blocchi di testo.
+- **Card tattili**: bordo spesso, gradiente, riflesso superiore, "labbro" d'ombra che si schiaccia al tocco, sollevamento al passaggio del mouse.
+- **Nastro HOT** diagonale sulle occasioni migliori (buona accettazione o forte concorrenza).
+- **Statistiche in riquadri leggibili**: profitto atteso, capitale proprio, durata e accettazione — valori a 16,5px con cifre allineate, etichette in maiuscoletto.
+- **Misuratori di gioco**: barra "interesse rivali" arancio→rosso e barra stagionalità verde, con incavo e riflesso.
+- **Pulsante d'azione** in fondo alla card che cambia in base allo stato: negozia, apri l'affare, oppure bloccato con il livello richiesto.
+- Card bloccate desaturate, card selezionata con contorno oro.
+
+## Verifiche
+
+- 18 card renderizzate, tutte con icona corretta; 9 tipi di illustrazione in uso.
+- Nessun valore che sfora il riquadro; barre con percentuali arrotondate.
+- Avvio del gioco e simulazione senza errori; bundle Android allineato.
+
+---
+
 # World of Trade v38 — Leggibilità e grafica da gioco
 
 ## Testo leggibile (problema risolto)

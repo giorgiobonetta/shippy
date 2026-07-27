@@ -1,4 +1,4 @@
-const CACHE_NAME = 'world-of-trade-v38-readability';
+const CACHE_NAME = 'world-of-trade-v42-fleet';
 const CORE = [
   './', './index.html', './styles.css?v=36.0.0', './native-shell.css?v=36.0.0', './native-bridge.js?v=36.0.0', './app.js?v=36.0.0',
   './three.module.min.js', './earth_day_realistic_2048.webp', './earth_normal_2048.jpg',
