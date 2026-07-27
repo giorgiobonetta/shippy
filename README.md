@@ -1,4 +1,20 @@
-# World of Trade v35.2
+# World of Trade v35.3 — Real Earth Edition
+
+## Realistic globe upgrade
+
+The trading globe now uses a progressive photorealistic rendering pipeline:
+
+- natural satellite-style day surface in 2K, upgraded to 4K on capable devices;
+- physically inspired sunlight, with the day/night terminator following real UTC time and seasonal solar declination;
+- warm city lights visible only on the night side;
+- ocean glint controlled by the sea specular map;
+- terrain normals for subtle relief rather than exaggerated mountains;
+- semi-transparent cloud layer with solar lighting and surface shadows;
+- blue daytime atmosphere and a restrained orange twilight rim;
+- much subtler political borders so the planet remains visually natural;
+- progressive loading, preserving the fast and failure-safe startup introduced in v32.1.
+
+High-resolution textures load only after the playable 2K globe is visible. Performance mode remains available for lower-powered devices.
 
 World of Trade is a browser-based physical commodity trading and merchant-house strategy simulator.
 

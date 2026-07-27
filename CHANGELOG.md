@@ -1,3 +1,23 @@
+# World of Trade v35.3 — Real Earth Edition
+
+## Added
+
+- Progressive 2K/4K natural Earth surface textures.
+- Real-time solar direction based on UTC, seasonal declination and the equation of time.
+- Physically inspired day/night terminator, ocean highlights and twilight.
+- Warm night-side city lights.
+- Solar-lit cloud shader with subtle cloud shadows on the surface.
+- More realistic atmosphere and less intrusive borders.
+
+## Performance and compatibility
+
+- The 2K Earth appears first; the 4K surface is loaded only on capable devices.
+- High-resolution textures are cached on demand rather than blocking first launch.
+- Existing `wot-v35` careers remain fully compatible.
+- Service-worker cache updated to `world-of-trade-v35-3-real-earth`.
+
+---
+
 # World of Trade v35.2 — Global Expansion Roadmap
 
 ## International office progression

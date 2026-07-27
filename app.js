@@ -2033,6 +2033,26 @@
   let earthWebGLReady = false;
   const earthProjectionVector = new THREE.Vector3();
   const earthCameraVector = new THREE.Vector3();
+  const solarDirectionCache = new THREE.Vector3(1, 0.2, 1).normalize();
+  let lastSolarMinute = -1;
+
+  function realisticSolarDirection(date = new Date()) {
+    const minuteKey = Math.floor(date.getTime() / 60000);
+    if (minuteKey === lastSolarMinute) return solarDirectionCache;
+    lastSolarMinute = minuteKey;
+    const start = Date.UTC(date.getUTCFullYear(), 0, 0);
+    const dayOfYear = Math.floor((date.getTime() - start) / 86400000);
+    const gamma = (2 * Math.PI / 365) * (dayOfYear - 1 + (date.getUTCHours() - 12) / 24);
+    const equationOfTime = 229.18 * (0.000075 + 0.001868 * Math.cos(gamma) - 0.032077 * Math.sin(gamma)
+      - 0.014615 * Math.cos(2 * gamma) - 0.040849 * Math.sin(2 * gamma));
+    const declination = 0.006918 - 0.399912 * Math.cos(gamma) + 0.070257 * Math.sin(gamma)
+      - 0.006758 * Math.cos(2 * gamma) + 0.000907 * Math.sin(2 * gamma)
+      - 0.002697 * Math.cos(3 * gamma) + 0.00148 * Math.sin(3 * gamma);
+    const utcMinutes = date.getUTCHours() * 60 + date.getUTCMinutes() + date.getUTCSeconds() / 60;
+    const subsolarLongitude = ((720 - utcMinutes - equationOfTime) / 4 + 540) % 360 - 180;
+    solarDirectionCache.copy(geoVector3(subsolarLongitude, THREE.MathUtils.radToDeg(declination), 1)).normalize();
+    return solarDirectionCache;
+  }
 
   function geoVector3(lon, lat, radius = 1) {
     const phi = lat * deg;
@@ -2061,9 +2081,9 @@
     geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
     const material = new THREE.PointsMaterial({
       color: 0xc8ddf4,
-      size: 0.018,
+      size: 0.012,
       transparent: true,
-      opacity: 0.72,
+      opacity: 0.58,
       depthWrite: false,
       sizeAttenuation: true
     });
@@ -2097,11 +2117,15 @@
   }
 
   const earthTextureFallbacks = {
-    './assets/earth/earth_atmos_2048.jpg': ['./earth_atmos_2048.jpg', 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r185/examples/textures/planets/earth_atmos_2048.jpg'],
-    './assets/earth/earth_lights_2048.png': ['./earth_lights_2048.png', 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r185/examples/textures/planets/earth_lights_2048.png'],
-    './assets/earth/earth_normal_2048.jpg': ['./earth_normal_2048.jpg', 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r185/examples/textures/planets/earth_normal_2048.jpg'],
-    './assets/earth/earth_specular_2048.jpg': ['./earth_specular_2048.jpg', 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r185/examples/textures/planets/earth_specular_2048.jpg'],
-    './assets/earth/earth_clouds_1024.png': ['./earth_clouds_1024.png', 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r185/examples/textures/planets/earth_clouds_1024.png']
+    './earth_day_realistic_2048.webp': ['./earth_atmos_2048.jpg', './assets/earth/earth_atmos_2048.jpg'],
+    './earth_day_realistic_4096.webp': ['./earth_day_realistic_2048.webp', './earth_atmos_2048.jpg'],
+    './earth_night_realistic_2048.webp': ['./earth_lights_2048.png', './assets/earth/earth_lights_2048.png'],
+    './earth_clouds_realistic_2048.webp': ['./earth_clouds_1024.png', './assets/earth/earth_clouds_1024.png'],
+    './assets/earth/earth_atmos_2048.jpg': ['./earth_atmos_2048.jpg'],
+    './assets/earth/earth_lights_2048.png': ['./earth_lights_2048.png'],
+    './assets/earth/earth_normal_2048.jpg': ['./earth_normal_2048.jpg'],
+    './assets/earth/earth_specular_2048.jpg': ['./earth_specular_2048.jpg'],
+    './assets/earth/earth_clouds_1024.png': ['./earth_clouds_1024.png']
   };
 
   function loadEarthTexture(loader, localUrl, onLoad, onProgress, onError) {
@@ -2123,17 +2147,18 @@
       earthRenderer.setPixelRatio(dpr);
       earthRenderer.outputColorSpace = THREE.SRGBColorSpace;
       earthRenderer.toneMapping = THREE.ACESFilmicToneMapping;
-      earthRenderer.toneMappingExposure = 1.02;
+      earthRenderer.toneMappingExposure = 0.96;
       earthRenderer.setClearColor(0x02050a, 0);
 
       earthScene = new THREE.Scene();
-      earthScene.fog = new THREE.FogExp2(0x010307, 0.006);
+      earthScene.fog = new THREE.FogExp2(0x010307, 0.0035);
       earthCamera = new THREE.PerspectiveCamera(32, 1, 0.1, 100);
 
       const placeholderDay = createSolidTexture(20, 58, 76);
       const placeholderNight = createSolidTexture(0, 0, 0);
       const placeholderSpecular = createSolidTexture(25, 25, 25);
       const placeholderNormal = createSolidTexture(128, 128, 255);
+      const placeholderCloud = createSolidTexture(0, 0, 0, 0);
       const [widthSegments, heightSegments] = earthGeometrySegments();
       const earthGeometry = new THREE.SphereGeometry(1, widthSegments, heightSegments);
 
@@ -2143,9 +2168,12 @@
           nightMap: { value: placeholderNight },
           specularMap: { value: placeholderSpecular },
           normalMap: { value: placeholderNormal },
+          cloudMap: { value: placeholderCloud },
           nightIntensity: { value: 0.0 },
-          sunDirection: { value: new THREE.Vector3(1, .25, 1).normalize() },
-          atmosphereColor: { value: new THREE.Color(0x5faee7) }
+          cloudShadowStrength: { value: 0.085 },
+          cloudOffset: { value: 0.0 },
+          sunDirection: { value: realisticSolarDirection(new Date()).clone() },
+          atmosphereColor: { value: new THREE.Color(0x73bde8) }
         },
         vertexShader: `
           varying vec2 vUv;
@@ -2164,7 +2192,10 @@
           uniform sampler2D nightMap;
           uniform sampler2D specularMap;
           uniform sampler2D normalMap;
+          uniform sampler2D cloudMap;
           uniform float nightIntensity;
+          uniform float cloudShadowStrength;
+          uniform float cloudOffset;
           uniform vec3 sunDirection;
           uniform vec3 atmosphereColor;
           varying vec2 vUv;
@@ -2183,22 +2214,30 @@
             vec3 bitangent = dp2perp * duv1.y + dp1perp * duv2.y;
             float invmax = inversesqrt(max(dot(tangent, tangent), dot(bitangent, bitangent)));
             mat3 tbn = mat3(tangent * invmax, bitangent * invmax, baseNormal);
-            vec3 normal = normalize(tbn * vec3(mapN.xy * 0.30, max(mapN.z, 0.35)));
+            vec3 normal = normalize(tbn * vec3(mapN.xy * 0.22, max(mapN.z, 0.42)));
             vec3 lightDir = normalize(sunDirection);
             vec3 viewDir = normalize(cameraPosition - vWorldPosition);
             float ndl = dot(normal, lightDir);
-            float dayFactor = smoothstep(-0.16, 0.22, ndl);
+            float daylight = smoothstep(-0.12, 0.16, ndl);
+            float directLight = max(ndl, 0.0);
             vec3 dayColor = texture2D(dayMap, vUv).rgb;
-            vec3 nightColor = texture2D(nightMap, vUv).rgb;
+            vec3 nightTexture = texture2D(nightMap, vUv).rgb;
             float oceanMask = texture2D(specularMap, vUv).r;
-            float diffuse = 0.20 + 0.84 * max(ndl, 0.0);
-            vec3 litDay = dayColor * diffuse;
-            vec3 color = mix(nightColor * nightIntensity, litDay, dayFactor);
+            float cloudCover = texture2D(cloudMap, vUv + vec2(cloudOffset, 0.0)).a;
+            float cloudShadow = 1.0 - cloudCover * cloudShadowStrength * smoothstep(0.02, 0.55, directLight);
+            vec3 daylightSurface = dayColor * (0.135 + 0.91 * directLight) * cloudShadow;
+            vec3 nightSurface = dayColor * vec3(0.010, 0.016, 0.030);
+            float lightLuma = dot(nightTexture, vec3(0.2126, 0.7152, 0.0722));
+            vec3 warmCityLights = nightTexture * vec3(1.28, 0.98, 0.68) * (0.56 + 0.80 * lightLuma);
+            vec3 color = mix(nightSurface + warmCityLights * nightIntensity, daylightSurface, daylight);
             vec3 halfVector = normalize(lightDir + viewDir);
-            float specular = pow(max(dot(normal, halfVector), 0.0), 74.0) * oceanMask * max(ndl, 0.0);
-            color += vec3(0.46, 0.68, 0.82) * specular * 0.42;
-            float fresnel = pow(1.0 - max(dot(normal, viewDir), 0.0), 4.0);
-            color += atmosphereColor * fresnel * 0.09 * dayFactor;
+            float oceanGlint = pow(max(dot(normal, halfVector), 0.0), 105.0) * oceanMask * max(ndl, 0.0);
+            color += vec3(0.66, 0.82, 0.92) * oceanGlint * 0.52;
+            float fresnel = pow(1.0 - max(dot(normal, viewDir), 0.0), 4.2);
+            float sunlitLimb = smoothstep(-0.2, 0.35, dot(baseNormal, lightDir));
+            color += atmosphereColor * fresnel * (0.025 + 0.105 * sunlitLimb);
+            float twilight = exp(-pow((ndl + 0.035) * 14.0, 2.0));
+            color += vec3(0.34, 0.12, 0.045) * twilight * 0.075;
             gl_FragColor = vec4(color, 1.0);
           }
         `
@@ -2206,14 +2245,51 @@
       earthMesh = new THREE.Mesh(earthGeometry, earthMaterial);
       earthScene.add(earthMesh);
 
-      const cloudMaterial = new THREE.MeshPhongMaterial({
-        color: 0xffffff,
+      const cloudMaterial = new THREE.ShaderMaterial({
         transparent: true,
-        opacity: 0,
         depthWrite: false,
-        side: THREE.DoubleSide
+        side: THREE.FrontSide,
+        blending: THREE.NormalBlending,
+        uniforms: {
+          cloudMap: { value: placeholderCloud },
+          sunDirection: { value: realisticSolarDirection(new Date()).clone() },
+          cloudOpacity: { value: 0.0 }
+        },
+        vertexShader: `
+          varying vec2 vUv;
+          varying vec3 vWorldNormal;
+          varying vec3 vWorldPosition;
+          void main() {
+            vUv = uv;
+            vWorldNormal = normalize(mat3(modelMatrix) * normal);
+            vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+            vWorldPosition = worldPosition.xyz;
+            gl_Position = projectionMatrix * viewMatrix * worldPosition;
+          }
+        `,
+        fragmentShader: `
+          uniform sampler2D cloudMap;
+          uniform vec3 sunDirection;
+          uniform float cloudOpacity;
+          varying vec2 vUv;
+          varying vec3 vWorldNormal;
+          varying vec3 vWorldPosition;
+          void main() {
+            float alpha = texture2D(cloudMap, vUv).a * cloudOpacity;
+            if (alpha < 0.008) discard;
+            vec3 normal = normalize(vWorldNormal);
+            vec3 viewDir = normalize(cameraPosition - vWorldPosition);
+            float sun = max(dot(normal, normalize(sunDirection)), 0.0);
+            float rim = pow(1.0 - max(dot(normal, viewDir), 0.0), 2.4);
+            vec3 cloudNight = vec3(0.10, 0.14, 0.20);
+            vec3 cloudDay = vec3(0.92, 0.96, 1.0) * (0.42 + 0.72 * sun);
+            vec3 cloudColor = mix(cloudNight, cloudDay, smoothstep(-0.08, 0.20, dot(normal, normalize(sunDirection))));
+            cloudColor += vec3(0.30, 0.48, 0.64) * rim * 0.13;
+            gl_FragColor = vec4(cloudColor, alpha);
+          }
+        `
       });
-      cloudMesh = new THREE.Mesh(new THREE.SphereGeometry(1.006, widthSegments, heightSegments), cloudMaterial);
+      cloudMesh = new THREE.Mesh(new THREE.SphereGeometry(1.008, widthSegments, heightSegments), cloudMaterial);
       earthScene.add(cloudMesh);
 
       const atmosphereMaterial = new THREE.ShaderMaterial({
@@ -2221,36 +2297,48 @@
         side: THREE.BackSide,
         blending: THREE.AdditiveBlending,
         depthWrite: false,
-        uniforms: { glowColor: { value: new THREE.Color(0x79bdea) } },
+        uniforms: {
+          sunDirection: { value: realisticSolarDirection(new Date()).clone() },
+          dayGlow: { value: new THREE.Color(0x5eb9ef) },
+          twilightGlow: { value: new THREE.Color(0xf08a52) }
+        },
         vertexShader: `
-          varying vec3 vNormal;
+          varying vec3 vWorldNormal;
           varying vec3 vWorldPosition;
           void main() {
-            vNormal = normalize(normalMatrix * normal);
+            vWorldNormal = normalize(mat3(modelMatrix) * normal);
             vec4 worldPosition = modelMatrix * vec4(position, 1.0);
             vWorldPosition = worldPosition.xyz;
-            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+            gl_Position = projectionMatrix * viewMatrix * worldPosition;
           }
         `,
         fragmentShader: `
-          uniform vec3 glowColor;
-          varying vec3 vNormal;
+          uniform vec3 sunDirection;
+          uniform vec3 dayGlow;
+          uniform vec3 twilightGlow;
+          varying vec3 vWorldNormal;
           varying vec3 vWorldPosition;
           void main() {
+            vec3 normal = normalize(vWorldNormal);
             vec3 viewDirection = normalize(cameraPosition - vWorldPosition);
-            float fresnel = pow(max(0.0, 0.57 - dot(vNormal, viewDirection)), 3.8);
-            gl_FragColor = vec4(glowColor, fresnel * 0.20);
+            float limb = pow(1.0 - abs(dot(normal, viewDirection)), 3.35);
+            float solar = dot(normal, normalize(sunDirection));
+            float day = smoothstep(-0.25, 0.42, solar);
+            float twilight = exp(-pow((solar + 0.035) * 8.0, 2.0));
+            vec3 glow = mix(dayGlow * 0.16, dayGlow, day) + twilightGlow * twilight * 0.42;
+            float alpha = limb * (0.055 + day * 0.17 + twilight * 0.08);
+            gl_FragColor = vec4(glow, alpha);
           }
         `
       });
-      atmosphereMesh = new THREE.Mesh(new THREE.SphereGeometry(1.022, Math.max(64, widthSegments), Math.max(42, heightSegments)), atmosphereMaterial);
+      atmosphereMesh = new THREE.Mesh(new THREE.SphereGeometry(1.028, Math.max(80, widthSegments), Math.max(54, heightSegments)), atmosphereMaterial);
       earthScene.add(atmosphereMesh);
 
-      earthScene.add(new THREE.HemisphereLight(0x9ecbf0, 0x020409, 0.16));
-      sunLight = new THREE.DirectionalLight(0xffffff, 1.15);
+      earthScene.add(new THREE.HemisphereLight(0x92b7ce, 0x010205, 0.065));
+      sunLight = new THREE.DirectionalLight(0xfff8ed, 1.0);
       sunLight.position.set(4.5, 2.4, 5.2);
       earthScene.add(sunLight);
-      const rimLight = new THREE.DirectionalLight(0x5b9fd2, 0.15);
+      const rimLight = new THREE.DirectionalLight(0x5b9fd2, 0.055);
       rimLight.position.set(-4, 1.2, -3);
       earthScene.add(rimLight);
 
@@ -2265,7 +2353,7 @@
       const primaryLoader = new THREE.TextureLoader();
       loadEarthTexture(
         primaryLoader,
-        './assets/earth/earth_atmos_2048.jpg',
+        './earth_day_realistic_2048.webp',
         texture => {
           prepareEarthTexture(texture, true);
           earthMaterial.uniforms.dayMap.value = texture;
@@ -2273,27 +2361,42 @@
           $('#earthLoading')?.classList.add('loaded');
           earthCanvas?.classList.add('earth-map-ready');
 
+          const quality = state?.graphicsQuality || 'auto';
+          const allowHighResolution = quality === 'high' || (quality === 'auto' && !window.matchMedia('(max-width: 1100px)').matches && (!navigator.deviceMemory || navigator.deviceMemory >= 4));
+          if (allowHighResolution) deferNonCritical(() => {
+            const highResolutionLoader = new THREE.TextureLoader();
+            loadEarthTexture(highResolutionLoader, './earth_day_realistic_4096.webp', highTexture => {
+              prepareEarthTexture(highTexture, true);
+              const previousTexture = earthMaterial.uniforms.dayMap.value;
+              earthMaterial.uniforms.dayMap.value = highTexture;
+              earthMaterial.needsUpdate = true;
+              if (previousTexture && previousTexture !== placeholderDay && previousTexture !== highTexture) previousTexture.dispose?.();
+              earthCanvas?.classList.add('earth-hires-ready');
+            }, undefined, () => {});
+          }, 1700);
+
           deferNonCritical(() => {
             const detailLoader = new THREE.TextureLoader();
-            loadEarthTexture(detailLoader, './assets/earth/earth_lights_2048.png', value => {
+            loadEarthTexture(detailLoader, './earth_night_realistic_2048.webp', value => {
               prepareEarthTexture(value, true);
               earthMaterial.uniforms.nightMap.value = value;
-              earthMaterial.uniforms.nightIntensity.value = globeOptions.night ? 0.82 : 0;
+              earthMaterial.uniforms.nightIntensity.value = globeOptions.night ? 0.92 : 0;
             }, undefined, () => {});
-            loadEarthTexture(detailLoader, './assets/earth/earth_normal_2048.jpg', value => {
+            loadEarthTexture(detailLoader, './earth_normal_2048.jpg', value => {
               prepareEarthTexture(value, false);
               earthMaterial.uniforms.normalMap.value = value;
             }, undefined, () => {});
-            loadEarthTexture(detailLoader, './assets/earth/earth_specular_2048.jpg', value => {
+            loadEarthTexture(detailLoader, './earth_specular_2048.jpg', value => {
               prepareEarthTexture(value, false);
               earthMaterial.uniforms.specularMap.value = value;
             }, undefined, () => {});
-            loadEarthTexture(detailLoader, './assets/earth/earth_clouds_1024.png', value => {
+            loadEarthTexture(detailLoader, './earth_clouds_realistic_2048.webp', value => {
               prepareEarthTexture(value, false);
-              cloudMaterial.map = value;
-              cloudMaterial.alphaMap = value;
-              cloudMaterial.opacity = 0.22;
+              cloudMaterial.uniforms.cloudMap.value = value;
+              cloudMaterial.uniforms.cloudOpacity.value = 0.42;
+              earthMaterial.uniforms.cloudMap.value = value;
               cloudMaterial.needsUpdate = true;
+              earthMaterial.needsUpdate = true;
               earthCanvas?.classList.add('earth-detail-ready');
             }, undefined, () => {});
           }, 1200);
@@ -2341,21 +2444,15 @@
     if (cloudMesh) {
       cloudMesh.visible = globeOptions.clouds;
       cloudMesh.rotation.y = timestamp * 0.000006;
+      if (earthMaterial?.uniforms?.cloudOffset) earthMaterial.uniforms.cloudOffset.value = (cloudMesh.rotation.y / (Math.PI * 2)) % 1;
     }
     if (starField) starField.rotation.y = timestamp * 0.0000015;
-    if (earthMaterial?.uniforms?.nightIntensity) earthMaterial.uniforms.nightIntensity.value = globeOptions.night ? 0.82 : 0.0;
-    if (sunLight) {
-      const date = currentDate();
-      const yearStart = Date.UTC(date.getUTCFullYear(), 0, 0);
-      const dayOfYear = Math.floor((date.getTime() - yearStart) / 86400000);
-      const declination = 23.44 * Math.sin(THREE.MathUtils.degToRad((360 / 365) * (dayOfYear - 81)));
-      const realNow = new Date();
-      const utcHours = realNow.getUTCHours() + realNow.getUTCMinutes() / 60 + realNow.getUTCSeconds() / 3600;
-      const subsolarLongitude = ((180 - utcHours * 15 + 540) % 360) - 180;
-      const sunDirection = geoVector3(subsolarLongitude, declination, 1).normalize();
-      sunLight.position.copy(sunDirection).multiplyScalar(6);
-      earthMaterial?.uniforms?.sunDirection?.value.copy(sunDirection);
-    }
+    if (earthMaterial?.uniforms?.nightIntensity) earthMaterial.uniforms.nightIntensity.value = globeOptions.night ? 0.92 : 0.0;
+    const sunDirection = realisticSolarDirection(new Date());
+    if (sunLight) sunLight.position.copy(sunDirection).multiplyScalar(6);
+    earthMaterial?.uniforms?.sunDirection?.value.copy(sunDirection);
+    cloudMesh?.material?.uniforms?.sunDirection?.value.copy(sunDirection);
+    atmosphereMesh?.material?.uniforms?.sunDirection?.value.copy(sunDirection);
     earthRenderer.render(earthScene, earthCamera);
   }
   let dragging = false;
@@ -4075,8 +4172,8 @@
       ctx.setLineDash([]);
     }
     if (earthWebGLReady) {
-      drawLines(geoCoastlines,  'rgba(255,255,255,0.40)', 0.75, null);
-      drawLines(geoBorderLines, 'rgba(220,235,255,0.22)', 0.45, [2,3]);
+      drawLines(geoCoastlines,  'rgba(225,238,245,0.16)', 0.46, null);
+      drawLines(geoBorderLines, 'rgba(210,225,235,0.075)', 0.28, [1,4]);
     } else {
       drawLines(geoCoastlines,  'rgba(140,220,190,0.55)', 0.90, null);
       drawLines(geoBorderLines, 'rgba(140,220,190,0.30)', 0.55, [2,3]);

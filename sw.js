@@ -1,8 +1,8 @@
-const CACHE_NAME = 'world-of-trade-v35-2-global-expansion';
+const CACHE_NAME = 'world-of-trade-v35-3-real-earth';
 const CORE = [
-  './', './index.html', './styles.css?v=35.1.0', './app.js?v=35.1.0',
-  './three.module.min.js', './earth_atmos_2048.jpg', './earth_normal_2048.jpg',
-  './earth_specular_2048.jpg', './earth_clouds_1024.png', './earth_lights_2048.png',
+  './', './index.html', './styles.css?v=35.3.0', './app.js?v=35.3.0',
+  './three.module.min.js', './earth_day_realistic_2048.webp', './earth_normal_2048.jpg',
+  './earth_specular_2048.jpg', './earth_clouds_realistic_2048.webp', './earth_night_realistic_2048.webp',
   './countries-lowres.geojson', './manifest.webmanifest', './world-of-trade-icon.svg',
   './world-of-trade-logo.svg', './world-of-trade-logo.png', './world-of-trade-icon.png',
   './world-of-trade-premium-logo.webp', './world-of-trade-premium-logo.png',

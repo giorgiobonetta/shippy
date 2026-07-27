@@ -9,13 +9,13 @@
   <link rel="icon" href="world-of-trade-premium-icon-192.png" type="image/png" />
   <link rel="apple-touch-icon" href="world-of-trade-premium-icon-192.png" />
   <link rel="preload" as="image" href="world-of-trade-premium-logo.webp" type="image/webp" fetchpriority="high" />
-  <link rel="preload" as="image" href="earth_atmos_2048.jpg" fetchpriority="high" />
+  <link rel="preload" as="image" href="earth_day_realistic_2048.webp" type="image/webp" fetchpriority="high" />
   <title>World of Trade — Physical Commodity Trading Simulator</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Baloo+2:wght@600;700;800&display=swap" onload="this.onload=null;this.rel='stylesheet'" />
   <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Baloo+2:wght@600;700;800&display=swap" /></noscript>
-  <link rel="stylesheet" href="styles.css?v=35.1.0" />
+  <link rel="stylesheet" href="styles.css?v=35.3.0" />
   <script>
     (() => {
       const boot = window.__WOT_BOOT__ = { startedAt: Date.now(), status: 'HTML loaded', progress: 4, failed: false };
@@ -369,7 +369,7 @@
       <section class="globe-stage" id="globeStage">
         <canvas id="earthCanvas" aria-hidden="true"></canvas>
         <canvas id="globeCanvas" aria-label="Interactive global-trading globe"></canvas>
-        <div class="earth-loading" id="earthLoading"><span></span><strong>Loading world map</strong></div>
+        <div class="earth-loading" id="earthLoading"><span></span><strong>Loading realistic Earth</strong></div>
 
         <nav class="command-dock left-command-rail" aria-label="Main commands">
           <button class="command-button primary" id="openDeskButton" aria-label="Open command center"><span>☰</span><b data-i18n="dock.desk">Desk</b></button>
@@ -608,6 +608,6 @@
       <div class="dialog-actions"><button value="cancel" class="button secondary" data-i18n="btn.cancel">Cancel</button><button value="save" class="button primary" data-i18n="btn.save">Save changes</button></div>
     </form>
   </dialog>
-  <script type="module" src="app.js?v=35.1.0"></script>
+  <script type="module" src="app.js?v=35.3.0"></script>
 </body>
 </html>
