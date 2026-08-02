@@ -1,11 +1,11 @@
 {
   "name": "World of Trade",
   "short_name": "World of Trade",
-  "description": "Build a Geneva commodity trader into a global merchant \u2014 native app edition.",
+  "description": "Build a Geneva commodity trader into a global physical merchant house.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
-  "orientation": "landscape",
+  "orientation": "any",
   "background_color": "#05070c",
   "theme_color": "#174fa6",
   "categories": [
@@ -31,5 +31,7 @@
   "display_override": [
     "fullscreen",
     "standalone"
-  ]
+  ],
+  "lang": "en",
+  "dir": "ltr"
 }

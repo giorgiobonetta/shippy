@@ -13,12 +13,12 @@
   <link rel="apple-touch-icon" href="world-of-trade-premium-icon-192.png" />
   <link rel="preload" as="image" href="world-of-trade-premium-logo.webp" type="image/webp" fetchpriority="high" />
   <link rel="preload" as="image" href="earth_day_realistic_2048.webp" type="image/webp" fetchpriority="high" />
-  <title>World of Trade — Native App Edition</title>
+  <title>World of Trade — Physical Commodity Trading Simulator</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Baloo+2:wght@600;700;800&display=swap" />
-<link rel="stylesheet" href="styles.css?v=44.0.0" />
-  <link rel="stylesheet" href="native-shell.css?v=36.0.0" />
+<link rel="stylesheet" href="styles.css?v=47.0.0" />
+  <link rel="stylesheet" href="native-shell.css?v=47.0.0" />
   <script>
     (() => {
       const boot = window.__WOT_BOOT__ = { startedAt: Date.now(), status: 'HTML loaded', progress: 4, failed: false };
@@ -91,6 +91,7 @@
     <div class="wot-splash-inner">
       <img class="wot-splash-logo" src="world-of-trade-premium-logo.webp" width="760" height="683" alt="World of Trade — Physical Commodity Trading">
       <div class="wot-splash-loader"><span id="wotBootProgress"></span></div>
+      <div class="wot-boot-title" id="wotBootTitle">World of Trade</div>
       <div class="wot-boot-status" id="wotBootStatus">Loading game files…</div>
       <div class="wot-boot-recovery" id="wotBootRecovery" hidden>
         <button type="button" onclick="window.__WOT_REPAIR_AND_RELOAD__()">Repair cache and reload</button>
@@ -124,43 +125,49 @@
         <button class="icon-button install-button hidden" id="installButton" data-i18n-title="btn.install" title="Install World of Trade" aria-label="Install app">⬇</button>
         <button class="icon-button notif-button" id="openNotificationsButton" data-i18n-title="btn.notifications" title="Notifications" aria-label="Notifications">🔔<em class="notif-badge hidden" id="notificationsBadge">0</em></button>
         <button class="icon-button" id="resetButton" data-i18n-title="btn.newCareer" title="New career" aria-label="New career">↻</button>
-        <div class="gold-chip" id="goldChip" title="Lingotti d'oro">
+        <div class="gold-chip" id="goldChip" data-i18n-title="gold.title" title="Gold bars">
           <span class="gold-ic"></span><b id="goldBarsLabel">0</b>
         </div>
         <div class="xp-chip" id="xpChip" title="Experience level">
           <span class="xp-star"><b id="xpLevelLabel">1</b></span>
           <div class="xp-bar"><span id="xpFill"></span></div>
         </div>
-        <button class="profile-button" id="profileButton" aria-label="Open player profile">GB</button>
+        <button class="profile-button" id="profileButton" data-i18n-title="btn.profile" title="Player profile" aria-label="Open player profile">GB</button>
       </div>
     </header>
 
     <main class="game-layout">
       <aside class="left-panel glass-panel" id="leftDrawer" aria-hidden="true">
         <div class="drawer-head"><div><span class="eyebrow">Command center</span><strong id="drawerTitle">Trading desk</strong></div><button class="icon-button small" id="closeLeftPanel" aria-label="Close menu">×</button></div>
-        <div class="panel-tabs" role="tablist">
-          <button class="panel-tab active" data-left-tab="portfolio">Desk</button>
-          <button class="panel-tab" data-left-tab="inventory">Inventory</button>
-          <button class="panel-tab" data-left-tab="operations">Operations</button>
-          <button class="panel-tab supply-tab" data-left-tab="supply">Supply</button>
-          <button class="panel-tab contracts-tab" data-left-tab="contracts">Contracts</button>
-          <button class="panel-tab" data-left-tab="fleet">Fleet</button>
-          <button class="panel-tab" data-left-tab="risk">Risk</button>
-          <button class="panel-tab" data-left-tab="opportunities">Market</button>
-          <button class="panel-tab rival-tab" data-left-tab="rivals">Rivals</button>
-          <button class="panel-tab strategy-tab" data-left-tab="strategy">Strategy</button>
-          <button class="panel-tab expansion-tab" data-left-tab="expansion">Expansion</button>
-          <button class="panel-tab" data-left-tab="counterparties">Network</button>
-          <button class="panel-tab compliance-tab" data-left-tab="compliance">Compliance</button>
-          <button class="panel-tab" data-left-tab="events">World</button>
-          <button class="panel-tab" data-left-tab="finance">Treasury</button>
-          <button class="panel-tab performance-tab" data-left-tab="performance">Performance</button>
-          <button class="panel-tab" data-left-tab="academy">Academy</button>
-          <button class="panel-tab empire-tab" data-left-tab="empire">Empire</button>
-          <button class="panel-tab shop-tab" data-left-tab="shop">Shop</button>
-          <button class="panel-tab" data-left-tab="hq">HQ</button>
-          <button class="panel-tab" data-left-tab="career">Career</button>
-          <button class="panel-tab leaderboard-tab" data-left-tab="leaderboard">Ranking</button>
+        <!-- v46 · navigazione a due livelli: 5 aree, poi le schede dell'area attiva -->
+        <div class="panel-groups" id="panelGroups" role="tablist" aria-label="Panel areas"></div>
+        <div class="panel-tabs" id="panelTabs" role="tablist">
+          <button class="panel-tab active" data-left-tab="portfolio" data-group="desk">Desk</button>
+          <button class="panel-tab" data-left-tab="opportunities" data-group="desk">Market</button>
+          <button class="panel-tab rival-tab" data-left-tab="rivals" data-group="desk">Rivals</button>
+          <button class="panel-tab" data-left-tab="counterparties" data-group="desk">Network</button>
+
+          <button class="panel-tab" data-left-tab="inventory" data-group="ops">Inventory</button>
+          <button class="panel-tab" data-left-tab="operations" data-group="ops">Operations</button>
+          <button class="panel-tab supply-tab" data-left-tab="supply" data-group="ops">Supply</button>
+          <button class="panel-tab contracts-tab" data-left-tab="contracts" data-group="ops">Contracts</button>
+          <button class="panel-tab" data-left-tab="fleet" data-group="ops">Fleet</button>
+
+          <button class="panel-tab" data-left-tab="risk" data-group="riskfin">Risk</button>
+          <button class="panel-tab" data-left-tab="finance" data-group="riskfin">Treasury</button>
+          <button class="panel-tab compliance-tab" data-left-tab="compliance" data-group="riskfin">Compliance</button>
+          <button class="panel-tab performance-tab" data-left-tab="performance" data-group="riskfin">Performance</button>
+          <button class="panel-tab" data-left-tab="events" data-group="riskfin">World</button>
+
+          <button class="panel-tab strategy-tab" data-left-tab="strategy" data-group="growth">Strategy</button>
+          <button class="panel-tab expansion-tab" data-left-tab="expansion" data-group="growth">Expansion</button>
+          <button class="panel-tab empire-tab" data-left-tab="empire" data-group="growth">Empire</button>
+          <button class="panel-tab shop-tab" data-left-tab="shop" data-group="growth">Shop</button>
+          <button class="panel-tab" data-left-tab="hq" data-group="growth">HQ</button>
+
+          <button class="panel-tab" data-left-tab="career" data-group="career">Career</button>
+          <button class="panel-tab leaderboard-tab" data-left-tab="leaderboard" data-group="career">Ranking</button>
+          <button class="panel-tab" data-left-tab="academy" data-group="career">Academy</button>
         </div>
 
         <section id="left-portfolio" class="left-section active">
@@ -168,7 +175,17 @@
             <span class="eyebrow">Equity curve</span>
             <div class="portfolio-value" id="portfolioValue">$1,000,000</div>
             <div class="portfolio-return" id="portfolioReturn">0.0% since inception</div>
-            <svg id="equityChart" viewBox="0 0 260 72" preserveAspectRatio="none" aria-label="Portfolio performance"><path id="equityArea" d=""/><polyline id="equityLine" points=""/></svg>
+            <svg id="equityChart" viewBox="0 0 260 72" preserveAspectRatio="none" aria-label="Portfolio performance">
+              <defs>
+                <linearGradient id="equityFillUp" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="rgba(97,242,166,.42)"/><stop offset="100%" stop-color="rgba(97,242,166,0)"/>
+                </linearGradient>
+                <linearGradient id="equityFillDown" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="rgba(255,100,121,.38)"/><stop offset="100%" stop-color="rgba(255,100,121,0)"/>
+                </linearGradient>
+              </defs>
+              <path id="equityArea" d=""/><polyline id="equityLine" points=""/>
+            </svg>
           </div>
           <div class="mini-stats">
             <div><span>Invested</span><strong id="investedMetric">$0</strong></div>
@@ -392,20 +409,20 @@
         <div class="drawer-backdrop" id="drawerBackdrop" aria-hidden="true"></div>
 
         <div class="globe-header">
-          <div><span class="eyebrow">Global operations view</span><h1>World of Trade · Global Trade Command <span class="version-badge">v44</span></h1></div>
+          <div><span class="eyebrow">Global operations view</span><h1>World of Trade · Global Trade Command <span class="version-badge">v47</span></h1></div>
           <div class="market-strip" id="marketStrip" aria-label="Markets" aria-hidden="true">
-            <div class="market-ticker"><span>Copper</span><strong id="copperPrice">$9,500/t</strong><small id="copperMove">+0.0%</small><em id="copperTermStructure" class="term-struct"></em></div>
-            <div class="market-ticker"><span>Aluminium</span><strong id="aluminiumPrice">$2,450/t</strong><small id="aluminiumMove">+0.0%</small><em id="aluminiumTermStructure" class="term-struct"></em></div>
-            <div class="market-ticker"><span>Urea</span><strong id="ureaPrice">$360/t</strong><small id="ureaMove">+0.0%</small><em id="ureaTermStructure" class="term-struct"></em></div>
-            <div class="market-ticker"><span>Crude</span><strong id="crudePrice">$78.50/bbl</strong><small id="crudeMove">+0.0%</small><em id="crudeTermStructure" class="term-struct"></em></div>
-            <div class="market-ticker"><span>Wheat</span><strong id="wheatPrice">$245/t</strong><small id="wheatMove">+0.0%</small><em id="wheatTermStructure" class="term-struct"></em></div>
-            <div class="market-ticker"><span>Iron ore</span><strong id="ironorePrice">$108/t</strong><small id="ironoreMove">+0.0%</small><em id="ironoreTermStructure" class="term-struct"></em></div>
-            <div class="market-ticker"><span>Coffee</span><strong id="coffeePrice">$4,200/t</strong><small id="coffeeMove">+0.0%</small></div>
+            <div class="market-ticker"><span>Copper</span><strong id="copperPrice">$9,500/t</strong><small id="copperMove">+0.0%</small><i class="ticker-spark" id="copperSpark"></i><em id="copperTermStructure" class="term-struct"></em></div>
+            <div class="market-ticker"><span>Aluminium</span><strong id="aluminiumPrice">$2,450/t</strong><small id="aluminiumMove">+0.0%</small><i class="ticker-spark" id="aluminiumSpark"></i><em id="aluminiumTermStructure" class="term-struct"></em></div>
+            <div class="market-ticker"><span>Urea</span><strong id="ureaPrice">$360/t</strong><small id="ureaMove">+0.0%</small><i class="ticker-spark" id="ureaSpark"></i><em id="ureaTermStructure" class="term-struct"></em></div>
+            <div class="market-ticker"><span>Crude</span><strong id="crudePrice">$78.50/bbl</strong><small id="crudeMove">+0.0%</small><i class="ticker-spark" id="crudeSpark"></i><em id="crudeTermStructure" class="term-struct"></em></div>
+            <div class="market-ticker"><span>Wheat</span><strong id="wheatPrice">$245/t</strong><small id="wheatMove">+0.0%</small><i class="ticker-spark" id="wheatSpark"></i><em id="wheatTermStructure" class="term-struct"></em></div>
+            <div class="market-ticker"><span>Iron ore</span><strong id="ironorePrice">$108/t</strong><small id="ironoreMove">+0.0%</small><i class="ticker-spark" id="ironoreSpark"></i><em id="ironoreTermStructure" class="term-struct"></em></div>
+            <div class="market-ticker"><span>Coffee</span><strong id="coffeePrice">$4,200/t</strong><small id="coffeeMove">+0.0%</small><i class="ticker-spark" id="coffeeSpark"></i></div>
             <div class="market-ticker"><span>EUR/USD</span><strong id="eurusdPrice">1.1000</strong><small id="eurusdMove">+0.0%</small></div>
             <div class="market-ticker"><span>Freight</span><strong id="freightPrice">100.0</strong><small id="freightMove">+0.0%</small></div>
-            <div class="market-ticker"><span>Zinc</span><strong id="zincPrice">$2,800/t</strong><small id="zincMove">+0.0%</small><em id="zincTermStructure" class="term-struct"></em></div>
-            <div class="market-ticker"><span>Nickel</span><strong id="nickelPrice">$16,000/t</strong><small id="nickelMove">+0.0%</small><em id="nickelTermStructure" class="term-struct"></em></div>
-            <div class="market-ticker"><span>LNG</span><strong id="lngPrice">$12.50/MMBtu</strong><small id="lngMove">+0.0%</small></div>
+            <div class="market-ticker"><span>Zinc</span><strong id="zincPrice">$2,800/t</strong><small id="zincMove">+0.0%</small><i class="ticker-spark" id="zincSpark"></i><em id="zincTermStructure" class="term-struct"></em></div>
+            <div class="market-ticker"><span>Nickel</span><strong id="nickelPrice">$16,000/t</strong><small id="nickelMove">+0.0%</small><i class="ticker-spark" id="nickelSpark"></i><em id="nickelTermStructure" class="term-struct"></em></div>
+            <div class="market-ticker"><span>LNG</span><strong id="lngPrice">$12.50/MMBtu</strong><small id="lngMove">+0.0%</small><i class="ticker-spark" id="lngSpark"></i></div>
           </div>
         </div>
 
@@ -449,7 +466,10 @@
           <div class="briefing-actions" id="briefingActions"></div>
         </section>
 
-        <aside class="tutorial-coach" id="tutorialCoach" aria-hidden="true">
+        <!-- v47 · riflettore del tutorial: ritaglia l'elemento di cui si sta parlando -->
+    <div class="tutorial-spotlight" id="tutorialSpotlight" hidden aria-hidden="true"></div>
+    <div class="tutorial-spotlight-hint" id="tutorialSpotlightHint" hidden aria-hidden="true"></div>
+    <aside class="tutorial-coach" id="tutorialCoach" aria-hidden="true">
           <div class="tutorial-progress"><span id="tutorialProgressBar"></span></div>
           <div class="tutorial-topline"><span id="tutorialStepLabel">Guided career</span><button id="skipTutorialButton" aria-label="Skip guided career">Skip</button></div>
           <h3 id="tutorialTitle">Welcome to your desk</h3>
@@ -505,7 +525,7 @@
           <div class="shortcut-row"><span data-i18n="sc.help">This help panel</span><kbd>?</kbd></div>
         </div>
       </div>
-      <div class="shortcuts-foot">Press <kbd>?</kbd> anytime to toggle this panel</div>
+      <div class="shortcuts-foot"><span data-i18n="sc.footer">Press ? anytime to toggle this panel</span></div>
     </div>
   </div>
 
@@ -547,12 +567,12 @@
   <dialog id="dailyRewardDialog" class="daily-dialog">
     <form method="dialog">
       <div class="daily-glow"></div>
-      <span class="eyebrow">Apertura mercato</span>
-      <h2>Bonus giornaliero</h2>
-      <p class="daily-sub" id="dailyStreakSub">Giorno 1 di fila</p>
+      <span class="eyebrow" data-i18n="daily.eyebrow">Market open</span>
+      <h2 data-i18n="daily.title">Daily bonus</h2>
+      <p class="daily-sub" id="dailyStreakSub">Day 1 in a row</p>
       <div class="daily-days" id="dailyDaysRow"></div>
       <div class="daily-reward-line" id="dailyRewardLine"></div>
-      <div class="dialog-actions"><button value="claim" class="button primary">Riscuoti</button></div>
+      <div class="dialog-actions"><button value="claim" class="button primary" data-i18n="daily.claim">Claim</button></div>
     </form>
   </dialog>
   <div class="levelup-overlay" id="levelUpOverlay" aria-hidden="true">
@@ -564,6 +584,18 @@
       <div class="levelup-reward" id="levelUpReward">+$0 cash bonus</div>
     </div>
   </div>
+  <!-- v46 · riepilogo di chiusura operazione -->
+  <dialog id="settlementDialog" class="settlement-dialog">
+    <form method="dialog">
+      <div class="settlement-glow"></div>
+      <span class="eyebrow" id="settlementVerdict">Cargo settled</span>
+      <h2 id="settlementTitle">Deal</h2>
+      <p class="settlement-route" id="settlementRoute"></p>
+      <div class="settlement-lines" id="settlementLines"></div>
+      <div class="settlement-total-row"><span>Net result</span><strong class="settlement-total" id="settlementTotal">$0</strong></div>
+      <div class="dialog-actions"><button value="close" class="button primary">Continue trading</button></div>
+    </form>
+  </dialog>
   <dialog id="glossaryDialog" class="glossary-dialog">
     <form method="dialog">
       <div class="glossary-head">
@@ -611,7 +643,7 @@
       <div class="dialog-actions"><button value="cancel" class="button secondary" data-i18n="btn.cancel">Cancel</button><button value="save" class="button primary" data-i18n="btn.save">Save changes</button></div>
     </form>
   </dialog>
-  <script src="native-bridge.js?v=36.0.0"></script>
-  <script type="module" src="app.js?v=36.0.0"></script>
+  <script src="native-bridge.js?v=47.0.0"></script>
+  <script type="module" src="app.js?v=47.0.0"></script>
 </body>
 </html>

@@ -3039,6 +3039,13 @@ body.reduce-motion .xp-chip.xp-pop { animation: none; }
   animation: none;
   transition: width .32s cubic-bezier(.2,.8,.3,1);
 }
+/* v45 - titolo della schermata di avvio: l'elemento veniva cercato da index.html
+   ma non esisteva, quindi in caso di errore il titolo non cambiava mai. */
+.wot-boot-title {
+  font-family: var(--wot-font); font-weight: 800; font-size: 20px; color: #fff;
+  margin-top: 18px; letter-spacing: .4px; text-shadow: 0 2px 0 rgba(0,0,0,.35);
+}
+.wot-splash.boot-failed .wot-boot-title { color: #ffcf8a; }
 .wot-boot-status {
   max-width: 360px;
   margin: 13px auto 0;
@@ -3864,3 +3871,278 @@ p, .inspector-subtitle, .empty-card, .glossary-entry p, .notif-msg, .incoterm-no
   .section-head h2 { font-size: 18px; }
   .left-section > .section-head { margin-bottom: 10px; }
 }
+
+
+/* ── v45 · slot di salvataggio danneggiato ─────────────────────────────────── */
+.slot-card.damaged {
+  border-color: rgba(255, 176, 84, .55);
+  background: linear-gradient(180deg, rgba(84, 52, 16, .55), rgba(38, 24, 10, .55));
+}
+.slot-card.damaged .slot-tag { background: rgba(255, 176, 84, .22); color: #ffcf8a; }
+.slot-card.damaged .slot-empty-copy { color: #f0d3a6; }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   v46 · Navigazione a due livelli
+   Prima le 22 schede stavano tutte sulla stessa riga (o griglia): un muro di
+   pulsanti minuscoli. Ora si sceglie l'area, poi la scheda dell'area.
+   ══════════════════════════════════════════════════════════════════════════ */
+.panel-groups {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 5px;
+  padding: 9px 9px 0;
+}
+.panel-group {
+  position: relative;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  min-height: 46px; padding: 6px 2px;
+  border: 1px solid transparent; border-radius: 11px;
+  background: rgba(255,255,255,.035);
+  color: var(--muted); cursor: pointer;
+  font-family: inherit; font-size: 11.5px; font-weight: 700; letter-spacing: .02em;
+  transition: background .16s ease, color .16s ease, border-color .16s ease, transform .12s ease;
+}
+.panel-group i { font-style: normal; font-size: 14px; line-height: 1; opacity: .85; }
+.panel-group span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.panel-group:hover { background: rgba(255,255,255,.07); color: var(--text); }
+.panel-group:active { transform: scale(.97); }
+.panel-group.active {
+  color: #06111f;
+  background: linear-gradient(180deg, #ffd97a, #f0b93c);
+  border-color: rgba(255,255,255,.35);
+  box-shadow: 0 2px 0 rgba(10,20,40,.45), inset 0 1px 0 rgba(255,255,255,.5);
+}
+.panel-group.active i { opacity: 1; }
+.panel-group .group-count,
+.panel-tab .tab-count {
+  position: absolute; top: 3px; right: 4px;
+  min-width: 15px; height: 15px; padding: 0 4px;
+  display: grid; place-items: center;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #ff7a8a, #e0384f);
+  box-shadow: 0 1px 3px rgba(0,0,0,.45);
+  color: #fff; font-size: 9.5px; font-weight: 800; font-style: normal; line-height: 1;
+}
+.panel-group.active .group-count { box-shadow: 0 1px 3px rgba(0,0,0,.5), 0 0 0 1.5px rgba(255,255,255,.55); }
+.panel-tab { position: relative; }
+.panel-tab[hidden] { display: none !important; }
+
+/* la riga delle schede ora contiene al massimo 5 voci: possono respirare */
+.panel-tabs { grid-template-columns: repeat(auto-fit, minmax(0, 1fr)) !important; }
+
+@media (prefers-reduced-motion: reduce) {
+  .panel-group { transition: none; }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   v46 · Sparkline nei ticker di mercato
+   priceHistory conservava 90 giorni per 10 commodity senza mai mostrarli.
+   ══════════════════════════════════════════════════════════════════════════ */
+.ticker-spark { display: inline-flex; align-items: center; margin: 0 2px; opacity: .9; }
+.ticker-spark svg.spark { display: block; overflow: visible; }
+.market-ticker { cursor: pointer; transition: border-color .16s ease, background .16s ease; }
+.market-ticker:hover { border-color: var(--border-strong); background: rgba(9,16,26,.78); }
+
+/* curva del patrimonio */
+#equityChart .equity-deco { pointer-events: none; }
+#equityArea { opacity: 1; transition: opacity .3s ease; }
+#equityLine { transition: stroke .3s ease; }
+
+@media (max-width: 900px) {
+  /* su schermo stretto lo spazio serve al prezzo, non al grafichino */
+  .ticker-spark { display: none; }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   v46 · Feedback visivo
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* lampeggio quando una metrica cambia */
+@keyframes valueFlashUp {
+  0%   { color: #8dffc4; text-shadow: 0 0 14px rgba(97,242,166,.85); }
+  100% { text-shadow: none; }
+}
+@keyframes valueFlashDown {
+  0%   { color: #ff9aa8; text-shadow: 0 0 14px rgba(255,100,121,.85); }
+  100% { text-shadow: none; }
+}
+.value-flash-up   { animation: valueFlashUp .9s ease-out; }
+.value-flash-down { animation: valueFlashDown .9s ease-out; }
+
+/* entrata scaglionata delle card di una lista */
+@keyframes cardRise {
+  from { opacity: 0; transform: translateY(7px); }
+  to   { opacity: 1; transform: none; }
+}
+.stagger-in > * {
+  animation: cardRise .34s cubic-bezier(.2,.9,.3,1) backwards;
+  animation-delay: calc(var(--stagger-step, 26ms) * var(--i, 0));
+}
+
+/* riepilogo di chiusura operazione */
+.settlement-dialog {
+  border: 0; padding: 0; background: transparent; color: var(--text);
+  max-width: min(460px, calc(100vw - 28px));
+}
+.settlement-dialog::backdrop { background: rgba(3,7,16,.72); backdrop-filter: blur(4px); }
+.settlement-dialog form {
+  position: relative; overflow: hidden;
+  padding: 26px 26px 20px; border-radius: 20px;
+  background: linear-gradient(180deg, #10203c, #0a1424);
+  border: 2px solid rgba(120,220,170,.34);
+  box-shadow: 0 22px 60px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.1);
+  animation: luPop .42s cubic-bezier(.2,1.25,.35,1);
+}
+.settlement-dialog.loss form { border-color: rgba(255,120,140,.34); }
+.settlement-glow {
+  position: absolute; inset: -60% -20% auto; height: 190px; pointer-events: none;
+  background: radial-gradient(ellipse at center, rgba(97,242,166,.30), rgba(97,242,166,0) 68%);
+}
+.settlement-dialog.loss .settlement-glow { background: radial-gradient(ellipse at center, rgba(255,100,121,.28), rgba(255,100,121,0) 68%); }
+.settlement-dialog h2 { position: relative; margin: 6px 0 3px; font-size: 21px; letter-spacing: -.02em; }
+.settlement-route { position: relative; margin: 0 0 16px; color: var(--muted); font-size: 12.5px; }
+.settlement-lines { position: relative; display: grid; gap: 8px; margin-bottom: 16px; }
+.settlement-line {
+  display: grid; grid-template-columns: minmax(96px, 1.15fr) minmax(60px, 1fr) auto;
+  align-items: center; gap: 10px; font-size: 12.5px;
+  animation: cardRise .3s cubic-bezier(.2,.9,.3,1) backwards;
+  animation-delay: calc(60ms * var(--i, 0));
+}
+.settlement-line > span { color: var(--muted); }
+.settlement-track { height: 7px; border-radius: 999px; background: rgba(255,255,255,.07); overflow: hidden; }
+.settlement-track i {
+  display: block; height: 100%; border-radius: 999px;
+  transform-origin: left center; animation: barGrow .5s cubic-bezier(.2,.9,.3,1) backwards;
+  animation-delay: calc(60ms * var(--i, 0) + 90ms);
+}
+.settlement-track i.positive { background: linear-gradient(90deg, #3fbe86, #61f2a6); }
+.settlement-track i.negative { background: linear-gradient(90deg, #c8465a, #ff7a8a); }
+@keyframes barGrow { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+.settlement-line strong { justify-self: end; font-variant-numeric: tabular-nums; }
+.settlement-line strong.positive, .settlement-total.positive { color: var(--green); }
+.settlement-line strong.negative, .settlement-total.negative { color: var(--red); }
+.settlement-total-row {
+  position: relative; display: flex; align-items: baseline; justify-content: space-between;
+  padding-top: 13px; border-top: 1px solid rgba(255,255,255,.12);
+}
+.settlement-total-row > span { color: var(--muted); text-transform: uppercase; font-size: 11.5px; letter-spacing: .12em; font-weight: 750; }
+.settlement-total { font-size: 27px; font-weight: 800; letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
+
+@media (prefers-reduced-motion: reduce) {
+  .value-flash-up, .value-flash-down,
+  .stagger-in > *, .settlement-line, .settlement-track i, .settlement-dialog form { animation: none !important; }
+}
+.reduce-motion .value-flash-up, .reduce-motion .value-flash-down,
+.reduce-motion .stagger-in > *, .reduce-motion .settlement-line,
+.reduce-motion .settlement-track i, .reduce-motion .settlement-dialog form { animation: none !important; }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   v46 · Layout del pannello con la navigazione a due livelli
+   Il pannello aveva righe di griglia a pixel fissi ripetute in nove media query
+   e ora ospita una riga in più (le aree). Righe dimensionate sul contenuto:
+   testata, aree e schede prendono ciò che serve, la sezione tutto il resto.
+   ══════════════════════════════════════════════════════════════════════════ */
+.left-panel { grid-template-rows: auto auto auto minmax(0, 1fr); }
+
+@media (max-width: 900px) {
+  .panel-groups { gap: 4px; padding: 7px 7px 0; }
+  .panel-group { min-height: 44px; font-size: 10.5px; }
+  .panel-group i { font-size: 13px; }
+  .panel-tabs { padding: 7px; }
+  .panel-tab { min-height: 42px; }
+}
+@media (max-width: 620px) {
+  /* etichette corte: su schermo molto stretto restano leggibili */
+  .panel-group { min-height: 42px; font-size: 9.5px; letter-spacing: 0; padding: 5px 1px; }
+  .panel-group i { font-size: 14px; }
+  .panel-group .group-count, .panel-tab .tab-count { min-width: 13px; height: 13px; font-size: 8.5px; top: 2px; right: 2px; }
+  .settlement-dialog form { padding: 20px 18px 16px; }
+  .settlement-total { font-size: 23px; }
+  .settlement-line { grid-template-columns: minmax(78px, 1.1fr) minmax(40px, .8fr) auto; font-size: 11.5px; gap: 7px; }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   v47 · Riflettore del tutorial
+   Il coach spiegava i passi a parole da un angolo dello schermo. Ora l'elemento
+   di cui parla viene ritagliato dallo sfondo scurito con un box-shadow enorme.
+   ══════════════════════════════════════════════════════════════════════════ */
+.tutorial-spotlight {
+  position: fixed;
+  z-index: 4200;
+  border-radius: 14px;
+  pointer-events: none;
+  border: 2px solid rgba(255, 213, 122, .95);
+  box-shadow:
+    0 0 0 9999px rgba(3, 7, 16, .62),
+    0 0 0 3px rgba(255, 213, 122, .28),
+    0 0 26px rgba(255, 213, 122, .5);
+  transition: top .22s cubic-bezier(.2,.9,.3,1), left .22s cubic-bezier(.2,.9,.3,1),
+              width .22s cubic-bezier(.2,.9,.3,1), height .22s cubic-bezier(.2,.9,.3,1);
+  animation: spotlightBreathe 2.4s ease-in-out infinite;
+}
+@keyframes spotlightBreathe {
+  0%, 100% { border-color: rgba(255,213,122,.95); }
+  50%      { border-color: rgba(255,236,180,.65); }
+}
+.tutorial-spotlight-hint {
+  position: fixed;
+  z-index: 4201;
+  max-width: 260px;
+  padding: 9px 12px;
+  border-radius: 11px;
+  pointer-events: none;
+  background: linear-gradient(180deg, #1d3358, #142544);
+  border: 1px solid rgba(255, 213, 122, .4);
+  box-shadow: 0 10px 26px rgba(0,0,0,.5);
+  color: #f0f6ff;
+  font-size: 12.5px; font-weight: 600; line-height: 1.4;
+  transition: top .22s ease, left .22s ease;
+}
+/* il coach resta sempre sopra allo scurimento */
+body.spotlight-active .tutorial-coach { z-index: 4300; }
+
+@media (prefers-reduced-motion: reduce) {
+  .tutorial-spotlight { animation: none; transition: none; }
+  .tutorial-spotlight-hint { transition: none; }
+}
+.reduce-motion .tutorial-spotlight { animation: none; transition: none; }
+.reduce-motion .tutorial-spotlight-hint { transition: none; }
+
+@media (max-width: 620px) {
+  .tutorial-spotlight-hint { max-width: calc(100vw - 24px); font-size: 11.5px; }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   v47 · Stati vuoti con un'azione
+   Dire "è vuoto" non basta: serve dire cosa fare e portarci.
+   ══════════════════════════════════════════════════════════════════════════ */
+.empty-card-action {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 11px;
+}
+.empty-card-action > span { display: block; }
+.empty-action {
+  align-self: stretch;
+  padding: 9px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 213, 122, .34);
+  background: linear-gradient(180deg, rgba(255,213,122,.16), rgba(255,213,122,.07));
+  color: #ffd97a;
+  font-family: inherit; font-size: 12.5px; font-weight: 700;
+  cursor: pointer;
+  transition: background .16s ease, border-color .16s ease, transform .12s ease;
+}
+.empty-action:hover { background: linear-gradient(180deg, rgba(255,213,122,.26), rgba(255,213,122,.12)); border-color: rgba(255,213,122,.55); }
+.empty-action:active { transform: scale(.985); }
+@media (prefers-reduced-motion: reduce) { .empty-action { transition: none; } }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   v47 · Focus da tastiera sui nuovi controlli
+   ══════════════════════════════════════════════════════════════════════════ */
+.panel-group:focus-visible,
+.empty-action:focus-visible,
+.market-ticker:focus-visible {
+  outline: 2px solid var(--cyan);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px rgba(114,213,255,.18);
+}
+.panel-group.active:focus-visible { outline-color: #06111f; box-shadow: 0 0 0 4px rgba(6,17,31,.28); }

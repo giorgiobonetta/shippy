@@ -34,19 +34,25 @@
   const $ = (selector, root = document) => root.querySelector(selector);
   const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
   const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+  // v45 — HTML escaping for any user-controlled string injected via innerHTML
+  const esc = (value) => String(value ?? '').replace(/[&<>"']/g, ch => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[ch]));
+  const cleanUserName = (value, fallback) => String(value ?? '').replace(/[<>&"'`\\]/g, '').replace(/\s+/g, ' ').trim().slice(0, 48) || fallback;
   const lerp = (a, b, t) => a + (b - a) * t;
   const deg = Math.PI / 180;
   const storageKey = 'wot-v35';
   const legacyStorageKeys = ['wot-v34', 'wot-v33', 'wot-v32', 'wot-v31', 'wot-v30', 'wot-v29', 'wot-v28', 'wot-v27', 'wot-v26', 'wot-v25', 'wot-v24', 'wot-v23', 'wot-v22', 'wot-v21', 'wot-v20', 'wot-v19', 'wot-v18', 'shippy-v17', 'shippy-v16', 'shippy-v15', 'shippy-v14', 'shippy-v13', 'shippy-v12', 'shippy-v11', 'shippy-v10', 'shippy-v9', 'shippy-v8', 'shippy-v7', 'shippy-v6', 'shippy-v5', 'global-commodity-trader-v3'];
 
+  // v45 — sentinella: la migrazione da chiavi legacy deve avvenire una volta sola
+  const legacyMigratedKey = 'wot-legacy-migrated';
+
   // ── v25 prestige (persists across career resets) ────────────────────────────
-  const prestigeKey = 'wot-prestige';
+  const prestigeKey = () => (typeof activeSlot === 'number' && activeSlot > 1) ? `wot-prestige-slot-${activeSlot}` : 'wot-prestige';
   const VICTORY_VALUATION = 50_000_000;
   function loadPrestige() {
-    try { return Math.max(0, parseInt(localStorage.getItem(prestigeKey) || '0', 10) || 0); } catch (e) { return 0; }
+    try { return Math.max(0, parseInt(localStorage.getItem(prestigeKey()) || '0', 10) || 0); } catch (e) { return 0; }
   }
   function savePrestige(level) {
-    try { localStorage.setItem(prestigeKey, String(Math.max(0, level|0))); } catch (e) {}
+    try { localStorage.setItem(prestigeKey(), String(Math.max(0, level | 0))); } catch (e) { console.warn('[WoT] prestige not persisted', e); }
   }
   // Each prestige level: +12% starting cash, +8% credit line, +2 starting reputation
   function prestigeStartCash(base) { return Math.round(base * (1 + 0.12 * loadPrestige())); }
@@ -62,17 +68,19 @@
   }
   function setActiveSlot(n) {
     activeSlot = (n >= 1 && n <= SLOT_COUNT) ? n : 1;
-    try { localStorage.setItem(activeSlotKey, String(activeSlot)); } catch (e) {}
+    try { localStorage.setItem(activeSlotKey, String(activeSlot)); } catch (e) { console.warn('[WoT] active slot not persisted', e); }
   }
   function slotKey(n) { return `${storageKey}-slot-${n}`; }
   function currentStorageKey() { return slotKey(activeSlot); }
   function readSlotMeta(n) {
+    let raw = null;
+    try { raw = localStorage.getItem(slotKey(n)); } catch (e) { return { empty: false, corrupt: true, hasBackup: false }; }
+    if (!raw) return null;
     try {
-      const raw = localStorage.getItem(slotKey(n));
-      if (!raw) return null;
       const s = JSON.parse(raw);
       return {
         empty: false,
+        corrupt: false,
         companyName: s.companyName || 'World of Trade Co.',
         profileName: s.profileName || 'Trader',
         completedDeals: s.completedDeals || 0,
@@ -81,7 +89,12 @@
         date: s.date || null,
         lastSavedAt: s.lastSavedAt || null,
       };
-    } catch (e) { return null; }
+    } catch (e) {
+      console.error(`[WoT] slot ${n} is corrupt`, e);
+      let hasBackup = false;
+      try { hasBackup = Boolean(localStorage.getItem(`${slotKey(n)}-backup`)); } catch (err) {}
+      return { empty: false, corrupt: true, hasBackup };
+    }
   }
 
   const money = (value, compact = false) => {
@@ -332,6 +345,9 @@
     'globe.date': 'Data di gioco',
     // Layers
     'layer.opportunities': 'Opportunità', 'layer.portfolio': 'Portafoglio', 'layer.risk': 'Rischio', 'layer.logistics': 'Logistica',
+    // Daily reward
+    'daily.eyebrow': 'Apertura mercato', 'daily.title': 'Bonus giornaliero', 'daily.claim': 'Riscuoti',
+    'gold.title': "Lingotti d'oro",
   };
   const drawerLabelsIT = {
     portfolio:'Scrivania trading', inventory:'Inventario fisico', operations:'Centro operazioni', supply:'Controllo supply chain', contracts:'Contratti e credito',
@@ -344,8 +360,37 @@
     if (state && state.language === 'it' && translationsIT[key] != null) return translationsIT[key];
     return null; // null → keep original
   }
+  // v45 — le opzioni delle <select> e le etichette dei livelli avevano chiavi di
+  // traduzione definite ma non collegate a nessun elemento: restavano in inglese.
+  const optionTranslationKeys = {
+    '#autosaveSelect':      { on: 'opt.enabled', off: 'opt.disabled' },
+    '#soundSelect':         { on: 'opt.on', off: 'opt.muted' },
+    '#reduceMotionSelect':  { on: 'opt.fullAnim', off: 'opt.reducedMotion' },
+    '#graphicsQualitySelect': { auto: 'opt.auto', high: 'opt.high', balanced: 'opt.balanced', performance: 'opt.performance' },
+  };
+  function applyOptionLanguage(useIT) {
+    Object.entries(optionTranslationKeys).forEach(([selector, mapping]) => {
+      const select = $(selector);
+      if (!select) return;
+      [...select.options].forEach(option => {
+        if (option._i18nEn == null) option._i18nEn = option.textContent;
+        const key = mapping[option.value];
+        option.textContent = (useIT && key && translationsIT[key] != null) ? translationsIT[key] : option._i18nEn;
+      });
+    });
+    const layerLabels = { opportunities: 'layer.opportunities', portfolio: 'layer.portfolio', risk: 'layer.risk', logistics: 'layer.logistics' };
+    $$('.layer-button[data-layer]').forEach(button => {
+      const key = layerLabels[button.dataset.layer];
+      const textNode = [...button.childNodes].find(node => node.nodeType === 3 && node.textContent.trim());
+      if (!textNode || !key) return;
+      if (button._i18nEn == null) button._i18nEn = textNode.textContent;
+      textNode.textContent = (useIT && translationsIT[key] != null) ? translationsIT[key] : button._i18nEn;
+    });
+  }
+
   function applyLanguage(lang) {
     const useIT = lang === 'it';
+    applyOptionLanguage(useIT);
     document.querySelectorAll('[data-i18n]').forEach(el => {
       const key = el.getAttribute('data-i18n');
       if (el._i18nEn == null) el._i18nEn = el.textContent;
@@ -884,7 +929,7 @@
     },
     {
       id: 'zambia-zinc', origin: 'durban', destination: 'antwerp', via: [], commodity: 'Zinc',
-      quantity: 15000, capital: 4_500_000, equity: 700_000, basePnl: 195_000, duration: 32,
+      quantity: 1600, capital: 4_500_000, equity: 700_000, basePnl: 195_000, duration: 32,
       risk: 'Medium', riskClass: 'medium', priceKey: 'zinc', recommendedHedge: 75,
       transportMode: 'Supramax bulk', title: 'Zambia Zinc Concentrate', locked: true, unlock: s => (officeOwned('durban') || officeOwned('rotterdam')) && s.completedDeals >= 5 && s.reputation >= 68,
       description: 'High-grade zinc concentrate from Zambia\'s Copperbelt. FOB Durban for delivery to ARA smelters. Quality specs: min 52% Zn, max 1.5% Pb.',
@@ -893,7 +938,7 @@
     },
     {
       id: 'indonesia-nickel', origin: 'singapore', destination: 'rotterdam', via: [], commodity: 'Nickel',
-      quantity: 8000, capital: 13_500_000, equity: 2_100_000, basePnl: 420_000, duration: 38,
+      quantity: 850, capital: 13_500_000, equity: 2_100_000, basePnl: 420_000, duration: 38,
       risk: 'High', riskClass: 'high', priceKey: 'nickel', recommendedHedge: 90, tender: true,
       transportMode: 'Supramax bulk', title: 'Indonesia Nickel Matte', locked: true, unlock: s => officeOwned('singapore') && officeOwned('rotterdam') && s.completedDeals >= 8 && s.reputation >= 75,
       description: 'Class I nickel matte from Indonesian HPAL operations. Competitive tender against two Asian trading houses. DES Rotterdam.',
@@ -1512,6 +1557,11 @@
       bonusBuilders: 0,
       loginStreak: 0,
       lastRewardDay: null,
+      streakDay: null,
+      insolventDays: 0,
+      overdraft: 0,
+      distressedOpportunity: null,
+      distressedCargoDay: null,
       soundEnabled: true,
       language: 'en',
       lastSavedAt: null,
@@ -1584,142 +1634,204 @@
     };
   }
 
+  // v45 - normalizzazione condivisa fra caricamento da localStorage e import di un file
+  function normalizeState(loaded) {
+    const migrated = { ...defaultState(), ...loaded, version: 35 };
+    migrated.offices = [...new Set(['geneva', ...(migrated.offices || [])])];
+    migrated.officeProjects = migrated.officeProjects || [];
+    migrated.officeSpend = migrated.officeSpend || 0;
+    migrated.officeOpenings = migrated.officeOpenings || Math.max(0, migrated.offices.length - 1);
+    migrated.staff = migrated.staff || [];
+    migrated.completedMissions = migrated.completedMissions || [];
+    migrated.negotiations = migrated.negotiations || {};
+    migrated.counterparties = migrated.counterparties || {};
+    migrated.activeGlobalEvents = migrated.activeGlobalEvents || [];
+    migrated.worldEventFeed = migrated.worldEventFeed || [];
+    migrated.dayIndex = migrated.dayIndex || 0;
+    migrated.marketCycle = migrated.marketCycle || 1;
+    migrated.marketCycleDay = migrated.marketCycleDay || 0;
+    migrated.nextGlobalEventDay = migrated.nextGlobalEventDay || 6;
+    migrated.academyProgress = migrated.academyProgress || {};
+    migrated.academyScore = migrated.academyScore || 0;
+    migrated.marginCalls = migrated.marginCalls || 0;
+    migrated.emergencyFundingCost = migrated.emergencyFundingCost || 0;
+    migrated.totalInterestPaid = migrated.totalInterestPaid || 0;
+    migrated.profileName = migrated.profileName || 'Giorgio Bonetta';
+    migrated.companyName = migrated.companyName || 'World of Trade Co.';
+    migrated.leaderboardSnapshots = migrated.leaderboardSnapshots || [];
+    migrated.investments = migrated.investments || {};
+    migrated.constructionQueue = migrated.constructionQueue || [];
+    migrated.assetIncome = migrated.assetIncome || 0;
+    migrated.difficulty = migrated.difficulty || 'standard';
+    if (loaded.version < 8) migrated.onboardingComplete = true;
+    migrated.tutorialEnabled = migrated.tutorialEnabled ?? true;
+    migrated.tutorialStep = Number.isFinite(migrated.tutorialStep) ? migrated.tutorialStep : 0;
+    migrated.tutorialDismissed = migrated.tutorialDismissed ?? false;
+    migrated.graphicsQuality = ['auto','high','balanced','performance'].includes(migrated.graphicsQuality) ? migrated.graphicsQuality : 'auto';
+    migrated.autosave = migrated.autosave !== false;
+    migrated.reduceMotion = migrated.reduceMotion === true;
+    migrated.xp = Number.isFinite(migrated.xp) ? migrated.xp : 0;
+    migrated.xpLevel = Number.isFinite(migrated.xpLevel) && migrated.xpLevel >= 1 ? migrated.xpLevel : 1;
+    migrated.goldBars = Number.isFinite(migrated.goldBars) ? migrated.goldBars : 0;
+    migrated.bonusBuilders = Number.isFinite(migrated.bonusBuilders) ? migrated.bonusBuilders : 0;
+    migrated.loginStreak = Number.isFinite(migrated.loginStreak) ? migrated.loginStreak : 0;
+    migrated.lastRewardDay = migrated.lastRewardDay || null;
+    migrated.streakDay = migrated.streakDay || null;
+    migrated.insolventDays = Number.isFinite(migrated.insolventDays) ? migrated.insolventDays : 0;
+    migrated.overdraft = Number.isFinite(migrated.overdraft) ? migrated.overdraft : 0;
+    migrated.soundEnabled = migrated.soundEnabled !== false;
+    migrated.language = (migrated.language === 'it') ? 'it' : 'en';
+    migrated.prestigeLevel = Number.isFinite(migrated.prestigeLevel) ? migrated.prestigeLevel : loadPrestige();
+    migrated.victoryClaimed = migrated.victoryClaimed === true;
+    migrated.marketRegime = marketRegimeCatalog[migrated.marketRegime] ? migrated.marketRegime : 'balanced';
+    migrated.rivalMarket = migrated.rivalMarket || {};
+    migrated.rivalFeed = migrated.rivalFeed || [];
+    migrated.tenderWins = migrated.tenderWins || 0;
+    migrated.tenderLosses = migrated.tenderLosses || 0;
+    migrated.achievements = migrated.achievements || [];
+    migrated.strategyDoctrine = strategyDoctrineCatalog[migrated.strategyDoctrine] ? migrated.strategyDoctrine : 'merchant';
+    migrated.strategyChangedDay = Number.isFinite(migrated.strategyChangedDay) ? migrated.strategyChangedDay : -30;
+    migrated.creditLosses = migrated.creditLosses || 0;
+    migrated.receivableProtectionCost = migrated.receivableProtectionCost || 0;
+    migrated.storageOptionIncome = migrated.storageOptionIncome || 0;
+    migrated.valuationHigh = Number.isFinite(migrated.valuationHigh) ? migrated.valuationHigh : 1_000_000;
+    migrated.intelCooldownDay = Number.isFinite(migrated.intelCooldownDay) ? migrated.intelCooldownDay : -99;
+    migrated.intelReport = migrated.intelReport || null;
+    migrated.cpOutreachDays = migrated.cpOutreachDays || {};
+    migrated.termStructure = migrated.termStructure || {};
+    migrated.forwardCurve = migrated.forwardCurve || {};
+    migrated.priceHistory = migrated.priceHistory || {};
+    migrated.pnlByCommodity = migrated.pnlByCommodity || {};
+    migrated.tradeCountByCommodity = migrated.tradeCountByCommodity || {};
+    migrated.complianceReviews = migrated.complianceReviews || {};
+    migrated.complianceIncidents = migrated.complianceIncidents || [];
+    migrated.complianceSpend = migrated.complianceSpend || 0;
+    migrated.tradeJournal = migrated.tradeJournal || [];
+    migrated.counterpartyLimitOverrides = migrated.counterpartyLimitOverrides || {};
+    migrated.creditLimitRequests = migrated.creditLimitRequests || {};
+    migrated.receivablesCollected = migrated.receivablesCollected || 0;
+    migrated.overdueReceivables = migrated.overdueReceivables || 0;
+    migrated.contractIncidents = migrated.contractIncidents || [];
+    migrated.procurementAgreements = migrated.procurementAgreements || {};
+    migrated.routeConditions = migrated.routeConditions || {};
+    migrated.supplyChainSpend = migrated.supplyChainSpend || 0;
+    migrated.supplyChainSavings = migrated.supplyChainSavings || 0;
+    migrated.commitmentsFulfilled = migrated.commitmentsFulfilled || 0;
+    migrated.congestionMitigations = migrated.congestionMitigations || 0;
+    migrated.supplyIncidents = migrated.supplyIncidents || [];
+    migrated.capitalPolicy = capitalPolicyCatalog[migrated.capitalPolicy] ? migrated.capitalPolicy : 'balanced';
+    migrated.capitalPolicyChangedDay = Number.isFinite(migrated.capitalPolicyChangedDay) ? migrated.capitalPolicyChangedDay : -30;
+    migrated.stressTestsRun = migrated.stressTestsRun || 0;
+    migrated.stressTestHistory = migrated.stressTestHistory || [];
+    migrated.lastStressTest = migrated.lastStressTest || null;
+    migrated.shopAssets = migrated.shopAssets || {};
+    migrated.shopOrders = migrated.shopOrders || [];
+    migrated.shopSpent = migrated.shopSpent || 0;
+    migrated.shopDeliveries = migrated.shopDeliveries || 0;
+    migrated.startingCapital = migrated.startingCapital || (loaded.version >= 33 ? 500_000 : 1_000_000);
+    migrated.riskPnlImpact = migrated.riskPnlImpact || 0;
+    migrated.riskLedger = migrated.riskLedger || [];
+    migrated.unlockedCountriesSeen = migrated.unlockedCountriesSeen || ['Switzerland','Estonia','Italy'];
+    migrated.unlockedCommoditiesSeen = migrated.unlockedCommoditiesSeen || ['Copper'];
+    migrated.progressionMode = migrated.progressionMode || 'expansion';
+    migrated.hqTier = clamp(Number(migrated.hqTier || 1), 1, hqTierCatalog.length);
+    migrated.hqUpgrade = migrated.hqUpgrade || null;
+    migrated.deskSpecialization = deskSpecializationCatalog[migrated.deskSpecialization] ? migrated.deskSpecialization : 'generalist';
+    migrated.specializationChosen = migrated.specializationChosen === true;
+    migrated.specializationChangedDay = Number.isFinite(migrated.specializationChangedDay) ? migrated.specializationChangedDay : -99;
+    migrated.marketReputation = migrated.marketReputation || { countries:{ Switzerland:50, Estonia:35, Italy:35 }, commodities:{ Copper:35 } };
+    migrated.marketReputation.countries = migrated.marketReputation.countries || {};
+    migrated.marketReputation.commodities = migrated.marketReputation.commodities || {};
+    migrated.commercialFrameworks = migrated.commercialFrameworks || {};
+    migrated.crisisResponses = migrated.crisisResponses || {};
+    migrated.frameworkPenalties = migrated.frameworkPenalties || 0;
+    migrated.hubBasis = migrated.hubBasis || {};
+    migrated.quarterNumber   = Number.isFinite(migrated.quarterNumber) ? migrated.quarterNumber : 1;
+    migrated.quarterTarget   = Number.isFinite(migrated.quarterTarget) ? migrated.quarterTarget : 500000;
+    migrated.quarterStartPnl = Number.isFinite(migrated.quarterStartPnl) ? migrated.quarterStartPnl : 0;
+    migrated.quarterBonusPaid = Number.isFinite(migrated.quarterBonusPaid) ? migrated.quarterBonusPaid : 0;
+    migrated.quarterMissed   = Number.isFinite(migrated.quarterMissed) ? migrated.quarterMissed : 0;
+    migrated.lastSavedAt = migrated.lastSavedAt || null;
+    migrated.briefingViewedDay = Number.isFinite(migrated.briefingViewedDay) ? migrated.briefingViewedDay : -1;
+    // v45 - nomi ripuliti: bloccano l'iniezione HTML tramite file di carriera importato
+    migrated.profileName = cleanUserName(migrated.profileName, 'Trader');
+    migrated.companyName = cleanUserName(migrated.companyName, 'World of Trade Co.');
+    migrated.distressedOpportunity = (migrated.distressedOpportunity && typeof migrated.distressedOpportunity === 'object') ? migrated.distressedOpportunity : null;
+    migrated.distressedCargoDay = Number.isFinite(migrated.distressedCargoDay) ? migrated.distressedCargoDay : null;
+    migrated.history = (migrated.history || []).filter(entry => entry && typeof entry === 'object');
+    // v45 - scarta i deal il cui catalogo non esiste piu': altrimenti ogni render andrebbe in crash
+    migrated.activeDeals = (migrated.activeDeals || [])
+      .filter(deal => {
+        if (!deal || typeof deal !== 'object') return false;
+        if (resolveOpportunityFor(deal)) return true;
+        console.warn('[WoT] deal orfano scartato', deal.opportunityId);
+        return false;
+      })
+      .map(deal => hydrateDealOperations(deal));
+    migrated.fleetAssets = (migrated.fleetAssets || []).filter(asset => vesselCatalog.some(v => v.id === asset.catalogId));
+    return migrated;
+  }
+
+  const SAVE_SCHEMA_VERSION = 35;
+
+  function parseSave(raw) {
+    const loaded = JSON.parse(raw);
+    if (!loaded || typeof loaded !== 'object' || Array.isArray(loaded)) throw new Error('Save is not an object');
+    const version = Number(loaded.version);
+    if (!Number.isFinite(version) || version < 3) throw new Error('Unsupported save version: ' + loaded.version);
+    if (version > SAVE_SCHEMA_VERSION) console.warn('[WoT] save produced by a newer build', version);
+    return normalizeState(loaded);
+  }
+
+  function quarantineSave(key, raw) {
+    try { if (raw) localStorage.setItem(`${key}-corrupt-${Date.now()}`, raw); }
+    catch (e) { console.warn('[WoT] could not quarantine the damaged save', e); }
+  }
+
   function loadState() {
-    try {
-      let raw = localStorage.getItem(currentStorageKey());
-      if (!raw) {
-        // One-time migration: adopt a pre-slot save (base key or legacy) into the active slot
-        raw = localStorage.getItem(storageKey);
-        if (!raw) {
-          for (const legacyKey of legacyStorageKeys) {
-            raw = localStorage.getItem(legacyKey);
-            if (raw) break;
-          }
+    const key = currentStorageKey();
+    let raw = null;
+    try { raw = localStorage.getItem(key); } catch (e) { console.error('[WoT] localStorage unreadable', e); }
+
+    // v45 - one-time legacy adoption: slot 1 only, and the source keys are cleared afterwards
+    if (!raw && activeSlot === 1) {
+      try {
+        if (!localStorage.getItem(legacyMigratedKey)) {
+          const source = localStorage.getItem(storageKey) ? storageKey
+            : legacyStorageKeys.find(legacyKey => localStorage.getItem(legacyKey)) || null;
+          if (source) raw = localStorage.getItem(source);
+          localStorage.setItem(legacyMigratedKey, '1');
+          [storageKey, ...legacyStorageKeys].forEach(legacyKey => { try { localStorage.removeItem(legacyKey); } catch (e) {} });
         }
-      }
-      if (!raw) return defaultState();
-      const loaded = JSON.parse(raw);
-      if (![3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35].includes(loaded.version)) return defaultState();
-      const migrated = { ...defaultState(), ...loaded, version: 35 };
-      migrated.offices = [...new Set(['geneva', ...(migrated.offices || [])])];
-      migrated.officeProjects = migrated.officeProjects || [];
-      migrated.officeSpend = migrated.officeSpend || 0;
-      migrated.officeOpenings = migrated.officeOpenings || Math.max(0, migrated.offices.length - 1);
-      migrated.staff = migrated.staff || [];
-      migrated.completedMissions = migrated.completedMissions || [];
-      migrated.negotiations = migrated.negotiations || {};
-      migrated.counterparties = migrated.counterparties || {};
-      migrated.activeGlobalEvents = migrated.activeGlobalEvents || [];
-      migrated.worldEventFeed = migrated.worldEventFeed || [];
-      migrated.dayIndex = migrated.dayIndex || 0;
-      migrated.marketCycle = migrated.marketCycle || 1;
-      migrated.marketCycleDay = migrated.marketCycleDay || 0;
-      migrated.nextGlobalEventDay = migrated.nextGlobalEventDay || 6;
-      migrated.academyProgress = migrated.academyProgress || {};
-      migrated.academyScore = migrated.academyScore || 0;
-      migrated.marginCalls = migrated.marginCalls || 0;
-      migrated.emergencyFundingCost = migrated.emergencyFundingCost || 0;
-      migrated.totalInterestPaid = migrated.totalInterestPaid || 0;
-      migrated.profileName = migrated.profileName || 'Giorgio Bonetta';
-      migrated.companyName = migrated.companyName || 'World of Trade Co.';
-      migrated.leaderboardSnapshots = migrated.leaderboardSnapshots || [];
-      migrated.investments = migrated.investments || {};
-      migrated.constructionQueue = migrated.constructionQueue || [];
-      migrated.assetIncome = migrated.assetIncome || 0;
-      migrated.difficulty = migrated.difficulty || 'standard';
-      if (loaded.version < 8) migrated.onboardingComplete = true;
-      migrated.tutorialEnabled = migrated.tutorialEnabled ?? true;
-      migrated.tutorialStep = Number.isFinite(migrated.tutorialStep) ? migrated.tutorialStep : 0;
-      migrated.tutorialDismissed = migrated.tutorialDismissed ?? false;
-      migrated.graphicsQuality = ['auto','high','balanced','performance'].includes(migrated.graphicsQuality) ? migrated.graphicsQuality : 'auto';
-      migrated.autosave = migrated.autosave !== false;
-      migrated.reduceMotion = migrated.reduceMotion === true;
-      migrated.xp = Number.isFinite(migrated.xp) ? migrated.xp : 0;
-      migrated.xpLevel = Number.isFinite(migrated.xpLevel) && migrated.xpLevel >= 1 ? migrated.xpLevel : 1;
-      migrated.goldBars = Number.isFinite(migrated.goldBars) ? migrated.goldBars : 0;
-      migrated.bonusBuilders = Number.isFinite(migrated.bonusBuilders) ? migrated.bonusBuilders : 0;
-      migrated.loginStreak = Number.isFinite(migrated.loginStreak) ? migrated.loginStreak : 0;
-      migrated.lastRewardDay = migrated.lastRewardDay || null;
-      migrated.soundEnabled = migrated.soundEnabled !== false;
-      migrated.language = (migrated.language === 'it') ? 'it' : 'en';
-      migrated.prestigeLevel = Number.isFinite(migrated.prestigeLevel) ? migrated.prestigeLevel : loadPrestige();
-      migrated.victoryClaimed = migrated.victoryClaimed === true;
-      migrated.marketRegime = marketRegimeCatalog[migrated.marketRegime] ? migrated.marketRegime : 'balanced';
-      migrated.rivalMarket = migrated.rivalMarket || {};
-      migrated.rivalFeed = migrated.rivalFeed || [];
-      migrated.tenderWins = migrated.tenderWins || 0;
-      migrated.tenderLosses = migrated.tenderLosses || 0;
-      migrated.achievements = migrated.achievements || [];
-      migrated.strategyDoctrine = strategyDoctrineCatalog[migrated.strategyDoctrine] ? migrated.strategyDoctrine : 'merchant';
-      migrated.strategyChangedDay = Number.isFinite(migrated.strategyChangedDay) ? migrated.strategyChangedDay : -30;
-      migrated.creditLosses = migrated.creditLosses || 0;
-      migrated.receivableProtectionCost = migrated.receivableProtectionCost || 0;
-      migrated.storageOptionIncome = migrated.storageOptionIncome || 0;
-      migrated.valuationHigh = migrated.valuationHigh || 1_000_000;
-      migrated.intelCooldownDay = Number.isFinite(migrated.intelCooldownDay) ? migrated.intelCooldownDay : -99;
-      migrated.intelReport = migrated.intelReport || null;
-      migrated.cpOutreachDays = migrated.cpOutreachDays || {};
-      migrated.termStructure = migrated.termStructure || {};
-      migrated.forwardCurve = migrated.forwardCurve || {};
-      migrated.priceHistory = migrated.priceHistory || {};
-      migrated.pnlByCommodity = migrated.pnlByCommodity || {};
-      migrated.tradeCountByCommodity = migrated.tradeCountByCommodity || {};
-      migrated.complianceReviews = migrated.complianceReviews || {};
-      migrated.complianceIncidents = migrated.complianceIncidents || [];
-      migrated.complianceSpend = migrated.complianceSpend || 0;
-      migrated.tradeJournal = migrated.tradeJournal || [];
-      migrated.counterpartyLimitOverrides = migrated.counterpartyLimitOverrides || {};
-      migrated.creditLimitRequests = migrated.creditLimitRequests || {};
-      migrated.receivablesCollected = migrated.receivablesCollected || 0;
-      migrated.overdueReceivables = migrated.overdueReceivables || 0;
-      migrated.contractIncidents = migrated.contractIncidents || [];
-      migrated.procurementAgreements = migrated.procurementAgreements || {};
-      migrated.routeConditions = migrated.routeConditions || {};
-      migrated.supplyChainSpend = migrated.supplyChainSpend || 0;
-      migrated.supplyChainSavings = migrated.supplyChainSavings || 0;
-      migrated.commitmentsFulfilled = migrated.commitmentsFulfilled || 0;
-      migrated.congestionMitigations = migrated.congestionMitigations || 0;
-      migrated.supplyIncidents = migrated.supplyIncidents || [];
-      migrated.capitalPolicy = capitalPolicyCatalog[migrated.capitalPolicy] ? migrated.capitalPolicy : 'balanced';
-      migrated.capitalPolicyChangedDay = Number.isFinite(migrated.capitalPolicyChangedDay) ? migrated.capitalPolicyChangedDay : -30;
-      migrated.stressTestsRun = migrated.stressTestsRun || 0;
-      migrated.stressTestHistory = migrated.stressTestHistory || [];
-      migrated.lastStressTest = migrated.lastStressTest || null;
-      migrated.shopAssets = migrated.shopAssets || {};
-      migrated.shopOrders = migrated.shopOrders || [];
-      migrated.shopSpent = migrated.shopSpent || 0;
-      migrated.shopDeliveries = migrated.shopDeliveries || 0;
-      migrated.startingCapital = migrated.startingCapital || (loaded.version >= 33 ? 500_000 : 1_000_000);
-      migrated.riskPnlImpact = migrated.riskPnlImpact || 0;
-      migrated.riskLedger = migrated.riskLedger || [];
-      migrated.unlockedCountriesSeen = migrated.unlockedCountriesSeen || ['Switzerland','Estonia','Italy'];
-      migrated.unlockedCommoditiesSeen = migrated.unlockedCommoditiesSeen || ['Copper'];
-      migrated.progressionMode = migrated.progressionMode || 'expansion';
-      migrated.hqTier = clamp(Number(migrated.hqTier || 1), 1, hqTierCatalog.length);
-      migrated.hqUpgrade = migrated.hqUpgrade || null;
-      migrated.deskSpecialization = deskSpecializationCatalog[migrated.deskSpecialization] ? migrated.deskSpecialization : 'generalist';
-      migrated.specializationChosen = migrated.specializationChosen === true;
-      migrated.specializationChangedDay = Number.isFinite(migrated.specializationChangedDay) ? migrated.specializationChangedDay : -99;
-      migrated.marketReputation = migrated.marketReputation || { countries:{ Switzerland:50, Estonia:35, Italy:35 }, commodities:{ Copper:35 } };
-      migrated.marketReputation.countries = migrated.marketReputation.countries || {};
-      migrated.marketReputation.commodities = migrated.marketReputation.commodities || {};
-      migrated.commercialFrameworks = migrated.commercialFrameworks || {};
-      migrated.crisisResponses = migrated.crisisResponses || {};
-      migrated.frameworkPenalties = migrated.frameworkPenalties || 0;
-      migrated.hubBasis = migrated.hubBasis || {};
-      migrated.quarterNumber   = migrated.quarterNumber  || 1;
-      migrated.quarterTarget   = migrated.quarterTarget  || 500000;
-      migrated.quarterStartPnl = migrated.quarterStartPnl || 0;
-      migrated.quarterBonusPaid = migrated.quarterBonusPaid || 0;
-      migrated.quarterMissed   = migrated.quarterMissed  || 0;
-      migrated.lastSavedAt = migrated.lastSavedAt || null;
-      migrated.briefingViewedDay = Number.isFinite(migrated.briefingViewedDay) ? migrated.briefingViewedDay : -1;
-      migrated.activeDeals = (migrated.activeDeals || []).map(deal => hydrateDealOperations(deal));
-      migrated.fleetAssets = (migrated.fleetAssets || []).filter(asset => vesselCatalog.some(v => v.id === asset.catalogId));
-      return migrated;
-    } catch {
-      return defaultState();
+      } catch (e) { console.warn('[WoT] legacy migration failed', e); }
     }
+
+    if (raw) {
+      try { return parseSave(raw); }
+      catch (error) {
+        console.error('[WoT] primary save unreadable, trying the backup', error);
+        quarantineSave(key, raw);
+        let backup = null;
+        try { backup = localStorage.getItem(`${key}-backup`); } catch (e) {}
+        if (backup) {
+          try {
+            const recovered = parseSave(backup);
+            setTimeout(() => showToast('Damaged save detected \u2014 the backup copy was restored.', 'warning'), 1400);
+            return recovered;
+          } catch (backupError) { console.error('[WoT] the backup is unreadable too', backupError); }
+        }
+        // v45 - nothing recoverable: start fresh but keep autosave locked so nothing is overwritten
+        const fresh = defaultState();
+        fresh.__loadFailed = true;
+        setTimeout(() => showToast('Save file unreadable. Autosave is paused \u2014 export or reset from your profile.', 'error'), 1400);
+        return fresh;
+      }
+    }
+
+    let backupOnly = null;
+    try { backupOnly = localStorage.getItem(`${key}-backup`); } catch (e) {}
+    if (backupOnly) { try { return parseSave(backupOnly); } catch (e) {} }
+    return defaultState();
   }
 
   activeSlot = loadActiveSlot();
@@ -1917,81 +2029,42 @@
 
   async function importCareerFile(file) {
     if (!file) return;
+    // v45 - prima lo stato importato veniva scritto su disco PRIMA di provare a
+    // disegnarlo: un file malformato distruggeva la carriera esistente e rendeva
+    // il gioco non piu' avviabile. Ora si valida, si disegna e solo dopo si salva.
+    const previousState = state;
+    const previousSelection = selected;
     try {
       const parsed = JSON.parse(await file.text());
       const imported = parsed?.state || parsed;
-      if (!imported || typeof imported !== 'object' || !Array.isArray(imported.activeDeals) || !Array.isArray(imported.history)) {
-        throw new Error('Invalid World of Trade career file');
+      if (!imported || typeof imported !== 'object' || Array.isArray(imported)) throw new Error('Invalid World of Trade career file');
+      if (!Array.isArray(imported.activeDeals) || !Array.isArray(imported.history)) throw new Error('Invalid World of Trade career file');
+      if (parsed?.product && parsed.product !== 'World of Trade') throw new Error('This backup belongs to another game');
+      if (!Number.isFinite(Number(imported.cash))) throw new Error('Corrupt cash balance');
+
+      state = normalizeState(imported);
+      try {
+        initializeCounterparties();
+        initializeCompetitiveMarket();
+        evaluateAchievements(false);
+        selected = { type: 'hub', id: 'geneva' };
+        runningSpeed = 0;
+        dpr = targetPixelRatio();
+        resizeCanvas();
+        renderAll();
+      } catch (renderError) {
+        // rollback in memoria: niente e' stato ancora scritto su disco
+        state = previousState;
+        selected = previousSelection;
+        renderAll();
+        throw renderError;
       }
-      const migrated = { ...defaultState(), ...imported, version: 35 };
-      migrated.activeDeals = (migrated.activeDeals || []).map(hydrateDealOperations);
-      migrated.fleetAssets = (migrated.fleetAssets || []).filter(asset => vesselCatalog.some(vessel => vessel.id === asset.catalogId));
-      migrated.offices = [...new Set(['geneva', ...(migrated.offices || [])])];
-      migrated.officeProjects = migrated.officeProjects || [];
-      migrated.officeSpend = migrated.officeSpend || 0;
-      migrated.officeOpenings = migrated.officeOpenings || Math.max(0, migrated.offices.length - 1);
-      migrated.tutorialEnabled = migrated.tutorialEnabled ?? true;
-      migrated.tutorialStep = Number.isFinite(migrated.tutorialStep) ? migrated.tutorialStep : 0;
-      migrated.tutorialDismissed = migrated.tutorialDismissed ?? false;
-      migrated.graphicsQuality = ['auto','high','balanced','performance'].includes(migrated.graphicsQuality) ? migrated.graphicsQuality : 'auto';
-      migrated.autosave = migrated.autosave !== false;
-      migrated.marketRegime = marketRegimeCatalog[migrated.marketRegime] ? migrated.marketRegime : 'balanced';
-      migrated.rivalMarket = migrated.rivalMarket || {};
-      migrated.rivalFeed = migrated.rivalFeed || [];
-      migrated.tenderWins = migrated.tenderWins || 0;
-      migrated.tenderLosses = migrated.tenderLosses || 0;
-      migrated.achievements = migrated.achievements || [];
-      migrated.complianceReviews = migrated.complianceReviews || {};
-      migrated.complianceIncidents = migrated.complianceIncidents || [];
-      migrated.complianceSpend = migrated.complianceSpend || 0;
-      migrated.tradeJournal = migrated.tradeJournal || [];
-      migrated.counterpartyLimitOverrides = migrated.counterpartyLimitOverrides || {};
-      migrated.creditLimitRequests = migrated.creditLimitRequests || {};
-      migrated.receivablesCollected = migrated.receivablesCollected || 0;
-      migrated.overdueReceivables = migrated.overdueReceivables || 0;
-      migrated.contractIncidents = migrated.contractIncidents || [];
-      migrated.procurementAgreements = migrated.procurementAgreements || {};
-      migrated.routeConditions = migrated.routeConditions || {};
-      migrated.supplyChainSpend = migrated.supplyChainSpend || 0;
-      migrated.supplyChainSavings = migrated.supplyChainSavings || 0;
-      migrated.commitmentsFulfilled = migrated.commitmentsFulfilled || 0;
-      migrated.congestionMitigations = migrated.congestionMitigations || 0;
-      migrated.supplyIncidents = migrated.supplyIncidents || [];
-      migrated.capitalPolicy = capitalPolicyCatalog[migrated.capitalPolicy] ? migrated.capitalPolicy : 'balanced';
-      migrated.capitalPolicyChangedDay = Number.isFinite(migrated.capitalPolicyChangedDay) ? migrated.capitalPolicyChangedDay : -30;
-      migrated.stressTestsRun = migrated.stressTestsRun || 0;
-      migrated.stressTestHistory = migrated.stressTestHistory || [];
-      migrated.lastStressTest = migrated.lastStressTest || null;
-      migrated.shopAssets = migrated.shopAssets || {};
-      migrated.shopOrders = migrated.shopOrders || [];
-      migrated.shopSpent = migrated.shopSpent || 0;
-      migrated.shopDeliveries = migrated.shopDeliveries || 0;
-      migrated.hqTier = clamp(Number(migrated.hqTier || 1), 1, hqTierCatalog.length);
-      migrated.hqUpgrade = migrated.hqUpgrade || null;
-      migrated.deskSpecialization = deskSpecializationCatalog[migrated.deskSpecialization] ? migrated.deskSpecialization : 'generalist';
-      migrated.specializationChosen = migrated.specializationChosen === true;
-      migrated.specializationChangedDay = Number.isFinite(migrated.specializationChangedDay) ? migrated.specializationChangedDay : -99;
-      migrated.marketReputation = migrated.marketReputation || { countries:{ Switzerland:50, Estonia:35, Italy:35 }, commodities:{ Copper:35 } };
-      migrated.marketReputation.countries = migrated.marketReputation.countries || {};
-      migrated.marketReputation.commodities = migrated.marketReputation.commodities || {};
-      migrated.commercialFrameworks = migrated.commercialFrameworks || {};
-      migrated.crisisResponses = migrated.crisisResponses || {};
-      migrated.frameworkPenalties = migrated.frameworkPenalties || 0;
-      state = migrated;
-      initializeCounterparties();
-      initializeCompetitiveMarket();
-      evaluateAchievements(false);
-      selected = { type: 'hub', id: 'geneva' };
-      runningSpeed = 0;
-      dpr = targetPixelRatio();
-      resizeCanvas();
       saveState(true);
-      renderAll();
       cleanGlobeView();
       showToast('Career imported successfully.');
       $('#profileDialog')?.close();
     } catch (error) {
-      console.error(error);
+      console.error('[WoT] import failed', error);
       showToast('This file is not a valid World of Trade career backup.');
     } finally {
       const input = $('#importCareerInput');
@@ -2013,8 +2086,8 @@
   }
 
   function applyProfileChanges() {
-    state.profileName = ($('#profileNameInput')?.value || state.profileName || 'Trader').trim().slice(0, 48);
-    state.companyName = ($('#companyNameInput')?.value || state.companyName || 'World of Trade Co.').trim().slice(0, 48);
+    state.profileName = cleanUserName($('#profileNameInput')?.value || state.profileName, 'Trader');
+    state.companyName = cleanUserName($('#companyNameInput')?.value || state.companyName, 'World of Trade Co.');
     state.graphicsQuality = $('#graphicsQualitySelect')?.value || 'auto';
     state.autosave = $('#autosaveSelect')?.value !== 'off';
     state.reduceMotion = $('#reduceMotionSelect')?.value === 'off';
@@ -2046,6 +2119,7 @@
   let starField = null;
   let sunLight = null;
   let earthWebGLReady = false;
+  let _animationHandle = null;
   const earthProjectionVector = new THREE.Vector3();
   const earthCameraVector = new THREE.Vector3();
   const solarDirectionCache = new THREE.Vector3(1, 0.2, 1).normalize();
@@ -2543,6 +2617,34 @@
     return Math.min(14, officeCatalog.filter(o=>officeOwned(o.id)).reduce((sum,o)=>sum+(o.riskReduction||0),0)*.35);
   }
   function staffUnlocked(member) { return state.reputation >= member.minReputation; }
+  // v45 — copertura automatica dello scoperto di cassa
+  function handleCashShortfall() {
+    if (state.cash >= 0) { state.insolventDays = 0; return; }
+    const shortfall = -state.cash;
+    const stats = portfolioStats();
+    const headroom = Math.max(0, effectiveCreditLimit() - stats.creditUsed);
+    const drawn = Math.min(shortfall, headroom);
+    if (drawn > 0) {
+      const fee = Math.max(1_500, Math.round(drawn * difficultySettings().emergencyRate));
+      state.cash += drawn - fee;
+      state.overdraft = (state.overdraft || 0) + drawn;
+      state.emergencyFundingCost = (state.emergencyFundingCost || 0) + fee;
+      state.worldEventFeed.unshift({ type: 'margin', title: 'Overdraft drawn', date: state.date, description: `Treasury drew ${money(drawn)} of emergency liquidity to cover the cash shortfall. Fee ${money(fee)}.` });
+      state.worldEventFeed = state.worldEventFeed.slice(0, 18);
+    }
+    if (state.cash < 0) {
+      state.insolventDays = (state.insolventDays || 0) + 1;
+      state.reputation = clamp(state.reputation - 1, 0, 100);
+      if (state.insolventDays === 1 || state.insolventDays % 5 === 0) {
+        showToast(`Cash position negative (${money(state.cash)}) for ${state.insolventDays} day${state.insolventDays === 1 ? '' : 's'}. Close a position or reduce overhead.`, 'error');
+        state.worldEventFeed.unshift({ type: 'margin', title: 'Board alert: negative cash position', date: state.date, description: `The desk has been overdrawn for ${state.insolventDays} consecutive days. Reputation is deteriorating.` });
+        state.worldEventFeed = state.worldEventFeed.slice(0, 18);
+      }
+    } else {
+      state.insolventDays = 0;
+    }
+  }
+
   function dailyOverhead() {
     const officeCost = officeCatalog.filter(o => officeOwned(o.id)).reduce((sum,o)=>sum+o.dailyCost,0);
     const salaryCost = staffCatalog.filter(member => hasStaff(member.id)).reduce((sum,member)=>sum+member.dailySalary,0);
@@ -2617,9 +2719,12 @@
     state.shopOrders = state.shopOrders || [];
     state.shopOrders.push({ id:`shop-order-${state.sequence++}`, itemId:id, daysRemaining:item.buildDays, totalDays:item.buildDays, orderedAt:state.date, cost:item.cost });
     recordJournal('Capital project', `${item.name} ordered`, `${item.buildDays}-day construction program started.`, -item.cost, id);
-    activeLeftTab='shop'; saveState(); renderAll();
-    try { Sound.play('purchase'); } catch (e) {}
+    activeLeftTab='shop';
+    // v45 — addXp puo' far salire di livello e accreditare cash e lingotti:
+    // va eseguita PRIMA di saveState, altrimenti il bonus non viene persistito.
     addXp(30, 'shop');
+    saveState(); renderAll();
+    try { Sound.play('purchase'); } catch (e) {}
     showToast(`${item.name} ordered. Delivery in ${item.buildDays} days.`);
   }
   function completeShopOrder(order) {
@@ -2661,7 +2766,7 @@
   function builderGoldCost() { return 8 + (state.bonusBuilders || 0) * 6; }
   function buyExtraBuilder() {
     const cost = builderGoldCost();
-    if ((state.goldBars || 0) < cost) { showToast(`Servono ${cost} lingotti d'oro per una nuova squadra.`, 'error'); return; }
+    if ((state.goldBars || 0) < cost) { showToast(`You need ${cost} gold bars to hire another project team.`, 'error'); return; }
     if ((state.bonusBuilders || 0) >= 4) { showToast('Numero massimo di squadre extra raggiunto.', 'warning'); return; }
     state.goldBars -= cost;
     state.bonusBuilders = (state.bonusBuilders || 0) + 1;
@@ -2710,9 +2815,10 @@
     state.investments[id]={...record,buildingTo:target,daysRemaining:days,totalSpent:(record.totalSpent||0)+cost};
     state.constructionQueue=state.constructionQueue||[];
     if (!state.constructionQueue.includes(id)) state.constructionQueue.push(id);
-    activeLeftTab='empire'; selected={type:'investment',id}; focusOnHub(asset.hub); saveState(); renderAll();
-    try { Sound.play('purchase'); } catch (e) {}
+    activeLeftTab='empire'; selected={type:'investment',id}; focusOnHub(asset.hub);
     addXp(30, 'empire');
+    saveState(); renderAll();
+    try { Sound.play('purchase'); } catch (e) {}
     showToast(`${asset.name}: level ${target} construction started (${days} days).`);
   }
   function processInvestmentDay() {
@@ -3254,28 +3360,81 @@
     if (unlocked.length) { setTimeout(() => showToast(`Mission completed: ${unlocked.join(', ')}.`), 80); try { Sound.play('achievement'); } catch (e) {} addXp(50 * unlocked.length, 'mission'); }
   }
 
+  let _lastBackupAt = 0;
+  let _saveScheduled = false;
+
+  // v45 — il salvataggio principale viene sempre tentato per primo; il backup
+  // e' a rotazione (max 1 ogni 5 minuti) invece che a ogni tick di gioco.
   function saveState(force = false) {
+    if (state.__loadFailed) { markSaveStatus('Save paused'); return; }
     if (state.autosave === false && !force) {
       markSaveStatus('Autosave off');
       return;
     }
+    const key = currentStorageKey();
     try {
       markSaveStatus('Saving…', true);
       state.lastSavedAt = new Date().toISOString();
       const serialized = JSON.stringify(state);
-      const key = currentStorageKey();
-      const previous = localStorage.getItem(key);
-      if (previous && previous !== serialized) localStorage.setItem(`${key}-backup`, previous);
       localStorage.setItem(key, serialized);
+      const now = Date.now();
+      if (now - _lastBackupAt > 300_000) {
+        try { localStorage.setItem(`${key}-backup`, serialized); _lastBackupAt = now; } catch (e) {}
+      }
       markSaveStatus('Saved');
-    } catch {
-      markSaveStatus('Save failed');
+    } catch (error) {
+      handleSaveFailure(error, key);
     }
   }
 
-  window.__WOT_NATIVE_SAVE__ = () => saveState(true);
+  function handleSaveFailure(error, key) {
+    const quotaExceeded = Boolean(error) && (error.name === 'QuotaExceededError'
+      || error.name === 'NS_ERROR_DOM_QUOTA_REACHED' || error.code === 22);
+    console.error('[WoT] salvataggio non riuscito', error);
+    if (quotaExceeded) {
+      // 1. libera lo spazio sacrificabile
+      try { localStorage.removeItem(`${key}-backup`); } catch (e) {}
+      try { [storageKey, ...legacyStorageKeys].forEach(legacyKey => localStorage.removeItem(legacyKey)); } catch (e) {}
+      try { localStorage.setItem(key, JSON.stringify(state)); return markSaveStatus('Saved'); } catch (e) {}
+      // 2. pota lo storico e riprova
+      state.history = (state.history || []).slice(0, 20);
+      state.tradeJournal = (state.tradeJournal || []).slice(0, 20);
+      state.worldEventFeed = (state.worldEventFeed || []).slice(0, 8);
+      state.priceHistory = {};
+      try { localStorage.setItem(key, JSON.stringify(state)); return markSaveStatus('Saved (trimmed)'); } catch (e) {}
+      showToast('Storage full — the save could not be written. Export your career from the profile panel.', 'error');
+    }
+    markSaveStatus('Save failed');
+  }
 
-  function getOpportunity(id) { return opportunities.find(o => o.id === id); }
+  // v45 — a velocita' 5x advanceDay girava ogni 430 ms: il salvataggio ora e' con debounce
+  function scheduleSave() {
+    if (_saveScheduled) return;
+    _saveScheduled = true;
+    setTimeout(() => { _saveScheduled = false; saveState(); }, 1200);
+  }
+
+  // v45 — rispetta la scelta "autosave off" invece di forzare sempre la scrittura
+  window.__WOT_NATIVE_SAVE__ = () => saveState(state.autosave !== false);
+
+  // v45 — il carico distressed vive solo nello state e i deal chiusi possono riferirsi
+  // a un catalogo cambiato: entrambi i casi vanno risolti, altrimenti ogni render crasha.
+  function getOpportunity(id) {
+    if (!id) return undefined;
+    const catalogued = opportunities.find(o => o.id === id);
+    if (catalogued) return catalogued;
+    if (state?.distressedOpportunity?.id === id) return state.distressedOpportunity;
+    const live = (state?.activeDeals || []).find(d => d.opportunityId === id && d.opportunitySnapshot);
+    if (live) return live.opportunitySnapshot;
+    const past = (state?.history || []).find(h => h.opportunityId === id && h.opportunitySnapshot);
+    return past ? past.opportunitySnapshot : undefined;
+  }
+  // Risolutore usato in fase di caricamento, quando `state` non e' ancora assegnato
+  function resolveOpportunityFor(deal) {
+    if (!deal) return undefined;
+    if (deal.opportunitySnapshot) return deal.opportunitySnapshot;
+    return opportunities.find(o => o.id === deal.opportunityId);
+  }
   function getHub(id) { return hubs.find(h => h.id === id); }
   function getActiveDeal(id) { return state.activeDeals.find(d => d.id === id); }
   function getHistoryDeal(id) { return state.history.find(d => d.id === id); }
@@ -3658,16 +3817,17 @@
     if ((state.dayIndex || 0) >= state.distressedCargoDay) {
       state.distressedCargoDay = state.dayIndex + 7 + Math.floor(deterministicRandom(`${state.date}-dc-next`) * 5);
       const _dcPool = [
-        { id:'dc-copper-scrap', origin:'antwerp',  destination:'shanghai', commodity:'Copper', priceKey:'copper', quantity:3000,  capital:2_800_000, basePnl:210_000, duration:18, risk:'High', riskClass:'high', transportMode:'Handymax bulk', title:'Distressed copper parcel · ARA', description:'Seller facing liquidity squeeze. Vessel approaching laytime limits. Steep discount to clear cargo before demurrage escalates.', event:{id:'inspection-failure',title:'Disputed quality certificate',text:'Pre-shipment inspection flagged a moisture deviation. Resolve before discharge or renegotiate price adjustment.',choices:[{id:'accept',label:'Accept & adjust price',hint:'-$40k but deal closes cleanly'},{id:'dispute',label:'Dispute and hold',hint:'Risk 3-day delay and $25k demurrage'}]}, recommendedHedge:90 },
-        { id:'dc-wheat-cargo', origin:'new-orleans', destination:'cairo', commodity:'Wheat', priceKey:'wheat', quantity:25000, capital:5_200_000, basePnl:290_000, duration:14, risk:'Medium', riskClass:'medium', transportMode:'Panamax bulk',  title:'Distressed wheat cargo · Gulf',  description:'US exporter offloading surplus position. Buyer in Egypt cancelled LC. Cargo available at significant discount to replacement cost.', recommendedHedge:80 },
-        { id:'dc-crude-vlcc',  origin:'houston',   destination:'singapore', commodity:'Crude Oil', priceKey:'crude', quantity:280000, capital:22_000_000, basePnl:480_000, duration:20, risk:'High', riskClass:'high', transportMode:'VLCC', title:'Distressed crude VLCC · Gulf',    description:'Trader unwinding long position. VLCC on demurrage at Galveston anchorage. Price reflects urgent disposal; cargo is clean WTI equivalent.', recommendedHedge:95 },
-        { id:'dc-coffee-santos', origin:'santos',  destination:'antwerp', commodity:'Coffee', priceKey:'coffee', quantity:5000,  capital:19_000_000, basePnl:520_000, duration:16, risk:'Medium', riskClass:'medium', transportMode:'Container ship', title:'Distressed coffee lot · Brazil', description:'Brazilian trader caught long after local currency move. Grade 2 arabica, discount to ICE benchmark. Deal must close this market cycle.', recommendedHedge:75 },
-        { id:'dc-ironore-cape', origin:'port-hedland', destination:'shanghai', commodity:'Iron ore', priceKey:'ironore', quantity:80000, capital:8_000_000, basePnl:350_000, duration:21, risk:'Medium', riskClass:'medium', transportMode:'Capesize bulk', title:'Distressed iron ore · Pilbara', description:'Mining co. needs to move spot cargo — port capacity allocation expires. 62% Fe fines at discount. Competitive bids expected.', recommendedHedge:85 },
+        { id:'dc-copper-scrap', origin:'antwerp',  destination:'shanghai', commodity:'Copper', priceKey:'copper', quantity:3000,  capital:2_800_000, equity:420_000, basePnl:210_000, duration:18, risk:'High', riskClass:'high', transportMode:'Handymax bulk', title:'Distressed copper parcel · ARA', description:'Seller facing liquidity squeeze. Vessel approaching laytime limits. Steep discount to clear cargo before demurrage escalates.', event:{id:'inspection-failure',title:'Disputed quality certificate',text:'Pre-shipment inspection flagged a moisture deviation. Resolve before discharge or renegotiate price adjustment.',choices:[{id:'accept',label:'Accept & adjust price',hint:'-$40k but deal closes cleanly'},{id:'dispute',label:'Dispute and hold',hint:'Risk 3-day delay and $25k demurrage'}]}, recommendedHedge:90 },
+        { id:'dc-wheat-cargo', origin:'new-orleans', destination:'genova', commodity:'Wheat', priceKey:'wheat', quantity:25000, capital:5_200_000, equity:780_000, basePnl:290_000, duration:14, risk:'Medium', riskClass:'medium', transportMode:'Panamax bulk',  title:'Distressed wheat cargo · Gulf',  description:'US exporter offloading surplus position. Buyer in Egypt cancelled LC. Cargo available at significant discount to replacement cost.', recommendedHedge:80 },
+        { id:'dc-crude-vlcc',  origin:'houston',   destination:'singapore', commodity:'Crude Oil', priceKey:'crude', quantity:280000, capital:22_000_000, equity:3_300_000, basePnl:480_000, duration:20, risk:'High', riskClass:'high', transportMode:'VLCC', title:'Distressed crude VLCC · Gulf',    description:'Trader unwinding long position. VLCC on demurrage at Galveston anchorage. Price reflects urgent disposal; cargo is clean WTI equivalent.', recommendedHedge:95 },
+        { id:'dc-coffee-santos', origin:'santos',  destination:'antwerp', commodity:'Coffee', priceKey:'coffee', quantity:5000,  capital:19_000_000, equity:2_850_000, basePnl:520_000, duration:16, risk:'Medium', riskClass:'medium', transportMode:'Container ship', title:'Distressed coffee lot · Brazil', description:'Brazilian trader caught long after local currency move. Grade 2 arabica, discount to ICE benchmark. Deal must close this market cycle.', recommendedHedge:75 },
+        { id:'dc-ironore-cape', origin:'port-hedland', destination:'shanghai', commodity:'Iron ore', priceKey:'ironore', quantity:80000, capital:8_000_000, equity:1_200_000, basePnl:350_000, duration:21, risk:'Medium', riskClass:'medium', transportMode:'Capesize bulk', title:'Distressed iron ore · Pilbara', description:'Mining co. needs to move spot cargo — port capacity allocation expires. 62% Fe fines at discount. Competitive bids expected.', recommendedHedge:85 },
       ];
       const eligibleDcPool = _dcPool.filter(dc => {
         const origin = getHub(dc.origin), destination = getHub(dc.destination);
+        if (!origin || !destination) { console.warn('[WoT] distressed cargo scartato: hub inesistente', dc.id); return false; }
         const commodityName = dc.commodity === 'Crude Oil' ? 'Diesel' : dc.commodity;
-        return commodityUnlocked(commodityName) && (!origin || countryUnlocked(origin.country)) && (!destination || countryUnlocked(destination.country));
+        return commodityUnlocked(commodityName) && countryUnlocked(origin.country) && countryUnlocked(destination.country);
       });
       const dcSeed = deterministicRandom(`${state.date}-dc-pick`);
       const dc = eligibleDcPool.length ? eligibleDcPool[Math.floor(dcSeed * eligibleDcPool.length)] : null;
@@ -3785,15 +3945,28 @@
     return Math.round(initial + variation);
   }
 
+  // v45 — il collaterale liberato rimborsa per prima cosa il ponte di liquidita';
+  // prima il prestito spariva insieme al deal, creando denaro dal nulla.
+  function releaseCollateral(deal, amount) {
+    const release = Math.max(0, Math.min(deal.marginCollateral || 0, amount));
+    if (release <= 0) return 0;
+    deal.marginCollateral -= release;
+    const repayment = Math.min(deal.bridgeFunding || 0, release);
+    if (repayment > 0) {
+      deal.bridgeFunding = (deal.bridgeFunding || 0) - repayment;
+      deal.borrowed = Math.max(0, (deal.borrowed || 0) - repayment);
+    }
+    state.cash += release - repayment;
+    return release;
+  }
+
   function updateMarginLiquidity(deal) {
     const required = currentMarginRequirement(deal);
     const current = deal.marginCollateral || 0;
     const delta = required - current;
     if (Math.abs(delta) < 1) return;
     if (delta < 0) {
-      const release = Math.min(current, -delta);
-      deal.marginCollateral -= release;
-      state.cash += release;
+      releaseCollateral(deal, -delta);
       return;
     }
     const fromCash = Math.min(Math.max(0, state.cash), delta);
@@ -3806,6 +3979,7 @@
     if (bridge > 0) {
       const fee = Math.max(2_500, Math.round(bridge * difficultySettings().emergencyRate));
       deal.borrowed += bridge;
+      deal.bridgeFunding = (deal.bridgeFunding || 0) + bridge;
       deal.marginCollateral += bridge;
       deal.pnlAdjustments -= fee;
       deal.marginCalls = (deal.marginCalls || 0) + 1;
@@ -3888,8 +4062,9 @@
     const activePnl = state.activeDeals.reduce((sum, d) => sum + computeUnrealizedPnl(d), 0);
     const creditUsed = state.activeDeals.reduce((sum, d) => sum + d.borrowed, 0);
     const assetValue = investmentBookValue() + shopBookValue() + hqBookValue() + officeBookValue();
-    const nav = state.cash + invested + marginCollateral + activePnl + assetValue;
-    return { invested, marginCollateral, activePnl, creditUsed, creditAvailable: effectiveCreditLimit() - creditUsed, assetValue, nav };
+    const bridgeFunding = state.activeDeals.reduce((sum, d) => sum + (d.bridgeFunding || 0), 0);
+    const nav = state.cash + invested + marginCollateral + activePnl + assetValue - bridgeFunding;
+    return { invested, marginCollateral, bridgeFunding, activePnl, creditUsed, creditAvailable: effectiveCreditLimit() - creditUsed, assetValue, nav };
   }
 
   function isOpportunityUnlocked(opp) {
@@ -4311,6 +4486,7 @@
     drawInvestmentMarkers();
     drawShipments();
     drawFleetAssets();
+    drawHubPings();
     ctx.restore();
 
     ctx.save();
@@ -4425,6 +4601,21 @@
     ctx.restore();
   }
 
+  // ── v46 · disegna solo un tratto della rotta (da t0 a t1 in globalT) ─────────
+  function drawProjectedRouteRange(points, t0, t1, style) {
+    const slice = points.filter(point => point.globalT >= t0 - 1e-6 && point.globalT <= t1 + 1e-6);
+    if (slice.length < 2) return;
+    drawProjectedRoute(slice, style);
+  }
+
+  // v46 - impulso luminoso che scorre lungo la rotta, per far percepire la
+  // direzione del flusso commerciale invece di una linea statica.
+  function drawRouteFlow(points, color, speed = 0.00012, lift = 0.05, size = 0.06) {
+    const head = (animationTime * speed) % 1;
+    const tail = Math.max(0, head - size);
+    drawProjectedRouteRange(points, tail, head, { color, width: 2.2, lift, alpha: .85 });
+  }
+
   function drawRoutes() {
     if (layers.opportunities) {
       opportunities.forEach(opp => {
@@ -4436,18 +4627,32 @@
           width: isSelected ? 1.8 : .9,
           dash: isSelected ? [] : [3, 5], lift: .045, alpha: 1
         });
+        // la rotta selezionata "respira": un impulso la percorre da origine a destino
+        if (isSelected && motionEnabled()) drawRouteFlow(points, 'rgba(180,246,255,.95)', 0.00016, .045, .07);
       });
     }
     if (layers.portfolio) {
       state.activeDeals.forEach(deal => {
         const opp = getOpportunity(deal.opportunityId);
+        if (!opp) return;
         const isSelected = selected.type === 'deal' && selected.id === deal.id;
         const hedge = deal.hedgeRatio || 0;
         const riskColor = hedge >= 90 ? 'rgba(97,242,166,.9)' : hedge >= 60 ? 'rgba(255,180,94,.9)' : 'rgba(255,100,121,.95)';
-        drawProjectedRoute(routePoints(opp, 46), {
-          color: layers.risk ? riskColor : (isSelected ? 'rgba(97,242,166,1)' : 'rgba(97,242,166,.58)'),
-          width: isSelected ? 2.4 : (layers.risk ? 2 : 1.45), lift: .055
+        const baseColor = layers.risk ? riskColor : (isSelected ? 'rgba(97,242,166,1)' : 'rgba(97,242,166,.58)');
+        const points = routePoints(opp, 46);
+        const progress = clamp(visualDealProgress(deal), 0, 1);
+
+        // v46 - il tratto gia' percorso e' pieno e luminoso, quello che resta e'
+        // tratteggiato e spento: a colpo d'occhio si legge quanto manca all'arrivo.
+        drawProjectedRouteRange(points, progress, 1, {
+          color: deal.pendingDecision ? 'rgba(255,100,121,.42)' : 'rgba(140,170,200,.30)',
+          width: 1.1, dash: [3, 5], lift: .055, alpha: 1
         });
+        drawProjectedRouteRange(points, 0, progress, {
+          color: baseColor,
+          width: isSelected ? 2.6 : (layers.risk ? 2 : 1.6), lift: .055
+        });
+        if (isSelected && motionEnabled()) drawRouteFlow(points, 'rgba(226,255,240,.9)', 0.00022, .055, .05);
       });
     }
   }
@@ -4471,6 +4676,64 @@
     return { hq: '#ffffff', supplier: '#ffb45e', customer: '#57e6ff', port: '#6d91ff' }[hub.type] || '#ad8cff';
   }
 
+  // ── v46 · porti toccati da una crisi in corso ───────────────────────────────
+  // Ricavati dalle opportunita' colpite dagli eventi globali attivi. Il risultato
+  // e' in cache per giornata: la valutazione non deve pesare su ogni frame.
+  let _stressedHubsCache = { key: null, ids: new Set() };
+  function stressedHubIds() {
+    const key = `${state.dayIndex}-${(state.activeGlobalEvents || []).map(event => event.id).join('|')}`;
+    if (_stressedHubsCache.key === key) return _stressedHubsCache.ids;
+    const ids = new Set();
+    try {
+      activeCrisisDefinitions().forEach(definition => {
+        if (typeof definition.affects !== 'function') return;
+        opportunities.forEach(opp => {
+          let hit = false;
+          try { hit = definition.affects(opp); } catch (error) { hit = false; }
+          if (!hit) return;
+          [opp.origin, opp.destination, ...(opp.via || [])].forEach(id => ids.add(id));
+        });
+      });
+    } catch (error) { /* mai bloccare il disegno */ }
+    _stressedHubsCache = { key, ids };
+    return ids;
+  }
+
+  // ping di arrivo: cerchi che si espandono quando un carico viene consegnato
+  const _hubPings = [];
+  function pingHub(hubId, tone = 'arrival') {
+    if (!hubId) return;
+    _hubPings.push({ hubId, tone, at: (typeof animationTime === 'number' ? animationTime : 0) });
+    if (_hubPings.length > 12) _hubPings.shift();
+  }
+  function drawHubPings() {
+    if (!_hubPings.length) return;
+    const now = animationTime;
+    const life = 1700;
+    for (let i = _hubPings.length - 1; i >= 0; i--) {
+      const ping = _hubPings[i];
+      const age = now - ping.at;
+      if (age < 0 || age > life) { _hubPings.splice(i, 1); continue; }
+      const hub = getHub(ping.hubId);
+      if (!hub) { _hubPings.splice(i, 1); continue; }
+      const projected = project(hub.lon, hub.lat, .012);
+      if (projected.z <= 0) continue;
+      const t = age / life;
+      const rgb = ping.tone === 'alert' ? '255,100,121' : '97,242,166';
+      ctx.save();
+      for (const delay of [0, .28]) {
+        const local = t - delay;
+        if (local <= 0 || local >= 1) continue;
+        ctx.strokeStyle = `rgba(${rgb},${((1 - local) * .75).toFixed(3)})`;
+        ctx.lineWidth = 2 - local * 1.4;
+        ctx.beginPath();
+        ctx.arc(projected.x, projected.y, 5 + local * 26, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+  }
+
   function drawHubs() {
     hubs.forEach(hub => {
       if (!hubVisible(hub)) return;
@@ -4489,6 +4752,19 @@
       ctx.arc(p.x, p.y, (lockedMarket ? 2.4 : (selectedHub ? 5 : 3.4)) * pulse, 0, Math.PI*2);
       ctx.fill();
       ctx.shadowBlur = 0;
+      // v46 - alone d'allerta sui porti toccati da una crisi attiva
+      if (layers.risk && stressedHubIds().has(hub.id)) {
+        const pulse = .5 + Math.sin(animationTime * .0042 + hub.lat) * .5;
+        ctx.save();
+        ctx.globalAlpha = clamp(p.z * (.35 + pulse * .45), .12, .8);
+        ctx.strokeStyle = '#ff9a5e';
+        ctx.lineWidth = 1.4;
+        ctx.beginPath(); ctx.arc(p.x, p.y, 11 + pulse * 6, 0, Math.PI * 2); ctx.stroke();
+        ctx.globalAlpha = clamp(p.z * .22, .05, .3);
+        ctx.fillStyle = '#ff9a5e';
+        ctx.beginPath(); ctx.arc(p.x, p.y, 11 + pulse * 6, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
+      }
       const prospectiveOffice=getOffice(hub.id);
       if (prospectiveOffice && hub.id!=='geneva' && !officeOwned(hub.id) && !activeOfficeProject(hub.id)) {
         const canOpen=officeUnlocked(prospectiveOffice);
@@ -4600,6 +4876,36 @@
     }
   }
 
+  // v46 - scia della nave: sfumatura sui singoli segmenti del percorso appena
+  // compiuto. Lavora sugli indici dei punti, non su intervalli di globalT: con
+  // intervalli troppo stretti una rotta a 2 tratte non aveva abbastanza punti.
+  function drawShipTrail(opp, progress, color) {
+    const points = routePoints(opp, 70);
+    const last = points.length - 1;
+    if (last < 2) return;
+    const headIndex = clamp(Math.floor(progress * last), 0, last);
+    const trailLength = Math.max(4, Math.round(last * 0.10));
+    const startIndex = Math.max(0, headIndex - trailLength);
+    if (headIndex - startIndex < 2) return;
+    const rgb = color === '#ff6479' ? '255,100,121' : '97,242,166';
+    ctx.save();
+    ctx.lineCap = 'round';
+    for (let i = startIndex; i < headIndex; i++) {
+      const fade = (i - startIndex) / (headIndex - startIndex); // 0 in coda, 1 alla nave
+      const a = points[i], b = points[i + 1];
+      const pa = project(a.lon, a.lat, Math.sin(a.globalT * Math.PI) * .058);
+      const pb = project(b.lon, b.lat, Math.sin(b.globalT * Math.PI) * .058);
+      if (pa.z <= -.01 || pb.z <= -.01) continue;
+      ctx.strokeStyle = `rgba(${rgb},${(fade * fade * .6).toFixed(3)})`;
+      ctx.lineWidth = .6 + fade * 2.6;
+      ctx.beginPath();
+      ctx.moveTo(pa.x, pa.y);
+      ctx.lineTo(pb.x, pb.y);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
   function drawShipments() {
     if (!layers.logistics || !layers.portfolio) return;
     state.activeDeals.forEach(deal => {
@@ -4614,6 +4920,9 @@
       const color = deal.pendingDecision ? '#ff6479' : '#61f2a6';
       const angle=Math.atan2(pn.y-p.y,pn.x-p.x);
       const type=vehicleTypeForDeal(deal,progress);
+      // v46 - scia a cometa: il tratto appena percorso resta illuminato e
+      // sfuma all'indietro, cosi' si capisce da dove arriva il carico.
+      if (motionEnabled()) drawShipTrail(opp, progress, color);
       ctx.save();
       ctx.globalAlpha = clamp((p.z + .15) * 1.3, .25, 1);
       ctx.translate(p.x,p.y);ctx.rotate(angle);
@@ -4622,6 +4931,15 @@
         ctx.beginPath();ctx.moveTo(-12,-3);ctx.lineTo(-25,-6);ctx.moveTo(-12,3);ctx.lineTo(-25,6);ctx.stroke();ctx.setLineDash([]);
       } else {
         ctx.strokeStyle='rgba(97,242,166,.28)';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(-10,0);ctx.lineTo(-24,0);ctx.stroke();
+      }
+      // alone pulsante quando il carico richiede una decisione
+      if (deal.pendingDecision) {
+        const pulse = .5 + Math.sin(animationTime * .006) * .5;
+        ctx.save(); ctx.rotate(-angle);
+        ctx.strokeStyle = `rgba(255,100,121,${(.28 + pulse * .5).toFixed(3)})`;
+        ctx.lineWidth = 1.6;
+        ctx.beginPath(); ctx.arc(0, 0, 12 + pulse * 5, 0, Math.PI * 2); ctx.stroke();
+        ctx.restore();
       }
       drawVehicleIcon(type,color,selectedShip);
       ctx.restore();
@@ -4786,7 +5104,7 @@
       drawGlobe();
       renderLiveTracker();
     }
-    requestAnimationFrame(animate);
+    _animationHandle = requestAnimationFrame(animate);
   }
 
   function focusOnHub(hubId) {
@@ -5004,6 +5322,24 @@
     return count;
   }
 
+  // ── v47 · stati vuoti con un'azione ─────────────────────────────────────────
+  // Una sezione vuota diceva soltanto che era vuota. Ora spiega qual e' il passo
+  // successivo e ci porta con un click. Un solo handler delegato li serve tutti.
+  function emptyState(message, action) {
+    if (!action) return `<div class="empty-card">${message}</div>`;
+    return `<div class="empty-card empty-card-action">
+      <span>${message}</span>
+      <button type="button" class="empty-action" data-empty-action="${action.type}:${action.id}">${action.label}</button>
+    </div>`;
+  }
+  document.addEventListener('click', event => {
+    const button = event.target.closest?.('[data-empty-action]');
+    if (!button) return;
+    const [type, ...rest] = button.dataset.emptyAction.split(':');
+    executeBriefingAction(type, rest.join(':'));
+    try { Sound.play('click'); } catch (error) {}
+  });
+
   function executeBriefingAction(type, id) {
     closeBriefing();
     if (type === 'deal') selectDeal(id);
@@ -5064,46 +5400,64 @@
     renderBriefing();
   }
 
+  // v47 - ogni passo indica un bersaglio reale nell'interfaccia. Il riflettore lo
+  // ritaglia dallo sfondo scurito, cosi' si guarda l'elemento invece di cercarlo.
   const tutorialSteps = [
     {
       title: 'Read the opportunity market',
       copy: 'Physical trading starts with a buyer need and a viable source. Compare expected margin, equity, duration and route risk.',
-      action: 'Open Market'
+      action: 'Open Market',
+      target: () => $('#openDeskButton'),
+      hint: 'Open the command centre from here.'
     },
     {
       title: 'Inspect a trade route',
       copy: 'Open the recommended opportunity and review origin, destination, commodity, freight path and counterparties.',
-      action: 'Inspect opportunity'
+      action: 'Inspect opportunity',
+      target: () => $('#opportunityList .opportunity-card') || $('#opportunityList') || $('[data-left-tab="opportunities"]'),
+      hint: 'Each card is a cargo you can source and sell.'
     },
     {
       title: 'Negotiate commercial terms',
       copy: 'Balance buyer acceptance against margin. Price, payment and delivery terms change both economics and working capital.',
-      action: 'Open negotiation'
+      action: 'Open negotiation',
+      target: () => $('.negotiation-box', $('#inspectorContent')) || $('#inspectorContent'),
+      hint: 'Terms are agreed here before any capital moves.'
     },
     {
       title: 'Structure and fund the deal',
       copy: 'Choose the hedge, FX coverage, financing, insurance, inspection and carrier before committing capital.',
-      action: 'Open deal structure'
+      action: 'Open deal structure',
+      target: () => $('#hedgeRatioInput')?.closest('.inspector-section') || $('#inspectorContent'),
+      hint: 'The hedge decides how much price risk you keep.'
     },
     {
       title: 'Run the physical operation',
       copy: 'Advance time and monitor cargo, documents, collateral, interest and global disruptions.',
-      action: 'Advance to next event'
+      action: 'Advance to next event',
+      target: () => $('#nextEventButton'),
+      hint: 'Time only moves when you let it.'
     },
     {
       title: 'Resolve the operational event',
       copy: 'Your response affects P&L, delivery time, reputation and counterparty relationships.',
-      action: 'Open decision'
+      action: 'Open decision',
+      target: () => ($('#eventBanner')?.classList.contains('hidden') ? null : $('#eventBanner')) || $('#inspectorContent'),
+      hint: 'A decision is waiting: it will not resolve itself.'
     },
     {
       title: 'Reach settlement',
       copy: 'Advance to the next milestone. The final review attributes commercial, market, FX, finance and operational P&L.',
-      action: 'Advance to settlement'
+      action: 'Advance to settlement',
+      target: () => $('#nextEventButton'),
+      hint: 'Keep advancing until the cargo is paid.'
     },
     {
       title: 'First cargo completed',
       copy: 'You now control the full physical-trading cycle. Continue freely, build the company and climb the Career League.',
-      action: 'Finish tour'
+      action: 'Finish tour',
+      target: () => $('.pnl-rail') || $('#realizedPnlMetric'),
+      hint: 'Your realized P&L lives here.'
     }
   ];
 
@@ -5154,13 +5508,62 @@
     renderTutorialCoach();
   }
 
+  // ── v47 · riflettore del tutorial ───────────────────────────────────────────
+  // Il coach descriveva i passi a parole da un angolo dello schermo. Ora ritaglia
+  // l'elemento di cui sta parlando: lo sfondo si scurisce tranne quel rettangolo.
+  let _spotlightTarget = null;
+  let _spotlightRaf = null;
+
+  function updateSpotlight() {
+    const ring = $('#tutorialSpotlight');
+    const hint = $('#tutorialSpotlightHint');
+    if (!ring) return;
+    const element = _spotlightTarget;
+    if (!element || !element.isConnected) { hideSpotlight(); return; }
+    const rect = element.getBoundingClientRect();
+    if (!rect.width || !rect.height || rect.bottom < 0 || rect.top > window.innerHeight) { hideSpotlight(); return; }
+    const pad = 7;
+    ring.style.top = `${rect.top - pad}px`;
+    ring.style.left = `${rect.left - pad}px`;
+    ring.style.width = `${rect.width + pad * 2}px`;
+    ring.style.height = `${rect.height + pad * 2}px`;
+    if (hint) {
+      // il fumetto va sopra o sotto a seconda dello spazio disponibile
+      const below = rect.bottom + 14;
+      const fitsBelow = below + 64 < window.innerHeight;
+      hint.style.top = fitsBelow ? `${below}px` : `${Math.max(8, rect.top - 62)}px`;
+      hint.style.left = `${clamp(rect.left + rect.width / 2 - 130, 8, Math.max(8, window.innerWidth - 268))}px`;
+    }
+    _spotlightRaf = requestAnimationFrame(updateSpotlight);
+  }
+
+  function showSpotlight(element, hintText) {
+    const ring = $('#tutorialSpotlight');
+    const hint = $('#tutorialSpotlightHint');
+    if (!ring || !element) return hideSpotlight();
+    _spotlightTarget = element;
+    document.body.classList.add('spotlight-active');
+    ring.hidden = false;
+    if (hint) { hint.hidden = !hintText; hint.textContent = hintText || ''; }
+    if (_spotlightRaf) cancelAnimationFrame(_spotlightRaf);
+    updateSpotlight();
+  }
+
+  function hideSpotlight() {
+    _spotlightTarget = null;
+    if (_spotlightRaf) { cancelAnimationFrame(_spotlightRaf); _spotlightRaf = null; }
+    document.body.classList.remove('spotlight-active');
+    const ring = $('#tutorialSpotlight'); if (ring) ring.hidden = true;
+    const hint = $('#tutorialSpotlightHint'); if (hint) hint.hidden = true;
+  }
+
   function renderTutorialCoach() {
     const coach = $('#tutorialCoach');
     if (!coach) return;
     const visible = state.onboardingComplete && state.tutorialEnabled && !state.tutorialDismissed;
     coach.classList.toggle('open', visible);
     coach.setAttribute('aria-hidden', String(!visible));
-    if (!visible) return;
+    if (!visible) { hideSpotlight(); return; }
     const step = currentTutorialStep();
     const data = tutorialSteps[step];
     $('#tutorialStepLabel').textContent = `Guided career · ${step + 1}/${tutorialSteps.length}`;
@@ -5170,6 +5573,17 @@
     $('#tutorialProgressBar').style.width = `${((step + 1) / tutorialSteps.length) * 100}%`;
     const back = $('#tutorialBackButton');
     back.disabled = step === 0;
+
+    // il bersaglio puo' comparire subito dopo un render: si riprova a breve
+    const aim = () => {
+      let element = null;
+      try { element = data.target?.(); } catch (error) { element = null; }
+      if (element) showSpotlight(element, data.hint);
+      else hideSpotlight();
+    };
+    aim();
+    clearTimeout(coach._aimTimer);
+    coach._aimTimer = setTimeout(aim, 260);
   }
 
   function syncOverlayUI() {
@@ -5363,7 +5777,13 @@
     const opp = getOpportunity(oppId);
     if (!opp || !isOpportunityUnlocked(opp) || !opportunityAvailable(opp)) return;
     const draft = { ...negotiationFor(oppId) };
-    const attempts = (draft.attempts || 0) + 1;
+    // v45 — senza un tetto ai tentativi bastava premere "Submit" una ventina di
+    // volte per ottenere sempre l'accettazione: il rifiuto non costava nulla.
+    const previous = state.negotiations?.[oppId];
+    if (previous && previous.cycle === state.marketCycle && previous.status === 'rejected' && (previous.attempts || 0) >= 3) {
+      return showToast('The buyer has closed the discussion for this market cycle. Try again next week.');
+    }
+    const attempts = (previous && previous.cycle === state.marketCycle ? (previous.attempts || 0) : 0) + 1;
     const probability = negotiationAcceptance(opp, draft);
     const roll = deterministicRandom(`${opp.id}-${state.marketCycle}-${attempts}-${draft.commercial}-${draft.payment}-${draft.pricing||'fixed'}-${draft.delivery}-${draft.incoterm||'fob'}`) * 100;
     const accepted = roll <= probability;
@@ -5402,10 +5822,18 @@
       showToast('This tender has already been awarded.');
       return;
     }
+    // v45 — prima ogni click era un tiro indipendente (il seed dipendeva dallo sconto
+    // offerto) e perdere non costava nulla: si rilanciava finche' non si vinceva.
+    if (tender.bidCycle === state.marketCycle) {
+      return showToast('You have already bid in this tender round. Wait for the next market cycle.');
+    }
     const adj = Math.max(Math.round(-opp.basePnl * 0.7), Math.min(0, marginAdjust));
-    const concessionRatio = Math.abs(adj) / opp.basePnl;
-    const winPct = Math.min(95, Math.max(5, 30 + concessionRatio * 120));
-    const seed = `${oppId}-tender-${state.marketCycle}-${adj}`;
+    const concessionRatio = Math.abs(adj) / Math.max(1, opp.basePnl);
+    const pressurePenalty = Math.max(0, (tender.pressure || 0) - 35) * 0.5;
+    const winPct = Math.min(95, Math.max(5, 30 + concessionRatio * 120 - pressurePenalty));
+    tender.bidCycle = state.marketCycle;
+    tender.bidAttempts = (tender.bidAttempts || 0) + 1;
+    const seed = `${oppId}-tender-${state.marketCycle}-${tender.bidAttempts}`;
     const roll = deterministicRandom(seed) * 100;
     const won = roll <= winPct;
     if (won) {
@@ -5415,11 +5843,12 @@
       state.rivalFeed.unshift({ date: state.date, cycle: state.marketCycle, opportunityId: oppId, rivalId: 'player', title: `${state.companyName || 'Player'} secures tender`, description: `Competitive bid accepted for ${opp.title} with ${Math.round(winPct)}% win probability.` });
       state.rivalFeed = state.rivalFeed.slice(0, 18);
       // Temporarily apply margin adjustment for this deal
+      // v45 — try/finally: se startOpportunity solleva un errore il margine del
+      // catalogo globale non resta permanentemente ridotto.
       if (adj !== 0) {
         const orig = opp.basePnl;
         opp.basePnl = orig + adj;
-        startOpportunity(oppId);
-        opp.basePnl = orig;
+        try { startOpportunity(oppId); } finally { opp.basePnl = orig; }
       } else {
         startOpportunity(oppId);
       }
@@ -5504,8 +5933,12 @@
       entryFx: state.eurusd,
       initialMargin: economics.initialMargin,
       marginCollateral: economics.initialMargin,
+      bridgeFunding: 0,
       marginCalls: 0,
       financingAccrued: 0,
+      // v45 — copia leggera dell'opportunita': se il catalogo cambia (o il carico
+      // distressed scade) il deal resta comunque renderizzabile.
+      opportunitySnapshot: { ...opp, unlock: undefined, events: undefined },
       marketCycle: state.marketCycle,
       vesselClass: selectedVesselClasses[opp.id] || 'supramax',
       globalEventsAtBooking: economics.crisisLabels,
@@ -5726,7 +6159,8 @@
     deal.overdueRecorded = false;
     deal.invoiceStatus = deal.paymentDaysRemaining > 0 ? 'Outstanding' : 'Due';
     deal.contractLifecycle = { ...(deal.contractLifecycle || {}), nominated:true, loaded:true, delivered:true, invoiced:true, paid:false };
-    if (deal.marginCollateral > 0) { state.cash += deal.marginCollateral; deal.marginCollateral = 0; }
+    if (deal.marginCollateral > 0) releaseCollateral(deal, deal.marginCollateral);
+    pingHub(opp.destination, 'arrival');   // v46 - il porto di arrivo lampeggia
     updateDealOperations(deal);
     if (deal.fleetAssetId) {
       const fleetAsset = getFleetAsset(deal.fleetAssetId);
@@ -5754,7 +6188,11 @@
     deal.contractLifecycle = { ...(deal.contractLifecycle || {}), delivered:true, invoiced:true, paid:true };
     state.receivablesCollected = (state.receivablesCollected || 0) + (deal.invoiceAmount || 0);
     state.storageOptionIncome = (state.storageOptionIncome||0) + storagePnl;
-    state.cash += deal.equity + (deal.marginCollateral || 0) + pnl;
+    if (deal.marginCollateral > 0) releaseCollateral(deal, deal.marginCollateral);
+    // qualunque residuo del ponte non coperto dal collaterale esce dai proventi
+    const outstandingBridge = deal.bridgeFunding || 0;
+    if (outstandingBridge > 0) { deal.borrowed = Math.max(0, (deal.borrowed || 0) - outstandingBridge); deal.bridgeFunding = 0; }
+    state.cash += deal.equity + pnl - outstandingBridge;
     state.realizedPnl += pnl;
     state.completedDeals += 1;
     const readiness = operationsReadiness(deal);
@@ -5777,6 +6215,11 @@
         fleetAsset.positionHub = opp.destination;
       }
     }
+    // v46 - schermata di chiusura: il conto economico del carico, voce per voce
+    queueSettlementSummary(opp, deal, {
+      pnl, marketPnl, fxPnl, financingCost, storagePnl, creditPnl,
+      basePnl: deal.basePnl, adjustments: deal.pnlAdjustments, readiness,
+    });
     state.history.unshift({
       id: deal.id,
       opportunityId: opp.id,
@@ -5970,10 +6413,17 @@
     if (newRatio < 0 || newRatio > 110) return showToast('Hedge ratio must be between 0% and 110%.');
     const cost = Math.round(8_000 + deltaRatio * 200); // base + execution cost per %
     if (state.cash < cost) return showToast(`Insufficient liquidity. Rehedge execution costs ${money(cost)}.`);
-    state.cash -= cost;
-    deal.pnlAdjustments -= cost;
+    // v45 — cristallizza il risultato maturato col vecchio rapporto e riparte dal
+    // prezzo corrente: altrimenti alzare l'hedge cancellava a posteriori le perdite
+    // gia' subite (e abbassarlo regalava profitti). Il costo, come per tutte le altre
+    // azioni operative, incide solo su pnlAdjustments: prima era addebitato due volte.
+    const realizedMarketImpact = computeMarketImpact(deal);
+    deal.pnlAdjustments += realizedMarketImpact - cost;
+    deal.entryMarketPrice = marketPriceForOpportunity(opp);
     deal.hedgeRatio = newRatio;
+    deal.hedgeTransactions = (deal.hedgeTransactions || 1) + 1;
     updateMarginLiquidity(deal);
+    recordJournal('Risk', `${opp.title}: hedge ${oldRatio}% \u2192 ${newRatio}%`, 'Market exposure crystallized and hedge reset at the current market price.', realizedMarketImpact - cost, deal.id);
     state.worldEventFeed.unshift({ type: 'market', title: `Hedge adjusted: ${opp.title}`, date: state.date, description: `Hedge ratio moved from ${oldRatio}% to ${newRatio}%. Execution cost ${money(cost)}.` });
     state.worldEventFeed = state.worldEventFeed.slice(0, 18);
     saveState(); renderAll();
@@ -6105,7 +6555,7 @@
     // Update hub basis differentials (premium/discount vs global benchmark, in price units)
     const _hubBasisConfig = {
       'geneva':       { copper: { s:+18, r:.05 }, aluminium: { s:+12, r:.05 } },
-      'london':       { copper: { s:+22, r:.04 }, aluminium: { s:+15, r:.04 } },
+      'rotterdam':    { copper: { s:+22, r:.04 }, aluminium: { s:+15, r:.04 } },
       'singapore':    { crude:  { s:-1.2, r:.04 }, wheat: { s:-8, r:.05 } },
       'shanghai':     { copper: { s:-30, r:.06 }, ironore: { s:-15, r:.06 } },
       'dubai':        { crude:  { s:-0.8, r:.04 }, urea: { s:-12, r:.05 } },
@@ -6114,17 +6564,19 @@
       'antwerp':      { copper: { s:+8, r:.04 }, aluminium: { s:+10, r:.04 }, ironore: { s:+5, r:.05 } },
       'santos':       { coffee: { s:-40, r:.06 }, wheat: { s:+5, r:.05 } },
       'abidjan':      { coffee: { s:-50, r:.07 } },
-      'lagos':        { crude:  { s:-3.0, r:.05 } },
-      'port-klang':   { crude:  { s:-1.5, r:.04 } },
+      'durban':       { crude:  { s:-3.0, r:.05 } },
+      'klang':        { crude:  { s:-1.5, r:.04 } },
       'doha':         { urea:   { s:-18, r:.05 }, crude: { s:-2.5, r:.04 } },
-      'buenos-aires': { wheat:  { s:+8, r:.05 } },
+      'rosario':      { wheat:  { s:+8, r:.05 } },
     };
     state.hubBasis = state.hubBasis || {};
     Object.entries(_hubBasisConfig).forEach(([hubId, comms]) => {
       state.hubBasis[hubId] = state.hubBasis[hubId] || {};
       Object.entries(comms).forEach(([key, cfg]) => {
         const prev = state.hubBasis[hubId][key] ?? cfg.s;
-        const noise = (Math.random() - 0.5) * Math.abs(cfg.s) * 0.08;
+        // v45 — deterministico come tutto il resto della simulazione: con Math.random()
+        // il basis divergeva fra una sessione e l'altra a parita' di salvataggio.
+        const noise = (deterministicRandom(`basis-${hubId}-${key}-${state.date}`) - 0.5) * Math.abs(cfg.s) * 0.08;
         state.hubBasis[hubId][key] = prev + (cfg.s - prev) * cfg.r + noise;
       });
     });
@@ -6177,6 +6629,10 @@
     const overhead = dailyOverhead();
     state.cash -= overhead;
     state.overheadPaid = (state.overheadPaid || 0) + overhead;
+    // v45 — prima la cassa poteva restare negativa all'infinito senza alcuna
+    // conseguenza. Ora scatta un finanziamento d'emergenza a tasso punitivo e,
+    // se anche il credito e' esaurito, un avviso di insolvenza al board.
+    handleCashShortfall();
     processInvestmentDay();
     processShopDay();
     processCreditLimitRequests();
@@ -6212,8 +6668,10 @@
       updateMarginLiquidity(deal);
       accrueDailyShippingCosts(deal);
       if (!deal.eventTriggered && triggerDealEvent(deal)) {
+        // v45 — 'continue', non 'break': gli altri cargo devono comunque
+        // maturare giorni di transito, interessi e consegna.
         eventTriggered = true;
-        break;
+        continue;
       }
       if (deal.elapsed >= deal.duration) deliverDeal(deal);
     }
@@ -6224,7 +6682,7 @@
     checkVictory();
     state.navHistory.push(stats.nav);
     if (state.navHistory.length > 50) state.navHistory.shift();
-    saveState();
+    scheduleSave();
     if (!deferRender) renderAll();
     if (!silent) { pulseNewDay(); try { Sound.play('day'); } catch (e) {} addXp(2, 'day'); }
     return !eventTriggered;
@@ -6350,6 +6808,24 @@
   }
 
   const _counterAnims = new WeakMap();
+  // ── v46 · lampeggio del valore ──────────────────────────────────────────────
+  // Un breve alone verde o rosso quando una metrica cambia: rende leggibile
+  // "cosa e' appena successo" senza dover confrontare i numeri a memoria.
+  function flashOnChange(el, value, threshold = 1) {
+    if (!el || !Number.isFinite(value)) return;
+    const previous = el._flashValue;
+    el._flashValue = value;
+    if (!Number.isFinite(previous) || !motionEnabled()) return;
+    const delta = value - previous;
+    if (Math.abs(delta) < threshold) return;
+    const cls = delta > 0 ? 'value-flash-up' : 'value-flash-down';
+    el.classList.remove('value-flash-up', 'value-flash-down');
+    void el.offsetWidth;               // forza il riavvio dell'animazione
+    el.classList.add(cls);
+    clearTimeout(el._flashTimer);
+    el._flashTimer = setTimeout(() => el.classList.remove(cls), 900);
+  }
+
   function animateCounter(el, target, fmt) {
     if (!el) return;
     const prev = _counterAnims.get(el);
@@ -6415,6 +6891,7 @@
     const ret = (stats.nav / start - 1) * 100;
     animateCounter($('#navMetric'), stats.nav, v => money(v, true));
     $('#navDelta').textContent = `${ret >= 0 ? '+' : ''}${ret.toFixed(1)}% all time`;
+    flashOnChange($('#cashMetric'), state.cash);
     animateCounter($('#cashMetric'), state.cash, v => money(v, true));
     $('#cashDelta').textContent = (dailyInvestmentIncome()+shopDailyIncome()) ? `${money(dailyInvestmentIncome()+shopDailyIncome())}/day assets` : (state.cash < 250_000 ? 'Low liquidity' : 'Available');
     animateCounter($('#creditMetric'), stats.creditUsed, v => money(v, true));
@@ -6422,20 +6899,29 @@
     $('#repMetric').textContent = Math.round(state.reputation);
     $('#rankMetric').textContent = `${rankFromState()} · L${playerLevel()}`;
     const realizedMetric = $('#realizedPnlMetric');
-    if (realizedMetric) { realizedMetric.textContent = money(state.realizedPnl || 0, true); realizedMetric.style.color = (state.realizedPnl||0) >= 0 ? 'var(--green)' : 'var(--red)'; }
+    if (realizedMetric) {
+      // v46 - anche il P&L scorre invece di saltare, e lampeggia quando cambia
+      flashOnChange(realizedMetric, state.realizedPnl || 0);
+      animateCounter(realizedMetric, state.realizedPnl || 0, v => money(v, true));
+      realizedMetric.style.color = (state.realizedPnl||0) >= 0 ? 'var(--green)' : 'var(--red)';
+    }
     const activeRail = $('#activePnlRail');
-    if (activeRail) { activeRail.textContent = `${stats.activePnl >= 0 ? '+' : ''}${money(stats.activePnl, true)} live`; activeRail.style.color = stats.activePnl >= 0 ? 'var(--green)' : 'var(--red)'; }
+    if (activeRail) {
+      flashOnChange(activeRail, stats.activePnl);
+      animateCounter(activeRail, stats.activePnl, v => `${v >= 0 ? '+' : ''}${money(v, true)} live`);
+      activeRail.style.color = stats.activePnl >= 0 ? 'var(--green)' : 'var(--red)';
+    }
     const risk = riskStats();
     const riskMetric = $('#riskMetric');
     if (riskMetric) { riskMetric.textContent = `${Math.round(risk.riskScore)}/100`; riskMetric.style.color = risk.riskScore >= 70 ? 'var(--red)' : risk.riskScore >= 45 ? 'var(--orange)' : 'var(--green)'; }
     const riskImpactMetric = $('#riskImpactMetric');
     if (riskImpactMetric) { riskImpactMetric.textContent = `${money(state.riskPnlImpact || 0, true)} event impact`; riskImpactMetric.style.color = (state.riskPnlImpact||0) >= 0 ? 'var(--green)' : 'var(--red)'; }
     const stageMetric = $('#stageMetric'); if (stageMetric) stageMetric.textContent = expansionStage().title;
-    $('#portfolioValue').textContent = money(stats.nav);
+    animateCounter($('#portfolioValue'), stats.nav, v => money(v));
     $('#portfolioReturn').textContent = `${ret >= 0 ? '+' : ''}${ret.toFixed(1)}% since inception`;
     $('#portfolioReturn').style.color = ret >= 0 ? 'var(--green)' : 'var(--red)';
-    $('#investedMetric').textContent = money(stats.invested, true);
-    $('#activePnlMetric').textContent = money(stats.activePnl, true);
+    animateCounter($('#investedMetric'), stats.invested, v => money(v, true));
+    animateCounter($('#activePnlMetric'), stats.activePnl, v => money(v, true));
     $('#activePnlMetric').style.color = stats.activePnl >= 0 ? 'var(--green)' : 'var(--red)';
     $('#completedMetric').textContent = state.completedDeals;
     $('#creditAvailableMetric').textContent = money(stats.creditAvailable, true);
@@ -6469,19 +6955,32 @@
       ['crude', state.crudePrice, state.crudePrev, `$${state.crudePrice.toFixed(2)}/bbl`, 2],
       ['wheat', state.wheatPrice, state.wheatPrev, `${money(state.wheatPrice)}/t`, 2],
       ['ironore', state.ironorePrice, state.ironorePrev, `${money(state.ironorePrice)}/t`, 2],
+      // v45 — il caffe' era l'unico ticker presente nell'HTML ma assente da questa
+      // lista: restava fermo sul valore statico "$4,200/t · +0.0%" per tutta la partita.
+      ['coffee', state.coffeePrice, state.coffeePrev, `${money(state.coffeePrice)}/t`, 2],
       ['eurusd', state.eurusd, state.eurusdPrev, state.eurusd.toFixed(4), 2],
       ['freight', state.freightIndex, state.freightPrev, state.freightIndex.toFixed(1), 2],
       ['zinc',    state.zincPrice   || 2800,  state.zincPrev   || 2800,  `${money(state.zincPrice||2800)}/t`,   2],
       ['nickel',  state.nickelPrice || 16000, state.nickelPrev || 16000, `${money(state.nickelPrice||16000)}/t`, 2],
       ['lng',     state.lngPrice    || 12.5,  state.lngPrev    || 12.5,  `$${(state.lngPrice||12.5).toFixed(2)}/MMBtu`, 2]
     ];
-    const _tsKeys = { copper:'copper', aluminium:'aluminium', urea:'urea', crude:'crude', wheat:'wheat', ironore:'ironore' };
+    const _tsKeys = { copper:'copper', aluminium:'aluminium', urea:'urea', crude:'crude', wheat:'wheat', ironore:'ironore', zinc:'zinc', nickel:'nickel', lng:'lng' };
     marketDisplays.forEach(([id, value, previous, label, decimals]) => {
-      const move = previous ? (value / previous - 1) * 100 : 0;
-      $(`#${id}Price`).textContent = label;
+      const move = (previous && Number.isFinite(previous) && previous !== 0) ? (value / previous - 1) * 100 : 0;
+      const priceEl = $(`#${id}Price`);
+      if (priceEl) priceEl.textContent = label;
       const moveEl = $(`#${id}Move`);
-      moveEl.textContent = `${move >= 0 ? '+' : ''}${move.toFixed(decimals)}%`;
-      moveEl.style.color = move >= 0 ? 'var(--green)' : 'var(--red)';
+      if (moveEl) {
+        moveEl.textContent = `${move >= 0 ? '+' : ''}${move.toFixed(decimals)}%`;
+        moveEl.style.color = move >= 0 ? 'var(--green)' : 'var(--red)';
+      }
+      // v46 - sparkline sugli ultimi 30 giorni di prezzo
+      const sparkEl = $(`#${id}Spark`);
+      if (sparkEl) {
+        const series = (state.priceHistory?.[id] || []).slice(-30);
+        const svg = sparklineSvg(series, { width: 42, height: 15 });
+        if (sparkEl._sparkKey !== svg) { sparkEl.innerHTML = svg; sparkEl._sparkKey = svg; }
+      }
       // Show term structure indicator
       const tsKey = _tsKeys[id];
       if (tsKey) {
@@ -6518,41 +7017,211 @@
         popup.style.top = (rect.bottom + 8) + 'px';
         popup.style.left = Math.max(8, Math.min(rect.left, window.innerWidth - 230)) + 'px';
         document.body.appendChild(popup);
-        setTimeout(() => document.addEventListener('click', () => popup?.remove(), {once:true}), 60);
       };
     });
   }
 
+  // ── v46 · curva del patrimonio ──────────────────────────────────────────────
+  // Prima era una spezzata piatta con un riempimento fisso. Ora: colore che segue
+  // il segno del rendimento, riempimento sfumato, linea del capitale iniziale,
+  // marcatori su massimo e minimo e punto luminoso sul valore corrente.
   function renderEquityChart() {
-    const values = state.navHistory.length >= 2 ? state.navHistory : [1_000_000, 1_000_000];
-    const min = Math.min(...values) * .995;
-    const max = Math.max(...values) * 1.005;
+    const line = $('#equityLine'), area = $('#equityArea');
+    if (!line || !area) return;
+    const chart = line.ownerSVGElement;
+    const values = state.navHistory.length >= 2 ? state.navHistory : [state.cash || 1_000_000, state.cash || 1_000_000];
+    const W = 260, H = 72, TOP = 5, BOT = 67;
+    const rawMin = Math.min(...values), rawMax = Math.max(...values);
+    const start = state.startingCapital || values[0] || 1;
+    const min = Math.min(rawMin, start) * .995;
+    const max = Math.max(rawMax, start) * 1.005;
     const range = max - min || 1;
-    const points = values.map((v,i) => {
-      const x = (i / (values.length - 1)) * 260;
-      const y = 67 - ((v-min)/range)*58;
-      return [x,y];
+    const xAt = i => (i / Math.max(1, values.length - 1)) * W;
+    const yAt = v => BOT - ((v - min) / range) * (BOT - TOP);
+    const points = values.map((v, i) => [xAt(i), yAt(v)]);
+
+    const up = values.at(-1) >= start;
+    const stroke = up ? 'var(--green)' : 'var(--red)';
+    line.setAttribute('points', points.map(p => p.join(',')).join(' '));
+    line.setAttribute('stroke', stroke);
+    area.setAttribute('d', `M ${points[0][0]} ${H} L ${points.map(p => p.join(' ')).join(' L ')} L ${points.at(-1)[0]} ${H} Z`);
+    area.setAttribute('fill', up ? 'url(#equityFillUp)' : 'url(#equityFillDown)');
+    area.setAttribute('opacity', '1');
+
+    // decorazioni ridisegnate a ogni aggiornamento
+    chart.querySelectorAll('.equity-deco').forEach(node => node.remove());
+    const svgNS = 'http://www.w3.org/2000/svg';
+    const make = (tag, attrs) => { const el = document.createElementNS(svgNS, tag); el.setAttribute('class', 'equity-deco'); Object.entries(attrs).forEach(([k, v]) => el.setAttribute(k, v)); chart.appendChild(el); return el; };
+
+    // linea del capitale iniziale
+    const baseY = yAt(start);
+    make('line', { x1: 0, y1: baseY, x2: W, y2: baseY, stroke: 'rgba(255,255,255,.22)', 'stroke-width': 1, 'stroke-dasharray': '3 4', 'vector-effect': 'non-scaling-stroke' });
+
+    if (values.length > 3 && rawMax !== rawMin) {
+      const iMax = values.indexOf(rawMax), iMin = values.indexOf(rawMin);
+      make('circle', { cx: xAt(iMax), cy: yAt(rawMax), r: 2.2, fill: 'var(--green)', opacity: .85 });
+      make('circle', { cx: xAt(iMin), cy: yAt(rawMin), r: 2.2, fill: 'var(--red)', opacity: .85 });
+    }
+    // valore corrente
+    const last = points.at(-1);
+    make('circle', { cx: last[0], cy: last[1], r: 4.5, fill: stroke, opacity: .18 });
+    make('circle', { cx: last[0], cy: last[1], r: 2.4, fill: stroke });
+  }
+
+  // ── v46 · sparkline SVG riutilizzabile ──────────────────────────────────────
+  // `state.priceHistory` conserva 90 giorni per 10 commodity ma non veniva
+  // praticamente mai mostrata: adesso alimenta i ticker di mercato.
+  function sparklineSvg(series, options = {}) {
+    const values = (series || []).filter(Number.isFinite);
+    if (values.length < 2) return '';
+    const w = options.width || 46, h = options.height || 16, pad = 1.5;
+    const min = Math.min(...values), max = Math.max(...values), range = max - min || 1;
+    const stepX = (w - pad * 2) / (values.length - 1);
+    const pts = values.map((v, i) => `${(pad + i * stepX).toFixed(1)},${(pad + (h - pad * 2) * (1 - (v - min) / range)).toFixed(1)}`);
+    const rising = values.at(-1) >= values[0];
+    const color = options.color || (rising ? 'var(--green)' : 'var(--red)');
+    const lastX = pad + (values.length - 1) * stepX;
+    const lastY = pad + (h - pad * 2) * (1 - (values.at(-1) - min) / range);
+    return `<svg class="spark" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" aria-hidden="true" focusable="false">`
+      + `<polyline points="${pts.join(' ')}" fill="none" stroke="${color}" stroke-width="1.3" stroke-linejoin="round" stroke-linecap="round" opacity=".92"/>`
+      + `<circle cx="${lastX.toFixed(1)}" cy="${lastY.toFixed(1)}" r="1.7" fill="${color}"/>`
+      + `</svg>`;
+  }
+
+  // ── v46 · navigazione a due livelli ─────────────────────────────────────────
+  // 22 schede affiancate erano un muro di pulsanti. Ora si sceglie prima l'area,
+  // poi la scheda; ogni area segnala quante cose richiedono attenzione.
+  const tabGroups = [
+    { id:'desk',    label:'Desk',       icon:'\u25C8', tabs:['portfolio','opportunities','rivals','counterparties'] },
+    { id:'ops',     label:'Operations', icon:'\u25A4', tabs:['inventory','operations','supply','contracts','fleet'] },
+    { id:'riskfin', label:'Risk',       icon:'\u26A0', tabs:['risk','finance','compliance','performance','events'] },
+    { id:'growth',  label:'Growth',     icon:'\u2197', tabs:['strategy','expansion','empire','shop','hq'] },
+    { id:'career',  label:'Career',     icon:'\u2605', tabs:['career','leaderboard','academy'] },
+  ];
+  const tabGroupsIT = { desk:'Scrivania', ops:'Operazioni', riskfin:'Rischio', growth:'Crescita', career:'Carriera' };
+  const groupOfTab = tab => (tabGroups.find(group => group.tabs.includes(tab)) || tabGroups[0]).id;
+  let activeTabGroup = 'desk';
+
+  // Quante voci richiedono un'azione, per scheda. Solo lettura: non tocca lo stato.
+  function tabAttention() {
+    const counts = {};
+    const add = (tab, value) => { if (value > 0) counts[tab] = (counts[tab] || 0) + value; };
+    try {
+      const deals = state.activeDeals || [];
+      add('portfolio', deals.filter(d => d.pendingDecision).length);
+      add('opportunities', opportunities.filter(opp => {
+        if (!isOpportunityUnlocked(opp) || !opportunityAvailable(opp)) return false;
+        const negotiation = state.negotiations?.[opp.id];
+        return negotiation && negotiation.cycle === state.marketCycle && negotiation.status === 'accepted';
+      }).length);
+      add('contracts', deals.filter(d => d.invoiceStatus === 'Overdue').length
+        + Object.values(state.creditLimitRequests || {}).filter(r => r && r.status === 'pending').length);
+      add('compliance', Object.values(state.complianceReviews || {}).filter(r => r && r.status === 'pending').length);
+      add('finance', deals.filter(d => (d.marginCalls || 0) > 0 && !d.delivered).length + ((state.cash < 0) ? 1 : 0));
+      add('events', (state.activeGlobalEvents || []).length);
+      add('shop', (state.shopOrders || []).length);
+      add('empire', (state.constructionQueue || []).length);
+      const officeSnapshot = officeAvailabilitySnapshot();
+      add('expansion', officeSnapshot.projects.length || officeSnapshot.affordable.length);
+
+    } catch (error) { /* i badge non devono mai impedire il render */ }
+    return counts;
+  }
+
+  // ── v47 · frecce, Home e End dentro una barra di schede ─────────────────────
+  function wireArrowNavigation(container, selector) {
+    if (!container || container._arrowsWired) return;
+    container._arrowsWired = true;
+    container.addEventListener('keydown', event => {
+      const keys = ['ArrowRight', 'ArrowLeft', 'ArrowDown', 'ArrowUp', 'Home', 'End'];
+      if (!keys.includes(event.key)) return;
+      const items = [...container.querySelectorAll(selector)].filter(item => !item.hidden && !item.disabled);
+      if (items.length < 2) return;
+      const current = items.indexOf(document.activeElement);
+      if (current < 0) return;
+      event.preventDefault();
+      let next = current;
+      if (event.key === 'Home') next = 0;
+      else if (event.key === 'End') next = items.length - 1;
+      else if (event.key === 'ArrowRight' || event.key === 'ArrowDown') next = (current + 1) % items.length;
+      else next = (current - 1 + items.length) % items.length;
+      items[next].focus();
+      items[next].click();
     });
-    $('#equityLine').setAttribute('points', points.map(p => p.join(',')).join(' '));
-    const area = `M ${points[0][0]} 72 L ${points.map(p => p.join(' ')).join(' L ')} L ${points.at(-1)[0]} 72 Z`;
-    $('#equityArea').setAttribute('d', area);
-    $('#equityArea').setAttribute('fill', 'rgba(87,230,255,.18)');
   }
 
   function renderTabs() {
-    $$('.panel-tab').forEach(b => b.classList.toggle('active', b.dataset.leftTab === activeLeftTab));
-    $$('.left-section').forEach(s => s.classList.toggle('active', s.id === `left-${activeLeftTab}`));
+    const attention = tabAttention();
+    activeTabGroup = groupOfTab(activeLeftTab);
+
+    const groupRail = $('#panelGroups');
+    // v47 - la barra delle aree viene ricostruita: se il fuoco era li' dentro va
+    // riportato sul nuovo pulsante attivo, altrimenti le frecce smettono di funzionare.
+    const focusWasOnGroup = Boolean(document.activeElement?.closest?.('#panelGroups'));
+    if (groupRail) {
+      const useIT = state.language === 'it';
+      groupRail.innerHTML = tabGroups.map(group => {
+        const count = group.tabs.reduce((sum, tab) => sum + (attention[tab] || 0), 0);
+        const label = useIT ? (tabGroupsIT[group.id] || group.label) : group.label;
+        const isActive = group.id === activeTabGroup;
+        return `<button class="panel-group ${isActive ? 'active' : ''}" data-tab-group="${group.id}" role="tab" aria-selected="${isActive}" tabindex="${isActive ? 0 : -1}" aria-label="${label}${count ? `, ${count} item${count === 1 ? '' : 's'} need attention` : ''}">
+          <i aria-hidden="true">${group.icon}</i><span>${label}</span>${count ? `<em class="group-count">${count > 9 ? '9+' : count}</em>` : ''}
+        </button>`;
+      }).join('');
+      if (focusWasOnGroup) groupRail.querySelector('.panel-group.active')?.focus();
+      $$('[data-tab-group]', groupRail).forEach(button => button.addEventListener('click', () => {
+        const group = tabGroups.find(item => item.id === button.dataset.tabGroup);
+        if (!group) return;
+        // apre la prima scheda dell'area che richiede attenzione, altrimenti la prima
+        const target = group.tabs.find(tab => attention[tab]) || group.tabs[0];
+        activeLeftTab = target;
+        try { Sound.play('click'); } catch (e) {}
+        renderTabs();
+        renderSection(activeLeftTab, { animate: true });
+      }));
+    }
+
+    $$('.panel-tab').forEach(button => {
+      const tab = button.dataset.leftTab;
+      const isActive = tab === activeLeftTab;
+      button.classList.toggle('active', isActive);
+      button.hidden = button.dataset.group !== activeTabGroup;
+      // v47 - roving tabindex: Tab entra nella barra, poi ci si muove con le frecce
+      button.setAttribute('role', 'tab');
+      button.setAttribute('aria-selected', String(isActive));
+      button.setAttribute('aria-controls', `left-${tab}`);
+      button.tabIndex = isActive ? 0 : -1;
+      const count = attention[tab] || 0;
+      let badge = button.querySelector('.tab-count');
+      if (count) {
+        if (!badge) { badge = document.createElement('em'); badge.className = 'tab-count'; button.appendChild(badge); }
+        badge.textContent = count > 9 ? '9+' : String(count);
+        badge.setAttribute('aria-label', `${count} item${count === 1 ? '' : 's'} need attention`);
+      } else if (badge) badge.remove();
+    });
+
+    wireArrowNavigation($('#panelGroups'), '[data-tab-group]');
+    wireArrowNavigation($('#panelTabs'), '.panel-tab');
+
+    $$('.left-section').forEach(section => {
+      const isActive = section.id === `left-${activeLeftTab}`;
+      section.classList.toggle('active', isActive);
+      section.setAttribute('role', 'tabpanel');
+      section.setAttribute('aria-hidden', String(!isActive));
+    });
+    if (_renderedLeftTab !== activeLeftTab) renderSection(activeLeftTab, { animate: true });
     if ($('#drawerTitle')) $('#drawerTitle').textContent = drawerLabel(activeLeftTab) || 'Command center';
   }
 
   function renderActiveDeals() {
     const container = $('#activeDealsList');
     if (!state.activeDeals.length) {
-      container.innerHTML = '<div class="empty-card">No open operations.<br>Open the Market tab and select a route on the globe.</div>';
+      container.innerHTML = emptyState('No open operations yet.', { label: 'Browse the opportunity market', type: 'module', id: 'opportunities' });
       return;
     }
     container.innerHTML = state.activeDeals.map(deal => {
       const opp = getOpportunity(deal.opportunityId);
+      if (!opp || !getHub(opp.origin) || !getHub(opp.destination)) return '';
       const progress = computeDealProgress(deal);
       const pnl = computeUnrealizedPnl(deal);
       return `<button class="deal-card ${selected.type === 'deal' && selected.id === deal.id ? 'selected' : ''}" data-deal-id="${deal.id}">
@@ -6567,7 +7236,7 @@
   function renderHistory() {
     const container = $('#historyList');
     if (!state.history.length) {
-      container.innerHTML = '<div class="empty-card">Your track record will appear after the first closed deal.</div>';
+      container.innerHTML = emptyState('Your track record will appear after the first closed deal.', { label: 'Browse the opportunity market', type: 'module', id: 'opportunities' });
       return;
     }
     container.innerHTML = state.history.slice(0,8).map(item => {
@@ -6593,7 +7262,7 @@
       <div><span>In transit</span><strong>${inTransit} cargo</strong></div>
       <div><span>At port</span><strong>${atPort} cargo</strong></div>`;
     if (!state.activeDeals.length) {
-      container.innerHTML = '<div class="empty-card">No physical inventory. Start a deal from Market to open your first cargo.</div>';
+      container.innerHTML = emptyState('No physical inventory yet.', { label: 'Browse the opportunity market', type: 'module', id: 'opportunities' });
       return;
     }
     container.innerHTML = state.activeDeals.map(deal => {
@@ -6633,7 +7302,7 @@
       <div><span>Blocked documents</span><strong style="color:${blockedDocs?'var(--red)':'var(--green)'}">${blockedDocs}</strong></div>
       <div><span>Active storage</span><strong>${activeStorage}</strong></div>`;
     if (!allDeals.length) {
-      container.innerHTML = '<div class="empty-card">No active operations chain. Start a deal to generate contracts, bookings and documents.</div>';
+      container.innerHTML = emptyState('No operations chain running.', { label: 'Browse the opportunity market', type: 'module', id: 'opportunities' });
       return;
     }
     container.innerHTML = allDeals.map(deal => {
@@ -6888,7 +7557,7 @@
         <div class="contract-stages">${stages.map(([label,done])=>`<span class="${done?'done':''}"><i></i>${label}</span>`).join('')}</div>
         <div class="contract-meta"><span>Buyer: ${getCounterparty(deal.buyerId)?.name || '—'}</span><strong>${deal.delivered ? (deal.invoiceStatus === 'Overdue' ? `${Math.max(0,deal.collectionDelayDays||0)} overdue days remaining` : `${Math.max(0,deal.paymentDaysRemaining||0)} days to cash`) : `${Math.max(0,deal.duration-deal.elapsed)} days to delivery`}</strong></div>
       </button>`;
-    }).join('') : '<div class="empty-card">No live contracts. Accepted physical deals will appear here.</div>';
+    }).join('') : emptyState('No live contracts. Accepted physical deals appear here.', { label: 'Browse the opportunity market', type: 'module', id: 'opportunities' });
     receivables.innerHTML = outstanding.length ? outstanding.map(deal => {
       const buyer = getCounterparty(deal.buyerId);
       const limit = counterpartyCreditLimit(deal.buyerId);
@@ -6938,7 +7607,7 @@
       <div><span>Assigned</span><strong>${assigned}</strong></div>
       <div><span>Total capacity</span><strong>${capacity.toLocaleString('en-US')} t</strong></div>`;
     if (!state.fleetAssets.length) {
-      container.innerHTML = '<div class="empty-card">No vessels under control. Charter your first asset from the charter market.</div>';
+      container.innerHTML = emptyState('No vessels under control. The charter market is just below.', { label: 'Open the empire store', type: 'module', id: 'shop' });
     } else {
       container.innerHTML = state.fleetAssets.map(asset => {
         const vessel = getVesselCatalog(asset.catalogId);
@@ -7476,7 +8145,7 @@
         <div class="finance-grid"><div><span>Debt</span><strong>${money(deal.borrowed,true)}</strong></div><div><span>Rate</span><strong>${((deal.financingRate||0)*100).toFixed(1)}%</strong></div><div><span>Collateral</span><strong>${money(deal.marginCollateral||0,true)}</strong></div><div><span>Interest</span><strong>${money(deal.financingAccrued||0)}</strong></div></div>
         <div class="capital-bar margin"><span style="width:${clamp(coverage*100,0,100)}%"></span></div>
       </button>`;
-    }).join('') : '<div class="empty-card">No active funding. Open a deal to use facilities, LCs and futures collateral.</div>';
+    }).join('') : emptyState('No active funding. Facilities, LCs and futures collateral appear once a cargo is open.', { label: 'Browse the opportunity market', type: 'module', id: 'opportunities' });
     banking.innerHTML = bankCatalog.map(bank => {
       const unlocked = bank.id !== 'oceanic' || officeOwned('singapore');
       const capacity = effectiveCreditLimit()*bank.limitShare;
@@ -7542,10 +8211,10 @@
     const levels=totalInvestmentLevels(), income=dailyInvestmentIncome(), book=investmentBookValue(), active=activeProjectCount();
     summary.innerHTML=`<div><span>Industrial levels</span><strong>${levels}</strong></div><div><span>Asset book value</span><strong>${money(book,true)}</strong></div><div><span>Daily asset income</span><strong>${money(income)}</strong></div><div><span>Project teams</span><strong>${active}/${builderSlots()}</strong></div>`;
     const builds=investmentCatalog.filter(asset=>investmentRecord(asset.id).buildingTo);
-    queue.innerHTML=builds.length?builds.map(asset=>{const r=investmentRecord(asset.id);const total=investmentBuildDays(asset,r.buildingTo);const pct=(1-r.daysRemaining/total)*100;return `<div class="builder-card"><div><span>${asset.chain} construction</span><strong>${asset.name} · L${r.buildingTo}</strong><small>${r.daysRemaining} days remaining</small></div><div class="progress-track"><span style="width:${pct}%"></span></div></div>`}).join(''):`<div class="empty-card compact">No projects under construction. You have ${builderSlots()} project teams available.</div>`;
+    queue.innerHTML=builds.length?builds.map(asset=>{const r=investmentRecord(asset.id);const total=investmentBuildDays(asset,r.buildingTo);const pct=(1-r.daysRemaining/total)*100;return `<div class="builder-card"><div><span>${asset.chain} construction</span><strong>${asset.name} · L${r.buildingTo}</strong><small>${r.daysRemaining} days remaining</small></div><div class="progress-track"><span style="width:${pct}%"></span></div></div>`}).join(''):emptyState(`No projects under construction \u00b7 ${builderSlots()} project teams free.`, { label: 'Open the empire store', type: 'module', id: 'shop' });
     // v32 buy extra project team with gold bars
     const gCost = builderGoldCost();
-    queue.innerHTML += `<div class="buy-builder-card"><div class="bb-info"><span>Squadra di progetto extra</span><small>+1 builder permanente · ${state.bonusBuilders||0} acquistati</small></div><button class="button gold buy-builder-btn" id="buyBuilderBtn" ${(state.goldBars||0)<gCost?'disabled':''}>${gCost} lingotti</button></div>`;
+    queue.innerHTML += `<div class="buy-builder-card"><div class="bb-info"><span>Extra project team</span><small>+1 permanent builder · ${state.bonusBuilders||0} purchased</small></div><button class="button gold buy-builder-btn" id="buyBuilderBtn" ${(state.goldBars||0)<gCost?'disabled':''}>${gCost} gold bars</button></div>`;
     const bbBtn = $('#buyBuilderBtn'); if (bbBtn) bbBtn.addEventListener('click', buyExtraBuilder);
     const visible=investmentCatalog.filter(asset=>selectedEmpireChain==='all'||asset.chain===selectedEmpireChain);
     container.innerHTML=visible.map(asset=>{
@@ -7607,8 +8276,7 @@
       <div><span>Owned vessels</span><strong>${permanentShips}</strong></div>
       <div><span>Asset book value</span><strong>${money(shopBookValue(),true)}</strong></div>
       <div><span>Project teams</span><strong>${activeProjectCount()}/${builderSlots()}</strong></div>`;
-    const queueCount=$('#shopQueueCount'); if(queueCount) queueCount.textContent=orders.length;
-    const badge=$('#shopBadge'); if(badge){ badge.textContent=orders.length; badge.classList.toggle('hidden',!orders.length); }
+    renderShopRailBadge();
     queue.innerHTML=orders.length?orders.map(order=>{
       const item=shopDefinition(order.itemId); const pct=Math.round((1-order.daysRemaining/Math.max(1,order.totalDays))*100);
       return `<article class="shop-order-card"><div class="shop-order-icon">${item?.icon||'▦'}</div><div><span>${item?.category||'asset'} project</span><strong>${item?.name||'Capital asset'}</strong><small>${order.daysRemaining} days remaining · ${pct}% complete</small><div class="shop-order-progress"><i style="width:${pct}%"></i></div></div></article>`;
@@ -7777,23 +8445,23 @@
       <div><span>Season</span><strong>S${seasonNumber()} · day ${seasonDay()}/90</strong></div>`;
     profile.innerHTML=`
       <div class="leaderboard-profile-card">
-        <div class="leaderboard-avatar">${(state.profileName||'GB').split(/\s+/).map(v=>v[0]).slice(0,2).join('').toUpperCase()}</div>
-        <div class="leaderboard-profile-copy"><span>Player identity</span><strong>${state.profileName}</strong><small>${state.companyName} · ${rankFromState()}</small></div>
+        <div class="leaderboard-avatar">${esc((state.profileName||'GB').split(/\s+/).map(v=>v[0]).slice(0,2).join('').toUpperCase())}</div>
+        <div class="leaderboard-profile-copy"><span>Player identity</span><strong>${esc(state.profileName)}</strong><small>${esc(state.companyName)} · ${rankFromState()}</small></div>
       </div>
-      <div class="leaderboard-edit-grid"><label>Trader name<input id="leaderboardTraderName" maxlength="40" value="${String(state.profileName||'').replace(/"/g,'&quot;')}"></label><label>Trading house<input id="leaderboardCompanyName" maxlength="40" value="${String(state.companyName||'').replace(/"/g,'&quot;')}"></label></div>
+      <div class="leaderboard-edit-grid"><label>Trader name<input id="leaderboardTraderName" maxlength="40" value="${esc(state.profileName)}"></label><label>Trading house<input id="leaderboardCompanyName" maxlength="40" value="${esc(state.companyName)}"></label></div>
       <button class="button secondary leaderboard-save" id="saveLeaderboardProfile">Save identity</button>
       <div class="league-progress"><div><span>${league.name}</span><strong>${league.next?`${Math.max(0,league.next-leaderboardScore()).toLocaleString('en-US')} points to next league`:'Highest league reached'}</strong></div><div class="progress-track"><span style="width:${nextProgress}%"></span></div></div>`;
     table.innerHTML=`
       <div class="leaderboard-mode-tabs">${[['overall','Overall'],['pnl','P&L'],['operations','Operations'],['risk','Risk discipline']].map(([id,label])=>`<button data-leaderboard-mode="${id}" class="${selectedLeaderboardMode===id?'active':''}">${label}</button>`).join('')}</div>
       <div class="leaderboard-head"><span>Rank</span><span>Trading house</span><span>${selectedLeaderboardMode==='overall'?'Rating':selectedLeaderboardMode==='pnl'?'Realized P&L':selectedLeaderboardMode==='operations'?'Ops score':'Risk score'}</span></div>
-      <div class="leaderboard-rows">${rows.slice(0,10).map(row=>`<div class="leaderboard-row ${row.isPlayer?'player':''}"><span class="leaderboard-position ${row.position<=3?'podium':''}">${row.position<=3?['Ⅰ','Ⅱ','Ⅲ'][row.position-1]:`#${row.position}`}</span><div><strong>${row.name}</strong><small>${row.isPlayer?row.trader:`${row.city} · ${row.country}`}</small></div><b>${formatLeaderboardMetric(row,selectedLeaderboardMode)}</b></div>`).join('')}${player.position>10?`<div class="leaderboard-divider">Your position</div><div class="leaderboard-row player"><span class="leaderboard-position">#${player.position}</span><div><strong>${player.name}</strong><small>${player.trader}</small></div><b>${formatLeaderboardMetric(player,selectedLeaderboardMode)}</b></div>`:''}</div>
+      <div class="leaderboard-rows">${rows.slice(0,10).map(row=>`<div class="leaderboard-row ${row.isPlayer?'player':''}"><span class="leaderboard-position ${row.position<=3?'podium':''}">${row.position<=3?['Ⅰ','Ⅱ','Ⅲ'][row.position-1]:`#${row.position}`}</span><div><strong>${esc(row.name)}</strong><small>${row.isPlayer?esc(row.trader):`${esc(row.city)} · ${esc(row.country)}`}</small></div><b>${formatLeaderboardMetric(row,selectedLeaderboardMode)}</b></div>`).join('')}${player.position>10?`<div class="leaderboard-divider">Your position</div><div class="leaderboard-row player"><span class="leaderboard-position">#${player.position}</span><div><strong>${esc(player.name)}</strong><small>${esc(player.trader)}</small></div><b>${formatLeaderboardMetric(player,selectedLeaderboardMode)}</b></div>`:''}</div>
       <div class="leaderboard-disclosure">World of Trade Career League uses transparent simulated rivals in this offline prototype. Your score is based only on your real World of Trade career results.</div>
       <button class="button secondary leaderboard-share" id="copyLeaderboardResult">Copy ranking result</button>`;
     history.innerHTML=(state.leaderboardSnapshots||[]).length ? state.leaderboardSnapshots.map(item=>`<div class="season-card"><div><span>Season ${item.season}</span><strong>#${item.position} · ${item.league}</strong></div><div><span>Rating</span><strong>${item.score.toLocaleString('en-US')}</strong></div><div><span>P&L</span><strong>${money(item.pnl,true)}</strong></div></div>`).join('') : '<div class="empty-card">The first season will be archived after 90 game days.</div>';
     $$('[data-leaderboard-mode]',table).forEach(button=>button.addEventListener('click',()=>{selectedLeaderboardMode=button.dataset.leaderboardMode;renderLeaderboard();}));
     $('#saveLeaderboardProfile')?.addEventListener('click',()=>{
-      const trader=$('#leaderboardTraderName')?.value.trim();
-      const company=$('#leaderboardCompanyName')?.value.trim();
+      const trader=cleanUserName($('#leaderboardTraderName')?.value, '');
+      const company=cleanUserName($('#leaderboardCompanyName')?.value, '');
       if (trader) state.profileName=trader;
       if (company) state.companyName=company;
       saveState();renderAll();showToast('Career League identity updated.');
@@ -7922,7 +8590,7 @@
       <div><span>Reserve headroom</span><strong class="${capitalPolicyHeadroom()>=0?'positive':'negative'}">${money(capitalPolicyHeadroom(),true)}</strong><small>Cash above board minimum</small></div>
       <div><span>Desk risk</span><strong>${Math.round(risk.riskScore)}/100</strong><small>${risk.riskScore<35?'Controlled':risk.riskScore<65?'Elevated':'High'}</small></div>`;
     const items=performanceAttribution(); const max=Math.max(1,...items.map(item=>Math.abs(item.value)));
-    attribution.innerHTML=items.map(item=>`<div class="attribution-row"><div><span>${item.label}</span><strong class="${item.value>=0?'positive':'negative'}">${money(item.value,true)}</strong></div><div class="attribution-track"><i class="${item.value>=0?'positive':'negative'}" style="width:${Math.max(2,Math.abs(item.value)/max*100)}%"></i></div></div>`).join('') || '<div class="empty-card">P&amp;L attribution will appear after the first settlement.</div>';
+    attribution.innerHTML=items.map(item=>`<div class="attribution-row"><div><span>${item.label}</span><strong class="${item.value>=0?'positive':'negative'}">${money(item.value,true)}</strong></div><div class="attribution-track"><i class="${item.value>=0?'positive':'negative'}" style="width:${Math.max(2,Math.abs(item.value)/max*100)}%"></i></div></div>`).join('') || emptyState('P&amp;L attribution will appear after the first settlement.', { label: 'Browse the opportunity market', type: 'module', id: 'opportunities' });
     policies.innerHTML=Object.values(capitalPolicyCatalog).map(item=>`<button class="capital-policy-card ${item.id===state.capitalPolicy?'active':''}" data-capital-policy="${item.id}" ${item.id!==state.capitalPolicy&&!canChangeCapitalPolicy()?'disabled':''}><div><i>${item.icon}</i><span><strong>${item.label}</strong><small>${item.description}</small></span></div><div class="policy-metrics"><em>${Math.round(item.reserveRatio*100)}% reserve</em><em>${item.pnlFactor>1?'+':''}${Math.round((item.pnlFactor-1)*100)}% deal margin</em><em>${item.riskAdjustment>0?'+':''}${item.riskAdjustment} risk</em></div><b>${item.id===state.capitalPolicy?'Active':canChangeCapitalPolicy()?'Adopt':'Board locked'}</b></button>`).join('');
     scenarios.innerHTML=Object.values(stressScenarioCatalog).map(item=>{const preview=calculateStressScenario(item.id); return `<button class="stress-scenario-card" data-stress-scenario="${item.id}"><i>${item.icon}</i><span><strong>${item.label}</strong><small>${item.subtitle}</small><em>${item.description}</em></span><b>${money(preview?.cashImpact||0,true)} impact</b></button>`;}).join('');
     const result=state.lastStressTest;
@@ -7931,30 +8599,75 @@
     $$('[data-stress-scenario]',scenarios).forEach(button=>button.addEventListener('click',()=>runStressTest(button.dataset.stressScenario)));
   }
 
-  function renderAllLists() {
-    renderActiveDeals();
-    renderHistory();
-    renderInventory();
-    renderOperations();
-    renderSupplyChain();
-    renderContracts();
-    renderFleet();
-    renderRiskDashboard();
-    renderOpportunityList();
-    renderRivals();
-    renderStrategy();
-    renderExpansion();
-    renderCounterparties();
-    renderCompliance();
-    renderWorldEvents();
-    renderFinance();
-    renderPerformance();
-    renderAcademy();
-    renderEmpire();
-    renderShop();
-    renderHQ();
-    renderCareer();
-    renderLeaderboard();
+  // v45 — prima ogni renderAll() ricostruiva l'innerHTML di TUTTE e 22 le sezioni
+  // del pannello, anche quelle nascoste, a ogni giorno di gioco (fino a 2,3 volte
+  // al secondo a velocita' 5x). Ora si disegna solo la sezione visibile; le altre
+  // vengono marcate come da aggiornare e ridisegnate quando si apre la scheda.
+  const leftSectionRenderers = {
+    portfolio:      () => { renderActiveDeals(); renderHistory(); },
+    inventory:      () => renderInventory(),
+    operations:     () => renderOperations(),
+    supply:         () => renderSupplyChain(),
+    contracts:      () => renderContracts(),
+    fleet:          () => renderFleet(),
+    risk:           () => renderRiskDashboard(),
+    opportunities:  () => renderOpportunityList(),
+    rivals:         () => renderRivals(),
+    strategy:       () => renderStrategy(),
+    expansion:      () => renderExpansion(),
+    counterparties: () => renderCounterparties(),
+    compliance:     () => renderCompliance(),
+    events:         () => renderWorldEvents(),
+    finance:        () => renderFinance(),
+    performance:    () => renderPerformance(),
+    academy:        () => renderAcademy(),
+    empire:         () => renderEmpire(),
+    shop:           () => renderShop(),
+    hq:             () => renderHQ(),
+    career:         () => renderCareer(),
+    leaderboard:    () => renderLeaderboard(),
+  };
+  let _renderedLeftTab = null;
+
+  function renderSection(tab, options = {}) {
+    const renderer = leftSectionRenderers[tab];
+    if (!renderer) return;
+    try { renderer(); }
+    catch (error) { console.error(`[WoT] render della sezione "${tab}" non riuscito`, error); }
+    // v46 - le card entrano in sequenza, ma solo quando si apre la scheda:
+    // rianimarle a ogni giorno di gioco sarebbe fastidioso.
+    if (options.animate) staggerSection(tab);
+  }
+
+  // Assegna --i ai figli delle liste cosi' il CSS puo' scaglionarne l'entrata.
+  const STAGGER_CONTAINERS = '.deal-list, .history-list, .inventory-list, .operations-list, .opportunity-list, .fleet-list, .counterparty-list, .world-event-list, .finance-list, .investment-list, .shop-catalog-list, .management-list, .mission-list, .academy-list, .contract-list, .receivable-list, .route-condition-list, .procurement-agreement-list, .supply-cargo-list, .rival-opportunity-list, .doctrine-list, .desk-specialisation-list, .commercial-framework-list, .compliance-queue, .trade-journal-list, .glossary-list, .achievement-grid, .leaderboard-rows, .stress-scenario-list, .capital-policy-list';
+  function staggerSection(tab) {
+    if (!motionEnabled()) return;
+    const section = document.getElementById(`left-${tab}`);
+    if (!section) return;
+    section.querySelectorAll(STAGGER_CONTAINERS).forEach(container => {
+      const children = [...container.children].slice(0, 14);
+      if (children.length < 2) return;
+      container.classList.add('stagger-in');
+      children.forEach((child, index) => child.style.setProperty('--i', index));
+      // rimuove la classe a fine animazione: cosi' i render successivi non rianimano
+      clearTimeout(container._staggerTimer);
+      container._staggerTimer = setTimeout(() => container.classList.remove('stagger-in'), 900);
+    });
+  }
+
+  function renderAllLists(force = false) {
+    // I contatori sulla barra comandi devono restare aggiornati anche a scheda chiusa
+    renderShopRailBadge();
+    if (force) { Object.keys(leftSectionRenderers).forEach(renderSection); _renderedLeftTab = activeLeftTab; return; }
+    renderSection(activeLeftTab);
+    _renderedLeftTab = activeLeftTab;
+  }
+
+  function renderShopRailBadge() {
+    const orders = state.shopOrders || [];
+    const queueCount = $('#shopQueueCount'); if (queueCount) queueCount.textContent = orders.length;
+    const badge = $('#shopBadge'); if (badge) { badge.textContent = orders.length; badge.classList.toggle('hidden', !orders.length); }
   }
 
   function hubInspector(hub) {
@@ -8139,7 +8852,7 @@
         </div>
         <div class="tender-preview">
           <div><span>Your offered margin</span><strong id="tenderMarginPreview">${money(opp.basePnl)}</strong></div>
-          <div><span>Win probability</span><strong id="tenderWinPct">~50%</strong></div>
+          <div><span>Win probability</span><strong id="tenderWinPct">~${Math.round(Math.min(95, Math.max(5, 30 - Math.max(0, ((rivalTenderFor(opp.id)?.pressure) || 0) - 35) * 0.5)))}%</strong></div>
         </div>
         <button class="button primary" id="submitTenderBtn" ${canStart ? '' : 'disabled'}>Submit competitive bid</button>
       </div>` : `<button class="button primary" id="startDealButton" ${canStart ? '' : 'disabled'}>Open the physical deal</button>`}
@@ -8338,6 +9051,9 @@
       const asset=investmentDefinition(selected.id); if(!asset)return selectHub('geneva'); eyebrow.textContent='Industrial asset'; container.innerHTML=investmentInspector(asset); $('#inspectorBuildInvestment')?.addEventListener('click',()=>startInvestment(asset.id)); $('#focusInvestmentHub')?.addEventListener('click',()=>focusOnHub(asset.hub));
     } else if (selected.type === 'opportunity') {
       const opp = getOpportunity(selected.id);
+      // v45 — unico ramo che non aveva la guardia: un id non risolvibile bloccava
+      // ogni renderAll() successivo, quindi anche la simulazione.
+      if (!opp) return selectHub('geneva');
       eyebrow.textContent = 'Opportunity analysis';
       container.innerHTML = opportunityInspector(opp);
       const hedgeInput = $('#hedgeRatioInput');
@@ -8383,7 +9099,8 @@
           if (tenderMarginPreview) tenderMarginPreview.textContent = money(opp.basePnl + adj);
           // Rough win probability estimate based on concession depth
           const concessionRatio = Math.abs(adj) / Math.max(1, opp.basePnl);
-          const winPct = Math.round(Math.min(95, Math.max(5, 30 + concessionRatio * 120)));
+          const pressurePenalty = Math.max(0, ((rivalTenderFor(opp.id)?.pressure) || 0) - 35) * 0.5;
+          const winPct = Math.round(Math.min(95, Math.max(5, 30 + concessionRatio * 120 - pressurePenalty)));
           if (tenderWinPct) tenderWinPct.textContent = `~${winPct}%`;
         });
         $('#submitTenderBtn')?.addEventListener('click', () => submitTenderBid(opp.id, Number(tenderInput.value)));
@@ -8434,7 +9151,7 @@
       return;
     }
     const opp = getOpportunity(pending.opportunityId);
-    $('#eventBannerText').textContent = opp.event?.title || pending.eventResult || 'Treasury decision required';
+    $('#eventBannerText').textContent = opp?.event?.title || pending.eventResult || 'Treasury decision required';
     banner.classList.remove('hidden');
     $('#openEventButton').onclick = () => selectDeal(pending.id);
   }
@@ -8592,10 +9309,12 @@
   let _pendingDailyReward = null;
   function checkDailyReward() {
     const today = new Date().toISOString().slice(0, 10);
-    if (state.lastRewardDay === today) return;
-    // streak: consecutive calendar days
+    // v45 — 'streakDay' registra il giorno in cui lo streak e' stato calcolato:
+    // prima bastava chiudere il dialog e ricaricare per farlo salire di 1 ogni volta.
+    if (state.lastRewardDay === today || state.streakDay === today) return;
     const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
     state.loginStreak = (state.lastRewardDay === yesterday) ? (state.loginStreak || 0) + 1 : 1;
+    state.streakDay = today;
     _pendingDailyReward = today;
     setTimeout(openDailyReward, 700);
   }
@@ -8607,17 +9326,17 @@
       claimDailyReward();
       return;
     }
-    const sub = $('#dailyStreakSub'); if (sub) sub.textContent = `Giorno ${streak} di fila`;
+    const sub = $('#dailyStreakSub'); if (sub) sub.textContent = `Day ${streak} in a row`;
     const row = $('#dailyDaysRow');
     if (row) {
       row.innerHTML = Array.from({ length: 7 }, (_, i) => {
         const day = i + 1; const r = dailyRewardFor(day);
         const cls = day < streak ? 'done' : day === Math.min(7, streak) ? 'active' : '';
-        return `<div class="daily-day ${cls}"><span>G${day}</span><b>${r.gold}⬤</b></div>`;
+        return `<div class="daily-day ${cls}"><span>D${day}</span><b>${r.gold}⬤</b></div>`;
       }).join('');
     }
     const line = $('#dailyRewardLine');
-    if (line) line.innerHTML = `Oggi: <strong>${money(reward.cash)}</strong> · <strong>${reward.xp} XP</strong> · <strong>${reward.gold} lingotti</strong>`;
+    if (line) line.innerHTML = `Today: <strong>${money(reward.cash)}</strong> · <strong>${reward.xp} XP</strong> · <strong>${reward.gold} gold bars</strong>`;
     try { Sound.play('purchase'); } catch (e) {}
     if (!dialog.open) dialog.showModal();
   }
@@ -8630,13 +9349,77 @@
     addXp(reward.xp, 'daily');
     saveState(true);
     renderAll();
-    showToast(`Bonus giornaliero riscosso: ${money(reward.cash)} + ${reward.gold} lingotti.`, 'success');
+    showToast(`Daily bonus claimed: ${money(reward.cash)} + ${reward.gold} gold bars.`, 'success');
+  }
+
+  // ── v46 · riepilogo di chiusura operazione ──────────────────────────────────
+  // Prima un cargo si chiudeva con un semplice toast: il risultato piu' importante
+  // della partita passava inosservato. Ora compare un pannello con la scomposizione
+  // del P&L, le barre che crescono e il totale che scorre.
+  let _settlementQueue = [];
+  let _settlementTimer = null;
+
+  function queueSettlementSummary(opp, deal, figures) {
+    if (!opp) return;
+    _settlementQueue.push({
+      title: opp.title,
+      route: `${getHub(opp.origin)?.name || '—'} → ${getHub(opp.destination)?.name || '—'}`,
+      days: deal.elapsed,
+      hedge: deal.hedgeRatio || 0,
+      readiness: Math.round(figures.readiness || 0),
+      total: figures.pnl,
+      lines: [
+        { label: 'Trading margin',     value: figures.basePnl || 0 },
+        { label: 'Market exposure',    value: figures.marketPnl || 0 },
+        { label: 'FX result',          value: figures.fxPnl || 0 },
+        { label: 'Operations & claims', value: figures.adjustments || 0 },
+        { label: 'Financing cost',     value: -(figures.financingCost || 0) },
+        { label: 'Storage optionality', value: figures.storagePnl || 0 },
+        { label: 'Credit result',      value: figures.creditPnl || 0 },
+      ].filter(line => Math.abs(line.value) >= 1),
+    });
+    if (!_settlementTimer) _settlementTimer = setTimeout(showNextSettlement, 420);
+  }
+
+  function showNextSettlement() {
+    _settlementTimer = null;
+    const item = _settlementQueue.shift();
+    const dialog = $('#settlementDialog');
+    if (!item) return;
+    if (!dialog) { showToast(`${item.title} settled: ${money(item.total)}.`, item.total >= 0 ? 'success' : 'warning'); return; }
+    if (dialog.open) { _settlementQueue.unshift(item); _settlementTimer = setTimeout(showNextSettlement, 900); return; }
+
+    const positive = item.total >= 0;
+    dialog.classList.toggle('loss', !positive);
+    $('#settlementTitle').textContent = item.title;
+    $('#settlementRoute').textContent = `${item.route} · ${item.days} days · hedge ${item.hedge}% · ops ${item.readiness}%`;
+    $('#settlementVerdict').textContent = positive ? 'Cargo settled in profit' : 'Cargo settled at a loss';
+
+    const max = Math.max(1, ...item.lines.map(line => Math.abs(line.value)));
+    $('#settlementLines').innerHTML = item.lines.map((line, index) => `
+      <div class="settlement-line" style="--i:${index}">
+        <span>${line.label}</span>
+        <div class="settlement-track"><i class="${line.value >= 0 ? 'positive' : 'negative'}" style="width:${Math.max(3, Math.abs(line.value) / max * 100)}%"></i></div>
+        <strong class="${line.value >= 0 ? 'positive' : 'negative'}">${line.value >= 0 ? '+' : ''}${money(line.value)}</strong>
+      </div>`).join('');
+
+    const totalEl = $('#settlementTotal');
+    totalEl.className = `settlement-total ${positive ? 'positive' : 'negative'}`;
+    totalEl.textContent = money(0);
+    dialog.showModal();
+    // il totale scorre dopo che le barre sono cresciute
+    setTimeout(() => animateCounter(totalEl, item.total, v => money(v)), motionEnabled() ? 520 : 0);
+    try { Sound.play(positive ? 'deal' : 'warning'); } catch (e) {}
   }
 
   function switchToSlot(n) {
     if (n === activeSlot) { $('#slotDialog')?.close(); return; }
     saveState(true); // persist current slot first
     setActiveSlot(n);
+    // v45 — va letto PRIMA del saveState finale, altrimenti la condizione e' sempre
+    // falsa e chi apre uno slot vuoto non vede mai onboarding e scelta difficolta'.
+    let isNewCareer = false;
+    try { isNewCareer = !localStorage.getItem(currentStorageKey()); } catch (e) {}
     state = loadState();
     initializeCounterparties();
     initializeCompetitiveMarket(true);
@@ -8652,7 +9435,7 @@
     $('#slotDialog')?.close();
     const meta = readSlotMeta(n);
     showToast(`Switched to slot ${n}${meta ? ' · ' + meta.companyName : ' (new career)'}.`, 'success');
-    if (!localStorage.getItem(currentStorageKey())) setTimeout(openOnboarding, 80);
+    if (isNewCareer) setTimeout(openOnboarding, 80);
   }
 
   function deleteSlot(n) {
@@ -8661,11 +9444,21 @@
       localStorage.removeItem(`${slotKey(n)}-backup`);
     } catch (e) {}
     if (n === activeSlot) {
+      // v45 — prima l'orologio continuava a girare sulla "carriera cancellata"
+      // e la selezione restava puntata su un deal ormai inesistente.
       state = defaultState();
+      state.onboardingComplete = false;
       initializeCounterparties();
       initializeCompetitiveMarket(true);
+      selected = { type: 'hub', id: 'geneva' };
+      activeLeftTab = 'portfolio';
+      runningSpeed = 0;
+      view = { lon: 6, lat: 18, zoom: 1, targetLon: 6, targetLat: 18 };
+      cleanGlobeView();
+      updateClock();
       saveState(true);
       renderAll();
+      setTimeout(openOnboarding, 120);
     }
     showToast(`Slot ${n} cleared.`, 'warning');
     renderSlotManager();
@@ -8688,11 +9481,22 @@
           <p class="slot-empty-copy">No career here yet.</p>
           <div class="slot-actions"><button class="button primary" data-slot-switch="${n}">Start career</button></div>
         </div>`);
+      } else if (meta.corrupt) {
+        // v45 — uno slot illeggibile veniva mostrato come vuoto e l'utente lo
+        // cancellava, distruggendo una carriera che il backup poteva recuperare.
+        cards.push(`<div class="slot-card damaged">
+          <div class="slot-head"><strong>Slot ${n}</strong><span class="slot-tag">Damaged</span></div>
+          <p class="slot-empty-copy">This save could not be read.${meta.hasBackup ? ' A backup copy is available and will be restored on load.' : ' No backup is available.'}</p>
+          <div class="slot-actions">
+            ${meta.hasBackup ? `<button class="button primary" data-slot-switch="${n}">Restore backup</button>` : ''}
+            <button class="button danger" data-slot-delete="${n}">Delete</button>
+          </div>
+        </div>`);
       } else {
         const val = meta.date ? new Intl.DateTimeFormat('en-GB',{day:'2-digit',month:'short',year:'numeric'}).format(new Date(meta.date)) : '—';
         cards.push(`<div class="slot-card ${isActive?'active':''}">
           <div class="slot-head"><strong>Slot ${n}${isActive?' <span class="slot-tag current">Current</span>':''}</strong>${meta.prestigeLevel?`<span class="slot-prestige">★ ${meta.prestigeLevel}</span>`:''}</div>
-          <div class="slot-company">${(meta.companyName||'World of Trade Co.').replace(/</g,'&lt;')}</div>
+          <div class="slot-company">${esc(meta.companyName || 'World of Trade Co.')}</div>
           <div class="slot-meta"><span>${meta.completedDeals} deals</span><span>${money(meta.cash,true)}</span><span>${val}</span></div>
           <div class="slot-actions">
             ${isActive?'<button class="button secondary" disabled>Active</button>':`<button class="button primary" data-slot-switch="${n}">Load</button>`}
@@ -8781,6 +9585,15 @@
 
   function bindEvents() {
     injectIcons();
+    // v45 — nessun salvataggio avveniva alla chiusura della scheda sul web:
+    // con l'autosave a debounce si potevano perdere gli ultimi secondi di partita.
+    window.addEventListener('pagehide', () => { try { saveState(); } catch (e) {} });
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') { try { saveState(); } catch (e) {} }
+    });
+    // v45 — un solo handler per chiudere il popup della forward curve: prima se ne
+    // registrava uno nuovo a ogni apertura e non venivano mai consumati.
+    document.addEventListener('click', () => document.getElementById('fwdCurvePopup')?.remove());
     // Unlock Web Audio on the first user gesture (autoplay policy)
     const _unlockAudio = () => { try { Sound.unlock(); } catch (e) {} window.removeEventListener('pointerdown', _unlockAudio); window.removeEventListener('keydown', _unlockAudio); };
     window.addEventListener('pointerdown', _unlockAudio, { once: false });
@@ -8972,6 +9785,11 @@
         showToast(state.tutorialEnabled ? `${state.difficulty} career started. Follow the guided first deal.` : `${state.difficulty} career started. Open Market and negotiate your first deal.`);
       } else if (!state.onboardingComplete) setTimeout(openOnboarding,80);
     });
+    // v46 - alla chiusura del riepilogo mostra l'eventuale operazione successiva
+    const settlementDialog = $('#settlementDialog');
+    settlementDialog?.addEventListener('close', () => {
+      if (_settlementQueue.length && !_settlementTimer) _settlementTimer = setTimeout(showNextSettlement, 320);
+    });
     const dailyDialog = $('#dailyRewardDialog');
     dailyDialog?.addEventListener('close', () => { if (dailyDialog.returnValue === 'claim') claimDailyReward(); });
     const victoryDialog = $('#victoryDialog');
@@ -9028,7 +9846,16 @@
     try { loadGeoBorders(); } catch (error) { console.warn('Country borders unavailable', error); }
   }, 1600);
 
-  requestAnimationFrame(animate);
+  // v45 - il loop girava anche a scheda nascosta, consumando CPU e batteria
+  _animationHandle = requestAnimationFrame(animate);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') {
+      if (_animationHandle !== null) { cancelAnimationFrame(_animationHandle); _animationHandle = null; }
+    } else if (_animationHandle === null) {
+      lastDrawTime = 0;
+      _animationHandle = requestAnimationFrame(animate);
+    }
+  });
   setTimeout(openOnboarding, 120);
   setTimeout(() => { if (state.onboardingComplete) checkDailyReward(); }, 1400);
 

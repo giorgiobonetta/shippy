@@ -1,3 +1,259 @@
+# World of Trade v47 — Insegnare, orientare, essere usabile da tastiera
+
+Come la v46: **nessuna modifica all'equilibrio di gioco**. Formule, costi,
+probabilità e progressione restano identici.
+
+## Tutorial con il riflettore
+
+Il tour guidato era una card in un angolo che descriveva a parole cosa fare
+("Open Market", "Inspect a trade route") lasciando al giocatore il compito di
+trovare l'elemento in un'interfaccia con 22 sezioni.
+
+- Ora ogni passo **punta a un elemento reale**: lo sfondo si scurisce e il
+  bersaglio resta ritagliato, con un bordo dorato che respira.
+- Un **fumetto** accanto all'elemento spiega a cosa serve — "Il livello di
+  copertura decide quanto rischio prezzo ti tieni", "Il tempo si muove solo
+  quando glielo permetti".
+- Tutti e otto i passi hanno un bersaglio: pulsante del centro comandi, card
+  dell'opportunità, riquadro della negoziazione, controlli di struttura del deal,
+  avanzamento del tempo, banner della decisione, e infine il P&L realizzato.
+- Il riflettore non blocca i click: si può usare l'interfaccia mentre è acceso, e
+  si sposta da solo se l'elemento cambia posizione.
+- Rispetta "Movimento ridotto" e `prefers-reduced-motion`.
+
+## Stati vuoti che dicono cosa fare
+
+Otto sezioni si limitavano a comunicare di essere vuote. Ora spiegano il passo
+successivo e ci portano con un click: inventario, contratti, operazioni,
+tesoreria, attribuzione del P&L, track record, flotta e coda dei cantieri
+rimandano al mercato delle opportunità o al negozio, a seconda di cosa serve.
+
+## Tastiera e accessibilità
+
+- **Frecce, Home e End** dentro la barra delle aree e quella delle schede. Con
+  Tab si entra nella barra, con le frecce ci si muove: è il comportamento
+  standard di una tablist, prima assente.
+- **Roving tabindex**: Tab non attraversa più 27 pulsanti di navigazione uno a uno.
+- **ARIA corretta** sulla navigazione a due livelli introdotta nella v46:
+  `role="tab"`, `aria-selected`, `aria-controls`, sezioni come `role="tabpanel"`
+  con `aria-hidden` coerente.
+- I **badge di attenzione** hanno un'etichetta leggibile dagli screen reader
+  ("3 items need attention") invece del solo numero.
+- **Anello di focus** anche su aree, ticker di mercato e pulsanti degli stati vuoti.
+- Il fuoco viene riportato sul pulsante giusto quando la barra si ridisegna:
+  senza questo, dopo il primo spostamento le frecce smettevano di rispondere.
+
+---
+
+# World of Trade v46 — Leggibilità, globo vivo e feedback
+
+Release di presentazione. **Nessuna modifica all'equilibrio di gioco**: formule,
+costi, probabilità e progressione sono identici alla v45. Cambia come il gioco si
+legge e come risponde.
+
+## Navigazione — dalle 22 schede a 5 aree
+
+- Le 22 schede erano tutte sulla stessa barra: su desktop una fila di pulsantini,
+  su telefono una striscia da scorrere alla cieca. Ora si sceglie prima l'**area**
+  (Desk · Operations · Risk · Growth · Career), poi la scheda: al massimo 5 voci
+  visibili alla volta, con spazio per essere lette.
+- **Badge di attenzione**: ogni area e ogni scheda mostra quante voci richiedono
+  un'azione — decisioni in sospeso sui cargo, offerte accettate pronte da aprire,
+  fatture scadute, richieste di fido, pratiche di compliance, margin call, crisi
+  attive, cantieri in corso, uffici pronti ad aprire. Aprendo un'area si finisce
+  direttamente sulla scheda che chiede qualcosa.
+- Il layout del pannello non dipende più da altezze fisse in pixel ripetute in
+  nove media query: testata, aree e schede prendono lo spazio che serve, il resto
+  va al contenuto.
+
+## Globo
+
+- **Rotte con avanzamento**: il tratto già percorso da un cargo è pieno e
+  luminoso, quello che resta è tratteggiato e spento. Si legge a colpo d'occhio
+  quanto manca all'arrivo, senza aprire la scheda.
+- **Scia a cometa** dietro ogni mezzo in movimento, che sfuma all'indietro lungo
+  il percorso reale.
+- **Impulso di flusso** sulla rotta selezionata: una luce la percorre da origine a
+  destinazione, così la direzione del commercio è immediata.
+- **Alone d'allerta** sui porti toccati da una crisi in corso, quando il livello
+  Rischio è attivo. I porti colpiti sono ricavati dagli eventi globali attivi.
+- **Alone pulsante** sui cargo che richiedono una decisione: non serve più cercarli.
+- **Anelli di arrivo**: il porto di destinazione lampeggia quando un carico viene
+  consegnato.
+
+## Grafici
+
+- **Sparkline** sugli ultimi 30 giorni dentro ogni ticker di mercato. `priceHistory`
+  conservava 90 giorni per 10 commodity senza che venissero quasi mai mostrati.
+- **Curva del patrimonio** rifatta: colore che segue il segno del rendimento,
+  riempimento sfumato, linea del capitale iniziale come riferimento, marcatori su
+  massimo e minimo, punto luminoso sul valore corrente. Prima era una spezzata
+  piatta con un riempimento fisso.
+
+## Feedback
+
+- **Riepilogo di chiusura operazione**: alla settlement di un cargo compare il
+  conto economico voce per voce — margine commerciale, esposizione di mercato,
+  cambio, operazioni e claim, costo del finanziamento, storage, risultato del
+  credito — con le barre che crescono e il risultato netto che scorre fino al
+  totale. Prima il momento più importante della partita era un semplice toast.
+- **Numeri che scorrono** anche su P&L realizzato, P&L live, valore di portafoglio,
+  capitale investito.
+- **Lampeggio verde/rosso** su cassa e P&L quando cambiano: si capisce cos'è appena
+  successo senza confrontare i numeri a memoria.
+- **Entrata scaglionata** delle card quando si apre una scheda — solo all'apertura,
+  non a ogni giorno di gioco.
+
+## Note
+
+- Tutte le animazioni rispettano "Movimento ridotto" nel profilo e la preferenza
+  di sistema `prefers-reduced-motion`.
+- Le sparkline sono nascoste sotto i 900px: su schermo stretto lo spazio serve al
+  prezzo.
+- Le carriere v45 si caricano senza perdite (verificato con un salvataggio
+  prodotto dalla v45 e ripreso dalla v46).
+- Nessuna dipendenza esterna aggiunta: tutto in JS e CSS nativi.
+
+---
+
+# World of Trade v45 — Stabilità, integrità dei dati ed equilibrio economico
+
+Release di correzione. Nessuna funzionalità rimossa: sono stati riparati bug che
+causavano perdita di salvataggi, blocchi dell'interfaccia, guadagni illimitati e
+rallentamenti su telefono.
+
+## Salvataggi — non si perdono più
+
+- **Salvataggio danneggiato**: prima qualunque errore durante la migrazione faceva
+  ripartire da zero *in silenzio*, e la prima azione sovrascriveva definitivamente
+  la carriera. Ora si tenta il backup, l'originale viene messo in quarantena
+  (`…-corrupt-<data>`) e, se non c'è nulla da recuperare, il salvataggio automatico
+  resta sospeso invece di distruggere il file.
+- **Il backup ora serve davvero**: veniva scritto a ogni salvataggio ma non era mai
+  riletto da nessuna parte. Adesso viene ripristinato al caricamento ed è scritto a
+  rotazione (massimo una volta ogni 5 minuti) invece che a ogni tick.
+- **Slot illeggibile**: veniva mostrato come "Empty" con il pulsante "Start career",
+  e l'utente cancellava una carriera recuperabile. Ora appare come *Damaged* con
+  l'opzione di ripristino dal backup.
+- **Migrazione dalle versioni vecchie**: veniva riapplicata a ogni slot vuoto,
+  clonando la stessa carriera in tutti e tre gli slot. Ora avviene una sola volta,
+  solo sullo slot 1, e le 32 vecchie chiavi vengono rimosse (libera spazio).
+- **Spazio esaurito**: `QuotaExceededError` era ignorato e l'unico segnale era la
+  scritta "Save failed". Ora il gioco libera il backup e le chiavi legacy, pota lo
+  storico e riprova; se fallisce lo dice esplicitamente.
+- **Salvataggio alla chiusura**: aggiunto su `pagehide` e `visibilitychange`, prima
+  esisteva solo nell'app Android.
+- **"Autosave off" viene rispettato** anche quando l'app Android va in background.
+- **Import di una carriera**: il file veniva scritto su disco *prima* di provare a
+  disegnarlo; un file malformato distruggeva la carriera esistente e rendeva il gioco
+  non più avviabile. Ora si valida, si disegna e solo dopo si salva, con rollback in
+  memoria in caso di errore. L'import condivide inoltre la stessa normalizzazione del
+  caricamento normale: prima ne saltava 65 campi.
+- Nuova carriera in uno slot vuoto: onboarding e scelta della difficoltà ora
+  compaiono davvero (il controllo era sempre falso).
+- Cancellare lo slot attivo ora ferma l'orologio e azzera la selezione, invece di
+  lasciare la "carriera cancellata" che avanzava da sola.
+- Il livello di prestigio non è più condiviso tra i tre slot.
+
+## Sicurezza
+
+- **Iniezione HTML** dal nome del trader e della società: un file di carriera
+  condiviso da terzi poteva eseguire codice arbitrario e leggere tutti gli slot.
+  Ora ogni valore controllato dall'utente è filtrato in ingresso e in uscita.
+
+## Blocchi dell'interfaccia
+
+- Il **carico distressed** era irraggiungibile: il suo id non esisteva nel catalogo,
+  quindi aprirlo mandava in errore l'inspector e ogni `renderAll()` successivo —
+  bloccando anche la simulazione fino al ricaricamento della pagina. Ora è risolvibile,
+  ha il capitale proprio dichiarato (mancava, e generava `$NaN`) e la sua destinazione
+  punta a un porto esistente (era "cairo", che non è mai stato nella mappa).
+- I deal il cui catalogo non esiste più vengono scartati al caricamento invece di
+  impedire l'avvio; ogni deal salva ora una copia dell'opportunità.
+- **Three.js non raggiungibile** non è più un errore fatale: dalla v43 esiste un
+  disegno 2D completo della Terra, ma il boot lo rendeva irraggiungibile. Ora la
+  partita parte comunque con il globo su canvas.
+- Aggiunto l'elemento del titolo nella schermata di avvio: era cercato dal codice
+  di recupero ma non esisteva nell'HTML, quindi il messaggio di errore non appariva.
+
+## Economia — guadagni illimitati chiusi
+
+- **Rehedge retroattivo**: alzare la copertura a metà viaggio *cancellava* le perdite
+  già maturate (e abbassarla regalava profitti), per 28.000 $ di costo. Ora il
+  risultato maturato viene cristallizzato e la copertura riparte dal prezzo corrente.
+  Il costo dell'operazione, inoltre, era addebitato due volte.
+- **Ponte di liquidità sul margine**: il capitale preso a prestito per coprire una
+  margin call veniva restituito in cassa alla consegna ma il debito spariva insieme
+  al deal — denaro creato dal nulla a ogni margin call, con il NAV gonfiato. Ora il
+  prestito viene tracciato, rimborsato dal collaterale liberato e conteggiato come
+  passività.
+- **Gare d'appalto**: ogni click era un tiro indipendente e perdere non costava nulla,
+  quindi si rilanciava finché non si vinceva. Ora una sola offerta per ciclo di
+  mercato, e la pressione dei rivali incide davvero sulla probabilità di vittoria
+  (prima era calcolata e mostrata, ma ignorata).
+- **Negoziazione**: massimo tre tentativi per ciclo. Prima bastava premere "Submit"
+  una ventina di volte per ottenere sempre l'accettazione.
+- **Bonus giornaliero**: chiudere il dialog e ricaricare faceva salire lo streak di 1
+  ogni volta; sei ricaricamenti valevano 140.000 $ invece di 20.000.
+- **Cassa negativa**: non aveva alcuna conseguenza. Ora scatta uno scoperto a tasso
+  d'emergenza e, se anche il credito è esaurito, un avviso di insolvenza al board con
+  perdita progressiva di reputazione.
+- **Zinco Zambia e nichel Indonesia** avevano quantità pari a ~9 volte il valore di
+  mercato coerente con il capitale: il nichel richiedeva 6,3 M di solo margine contro
+  2,1 M di capitale proprio e superava sempre il limite di credito dell'acquirente,
+  risultando di fatto inapribile. Quantità riallineate.
+- Il **giorno di gioco** non si ferma più sui cargo successivi quando uno di essi
+  genera un evento: prima quelli in fondo alla lista non maturavano transito né
+  interessi, ed era sfruttabile per non pagare gli interessi.
+- I bonus di livello (cassa e lingotti) ottenuti acquistando nel negozio o avviando
+  un investimento vengono ora salvati: prima l'XP era assegnata *dopo* il salvataggio.
+- Il **basis locale** dei porti usava `Math.random()`: divergeva tra una sessione e
+  l'altra a parità di salvataggio. Ora è deterministico come il resto della simulazione.
+- Quattro porti del calcolo del basis non esistevano nella mappa (`london`, `lagos`,
+  `port-klang`, `buenos-aires`): corretti con gli id reali.
+
+## Prestazioni su telefono
+
+- **Ridisegno selettivo**: ogni avanzamento di giorno ricostruiva l'HTML di tutte e 22
+  le sezioni del pannello, comprese le 21 nascoste — fino a 2,3 volte al secondo a
+  velocità 5×. Ora si disegna solo la sezione visibile. Nei test il costo per giorno
+  di gioco è passato da ~800 ms a ~40 ms.
+- **Salvataggio con debounce**: due scritture sincrone da oltre 20 KB ogni 430 ms
+  erano la causa principale degli scatti a velocità massima.
+- Il loop di animazione del globo si ferma quando la scheda non è visibile.
+- Il popup della forward curve registrava un listener nuovo a ogni apertura senza mai
+  consumarli: ora ne esiste uno solo.
+
+## Interfaccia
+
+- Il **ticker del caffè** era l'unico presente nell'HTML ma assente dalla lista di
+  aggiornamento: restava fermo su "$4,200/t · +0.0%" per tutta la partita.
+- La struttura a termine di **zinco, nichel e LNG** veniva calcolata ogni giorno ma
+  mai mostrata.
+- Il market strip non va più in errore se un ticker manca dalla pagina.
+- **Italiano rimasto in un'interfaccia inglese**: il dialog del bonus giornaliero, il
+  chip dei lingotti d'oro e la card della squadra di progetto extra sono ora tradotti
+  correttamente tramite il sistema di lingua invece di essere fissi in italiano.
+- Sedici chiavi di traduzione italiane erano definite ma non collegate a nulla
+  (opzioni delle select, etichette dei livelli del globo, footer delle scorciatoie,
+  titolo del profilo): ora funzionano.
+
+## Confezionamento
+
+- Il **service worker** precaricava file con la versione `36.0.0` mentre la pagina ne
+  chiedeva `44.0.0`: le voci in cache non venivano mai riutilizzate. Versioni
+  allineate e aggiunte le quattro texture della Terra che mancavano dalla lista, così
+  il globo è completo anche offline.
+- La copia dentro `android-app/.../assets/www` era disallineata rispetto alla radice:
+  ora è rigenerata dalla radice a ogni build del pacchetto.
+- `orientation` del manifest passata da `landscape` ad `any`: contraddiceva il lavoro
+  sul layout verticale della v44.
+- `vercel.json` puntava a cartelle `/assets` e `/vendor` inesistenti e non copriva
+  `styles.css`, `native-shell.css` e `native-bridge.js`.
+- Versione dell'app Android allineata (`45.0.0`).
+
+---
+
 # World of Trade v44 — Interfaccia mobile ripulita
 
 ## Problema risolto
