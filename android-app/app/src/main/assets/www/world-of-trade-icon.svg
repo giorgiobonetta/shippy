@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">World of Trade icon</title><desc id="desc">Original gold and blue shield with a W, globe and cargo ship.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#1d66d2"/><stop offset="1" stop-color="#0b255d"/></linearGradient>
+    <linearGradient id="gold" x1=".1" y1="0" x2=".8" y2="1"><stop stop-color="#fff1a3"/><stop offset=".35" stop-color="#ffd34d"/><stop offset="1" stop-color="#f19a00"/></linearGradient>
+    <linearGradient id="edge" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#d98900"/><stop offset="1" stop-color="#9d5200"/></linearGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="180%"><feDropShadow dx="0" dy="22" stdDeviation="18" flood-color="#00112f" flood-opacity=".55"/></filter>
+  </defs>
+  <rect x="20" y="20" width="472" height="472" rx="118" fill="url(#bg)"/>
+  <circle cx="256" cy="247" r="168" fill="none" stroke="#73caff" stroke-width="8" opacity=".28"/>
+  <path d="M256 78C194 78 143 91 108 110v122c0 106 55 172 148 210 93-38 148-104 148-210V110C369 91 318 78 256 78Z" transform="translate(0 18)" fill="url(#edge)" opacity=".88" filter="url(#shadow)"/>
+  <path d="M256 68C194 68 143 81 108 100v122c0 106 55 172 148 210 93-38 148-104 148-210V100C369 81 318 68 256 68Z" fill="url(#gold)" stroke="#fff3ad" stroke-width="8"/>
+  <path d="M134 143c46-37 198-58 244-4" fill="none" stroke="#fff" stroke-width="17" stroke-linecap="round" opacity=".48"/>
+  <g opacity=".28" fill="none" stroke="#173568" stroke-width="6">
+    <ellipse cx="256" cy="247" rx="103" ry="130"/><ellipse cx="256" cy="247" rx="48" ry="130"/>
+    <path d="M155 205h202M148 264h216M169 321h174"/>
+  </g>
+  <path d="M145 157l57 178h41l21-72 22 72h42l51-178h-48l-28 112-23-82h-33l-24 82-30-112Z" fill="#17254a" stroke="#0b1733" stroke-width="8" stroke-linejoin="round"/>
+  <path d="M178 356h156l-23 30H201Z" fill="#174984"/>
+  <path d="M204 342h87l20 14H178l13-14Z" fill="#fff" opacity=".92"/>
+  <path d="M218 326h51v16h-51zM274 331h21v11h-21z" fill="#174984"/>
+  <path d="M186 383c35 16 105 16 140 0" fill="none" stroke="#69d9ff" stroke-width="8" stroke-linecap="round"/>
+</svg>

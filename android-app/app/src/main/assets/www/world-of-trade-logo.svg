@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 430" role="img" aria-labelledby="title desc">
+  <title id="title">World of Trade</title><desc id="desc">Original gold and blue mobile strategy game logo for a physical commodity trading simulator.</desc>
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#397de6"/><stop offset="1" stop-color="#102b70"/></linearGradient>
+    <linearGradient id="gold" x1=".15" y1="0" x2=".85" y2="1"><stop stop-color="#fff4ad"/><stop offset=".32" stop-color="#ffd85a"/><stop offset="1" stop-color="#ef9600"/></linearGradient>
+    <filter id="bigShadow" x="-30%" y="-40%" width="180%" height="210%"><feGaussianBlur in="SourceAlpha" stdDeviation="10" result="blur"/><feOffset dy="16" result="off"/><feColorMatrix in="off" values="0 0 0 0 0  0 0 0 0 .04  0 0 0 0 .16  0 0 0 .72 0"/><feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+  </defs>
+  <g transform="translate(28 12)" filter="url(#bigShadow)">
+    <rect x="0" y="0" width="372" height="372" rx="96" fill="url(#sky)" stroke="#6ba6ff" stroke-width="9"/>
+    <path d="M186 48C137 48 96 59 69 74v96c0 84 44 136 117 166 74-30 117-82 117-166V74c-27-15-68-26-117-26Z" transform="translate(0 14)" fill="#a65b00" opacity=".9"/>
+    <path d="M186 42C137 42 96 53 69 68v96c0 84 44 136 117 166 74-30 117-82 117-166V68c-27-15-68-26-117-26Z" fill="url(#gold)" stroke="#fff0a0" stroke-width="7"/>
+    <g opacity=".25" fill="none" stroke="#173568" stroke-width="5"><ellipse cx="186" cy="180" rx="82" ry="103"/><ellipse cx="186" cy="180" rx="37" ry="103"/><path d="M106 148h160M102 195h168M118 240h136"/></g>
+    <path d="M99 107l45 142h34l17-57 18 57h33l41-142h-39l-22 88-18-65h-27l-19 65-24-88Z" fill="#14234c" stroke="#091632" stroke-width="7" stroke-linejoin="round"/>
+    <path d="M126 280h123l-18 24h-86Z" fill="#154987"/><path d="M147 267h68l16 13H126l10-13Z" fill="#fff"/><path d="M155 254h41v13h-41zM201 258h16v9h-16z" fill="#154987"/>
+  </g>
+  <g transform="translate(420 66)" filter="url(#bigShadow)" font-family="Fredoka, Arial Rounded MT Bold, Arial, sans-serif" font-weight="900">
+    <text x="7" y="116" font-size="100" letter-spacing="-4" fill="#071c51" stroke="#071c51" stroke-width="23">WORLD</text>
+    <text x="0" y="105" font-size="100" letter-spacing="-4" fill="#f7fbff" stroke="#3979d5" stroke-width="8">WORLD</text>
+    <text x="12" y="225" font-size="100" letter-spacing="-5" fill="#6f3500" stroke="#6f3500" stroke-width="24">OF TRADE</text>
+    <text x="5" y="212" font-size="100" letter-spacing="-5" fill="url(#gold)" stroke="#a75b00" stroke-width="8">OF TRADE</text>
+    <path d="M18 244h690" stroke="#67d5ff" stroke-width="7" stroke-linecap="round" opacity=".82"/>
+    <text x="20" y="286" font-family="Arial, sans-serif" font-size="20" font-weight="800" letter-spacing="5" fill="#e3efff">BUILD A GLOBAL COMMODITY EMPIRE</text>
+  </g>
+</svg>

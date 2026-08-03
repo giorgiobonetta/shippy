@@ -1,0 +1,37 @@
+{
+  "name": "World of Trade",
+  "short_name": "World of Trade",
+  "description": "Build a Geneva commodity trader into a global physical merchant house.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#05070c",
+  "theme_color": "#174fa6",
+  "categories": [
+    "games",
+    "education",
+    "finance"
+  ],
+  "icons": [
+    {
+      "src": "world-of-trade-premium-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "world-of-trade-premium-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "id": "com.worldoftrade.game",
+  "display_override": [
+    "fullscreen",
+    "standalone"
+  ],
+  "lang": "en",
+  "dir": "ltr"
+}

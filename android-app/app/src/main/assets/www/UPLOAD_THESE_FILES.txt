@@ -1,0 +1,18 @@
+WORLD OF TRADE v35.3 — REAL EARTH EDITION
+
+Upload every file in this folder directly to the ROOT of the existing GitHub repository.
+Do not upload the containing folder and do not upload the ZIP itself.
+
+Suggested commit:
+Release World of Trade v35.3 Real Earth Edition
+
+After Vercel reports Ready, press Ctrl + Shift + R.
+
+NEW REAL EARTH ASSETS (required):
+earth_day_realistic_2048.webp
+earth_day_realistic_4096.webp
+earth_night_realistic_2048.webp
+earth_clouds_realistic_2048.webp
+
+The 2K surface loads first. The 4K surface upgrades progressively only on capable devices.
+Existing wot-v35 career saves remain compatible.
