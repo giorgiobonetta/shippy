@@ -1,0 +1,92 @@
+name: Build Android App
+
+# Produce un APK installabile e lo pubblica come Release di GitHub, così esiste
+# un link di download permanente invece di un artefatto temporaneo.
+
+on:
+  workflow_dispatch:          # avviabile a mano dalla scheda Actions
+  push:
+    paths:
+      - "android-app/**"
+      - ".github/workflows/build-android-app.yml"
+
+permissions:
+  contents: write             # necessario per creare la Release
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK 36
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Set up Gradle 8.13
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.13"
+
+      # Il progetto non includeva gradle-wrapper.jar: generarlo qui rende
+      # ./gradlew funzionante anche per chi clona il repository.
+      - name: Generate Gradle wrapper
+        working-directory: android-app
+        run: gradle wrapper --gradle-version 8.13
+
+      - name: Read version name
+        id: version
+        working-directory: android-app
+        run: echo "name=$(grep -oP "versionName '\K[^']+" app/build.gradle)" >> "$GITHUB_OUTPUT"
+
+      - name: Build debug APK
+        working-directory: android-app
+        run: gradle :app:assembleDebug --stacktrace
+
+      - name: Rename APK
+        working-directory: android-app
+        run: |
+          mkdir -p out
+          cp app/build/outputs/apk/debug/app-debug.apk \
+             "out/WorldOfTrade-v${{ steps.version.outputs.name }}.apk"
+          ls -la out
+
+      - name: Upload APK as build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: WorldOfTrade-v${{ steps.version.outputs.name }}-apk
+          path: android-app/out/*.apk
+          if-no-files-found: error
+          retention-days: 90
+
+      # Link di download permanente: la Release resta anche dopo la scadenza
+      # degli artefatti di build.
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version.outputs.name }}
+          name: World of Trade v${{ steps.version.outputs.name }}
+          files: android-app/out/*.apk
+          body: |
+            APK installabile di World of Trade v${{ steps.version.outputs.name }}.
+
+            **Installazione**
+            1. Scarica il file `.apk` qui sotto sul telefono Android.
+            2. Aprilo: Android chiederà di consentire l'installazione da questa
+               sorgente. È normale per le app non distribuite dal Play Store.
+            3. L'app funziona completamente offline: il gioco è dentro l'APK.
+
+            Build firmata con la chiave di debug: si installa e funziona su
+            qualunque dispositivo Android 7.0 o successivo, ma non è pubblicabile
+            sul Play Store così com'è.
+          draft: false
+          prerelease: false
