@@ -1,3 +1,272 @@
+# World of Trade v55 — Anche il globo entra nella tavolozza
+
+La v54 ha ridipinto l'interfaccia, ma il globo era rimasto fuori: i suoi colori
+sono nel JavaScript che disegna sul canvas, non nel CSS. Era la parte più visibile
+del gioco e l'unica ancora in ciano fluo.
+
+## Cosa cambia sul globo
+
+- **Rotte di mercato in oro** (`rgba(255,209,102,…)`) al posto del ciano: nel logo
+  l'oro è il colore di ciò che vale, ed è il segnale giusto per un'opportunità.
+  L'impulso che percorre la rotta selezionata passa a crema.
+- **Marcatori dei porti nella tavolozza del logo**: quartier generale crema
+  `#fffaf0`, fornitori oro `#ffd166`, clienti blu chiaro `#8fc0ff`, porti blu reale
+  `#5a86d8`. Il ciano fluo dei clienti stonava contro i pannelli blu.
+- Anello degli uffici posseduti allineato all'oro esatto del logo; cantieri in
+  corso in blu chiaro invece che ciano.
+- Schiuma della scia della nave più calda, meno neon.
+- Catene di integrazione verticale: midstream e downstream riportati nella
+  tavolozza.
+
+## La legenda non mente più
+
+I pallini della legenda del globo erano definiti nel CSS con i colori *vecchi*:
+dopo il cambio avrebbero indicato tonalità che il gioco non disegna più. Ora sono
+allineati, e la corrispondenza è verificata a macchina confrontando quanto
+restituisce `hubColor()` con quanto dichiara il foglio di stile.
+
+Allineate anche le icone dei livelli del globo: oro per le opportunità, verde per
+il portafoglio, arancio per il rischio, blu per la logistica.
+
+## Verifica
+
+Intercettando `fillStyle` e `strokeStyle` durante un frame reale del globo, con un
+cargo a metà viaggio: **27 colori distinti, zero residui di ciano fluo**, oro e
+crema presenti. Nessun errore, e i 34 test delle versioni precedenti passano.
+
+---
+
+# World of Trade v54 — L'interfaccia parla la lingua del logo
+
+Il logo è blu reale con cornici dorate in rilievo, lettering crema→oro e contorni
+spessi. L'interfaccia era navy quasi nero con accenti ciano: stessa famiglia, ma
+non la stessa lingua. Ora le due cose combaciano.
+
+## Cosa cambia
+
+- **Superfici in blu reale.** Pannelli, testata e dialoghi passano da un navy quasi
+  nero (`#0b1119`) a un gradiente blu reale (`#1a4288 → #0b214a`), lo stesso blu
+  dello scudo.
+- **Cornici oro smussate.** Bordo dorato di 2px con luce interna in alto e ombra in
+  basso: l'effetto in rilievo delle cornici del logo, non un bordo piatto.
+- **Titoli crema→oro.** Intestazioni di sezione, valore di portafoglio e titoli dei
+  dialoghi usano lo stesso gradiente del lettering del logo, con ombra scura sotto.
+- **Pulsanti principali in oro lucido** con smusso e testo blu scuro; pulsanti
+  secondari in blu con bordo oro. Si abbassano di 2px alla pressione.
+- **Card in rilievo** con bordo dorato tenue e ombra inferiore solida, invece di
+  rettangoli piatti.
+- Barre di progresso, comandi sul globo, ticker di mercato, livelli e schede
+  seguono la stessa lingua.
+
+## Contrasti verificati, non supposti
+
+Non potendo vedere il risultato ho misurato ogni coppia testo/fondo. Tutte
+superano 4,5:1 (WCAG AA), e due colori sono stati corretti perché sul blu più
+chiaro non ci arrivavano:
+
+| | prima | ora |
+|---|---|---|
+| Rosso delle perdite | `#ff6479` — 3,37:1 | `#ff96a4` — **4,66:1** |
+| Grigio secondario | `#7189b5` — 2,73:1 | `#a0b4d8` — **5,14:1** |
+
+Le altre undici coppie erano già a norma: testo su pannello 10,12:1, titoli oro
+7,47:1, inchiostro su oro 10,56:1.
+
+## Metodo
+
+Il livello è **appeso in fondo al foglio di stile** e sovrascrive per ordine di
+cascata: non riscrive nessuna delle 4.400 righe esistenti, quindi le 63 media
+query per il mobile restano intatte. È lo stesso schema usato dalle versioni v29,
+v31, v35.1 e v45. Verificato che tutte e 59 le classi ridipinte esistano davvero
+nel markup — due nomi erano sbagliati (`shop-catalog-card`, `glossary-card`) e
+sono stati corretti in `shop-item-card` e `glossary-item`.
+
+## Avvertenza onesta
+
+Non ho potuto vedere il risultato: nel mio ambiente non c'è un browser per fare
+screenshot. Ho verificato che l'app si avvii senza errori, che tutti e 22 i moduli
+renderizzino, e i contrasti in modo numerico — ma il giudizio estetico finale è
+tuo. Se qualcosa risulta troppo carico o troppo chiaro, sono valori in un unico
+blocco in fondo a `styles.css`, facili da ritoccare.
+
+---
+
+# World of Trade v53 — Il gioco si apre
+
+Traguardo che in tutte le versioni precedenti non era mai stato raggiunto:
+**nella simulazione il ciclo di espansione parte.** Ufficio di Genova aperto al
+giorno 42, reputazione da 14 a 37, e compare la seconda commodity.
+
+Fino alla v52 un giocatore competente restava su tre rotte di rame per sempre.
+
+## Cosa bloccava, e cosa ho cambiato
+
+**Il muro della reputazione.** Il primo ufficio richiedeva reputazione 18. Misurato:
+un cargo chiuso bene ne dava +4 (da 12 a 16), uno in perdita ne toglieva 3, un
+evento globale altri 2. La reputazione non arrivava mai a 18, quindi i quindici
+corridoi che dipendono dagli uffici restavano chiusi per sempre.
+
+- Genova scende da 18 a **15**, Santiago da 24 a 21.
+- Un cargo in utile dà **+3** invece di +2; uno in perdita costa **−2** invece di −3.
+  Il premio era più piccolo della penalità, e la reputazione non poteva crescere.
+
+**Gli eventi globali erano troppo frequenti.** Uno ogni 8-14 giorni contro un
+voyage di 35 giorni significava incontrarne due o tre, sempre — ed era la ragione
+per cui tre cargo su quattro chiudevano in perdita nonostante copertura al 100% ed
+esecuzione perfetta. Ora **uno ogni 14-24 giorni**: se ne incontra uno o due.
+
+**Expert era ingiocabile.** Il fido iniziale (1,25 M) era più piccolo del prestito
+richiesto dall'unico cargo disponibile (1,42 M): nessun deal apribile, mai, a
+nessun livello di copertura. Le tre difficoltà sono state riviste:
+
+| | cassa | fido | reputazione | primo evento |
+|---|---|---|---|---|
+| Guided | 680.000 | 2,20 M | 16 | giorno 18 |
+| Standard | 560.000 | 2,00 M | 14 | giorno 14 |
+| Expert | 520.000 | 1,80 M | 12 | giorno 10 |
+
+Restano distinte su margine richiesto, entità delle perdite, tasso d'emergenza e
+frequenza degli eventi — ma nessuna delle tre parte più in una posizione impossibile.
+
+## Risultato misurato
+
+Stesso giocatore automatico, 200 giorni, su Standard:
+
+| | v52 | v53 |
+|---|---|---|
+| Uffici aperti | **0** | 1 (giorno 42) |
+| Rotte accessibili | 3/18 | **4/18** |
+| Commodity | solo rame | rame + urea |
+| Reputazione finale | 13 | **37** |
+| NAV | 577.000 | **722.000** |
+
+Con reputazione 37 anche Santiago (21) e Dubai (30) sono ora a portata, quindi la
+progressione continua da sola.
+
+## Cosa resta da sistemare, onestamente
+
+Il P&L realizzato per cargo è ancora leggermente negativo in media (−36.871 su
+5 cargo). Il desk cresce comunque — reputazione, uffici, valore degli asset — ma
+i singoli trade non sono ancora redditizi in modo affidabile. È il prossimo punto
+da misurare, e va fatto su una partita giocata da una persona: il giocatore
+automatico prende sempre la prima opzione in ogni evento e non negozia i termini,
+quindi sottostima quanto può fare un umano.
+
+---
+
+# World of Trade v52 — Hélène Marchand
+
+Ogni modulo che si sblocca viene ora presentato da **Hélène Marchand**, head trader
+del desk di Ginevra. La v51 rivelava l'interfaccia a poco a poco; questa spiega
+cos'è ciò che è appena comparso.
+
+## Come funziona
+
+Alla **prima apertura** di un modulo appena sbloccato Hélène interviene con tre
+cose, e solo tre:
+
+- **una frase su cos'è**, in termini da trader, non da manuale;
+- **come funziona** nel gioco, concretamente;
+- **cosa guardare** — la cosa che fa più danni se la ignori.
+
+Non si ripete alla seconda visita. Si può richiamare in qualsiasi momento col
+pulsante **?** accanto al titolo del pannello. Se un livello apre due moduli
+insieme, le schede si presentano una dopo l'altra invece di sovrapporsi.
+
+Tutti e 22 i moduli hanno la loro scheda, scritte per essere lette in dieci secondi.
+
+Qualche esempio del tono:
+
+> *Opportunity market* — «Il mercato. Compratori che hanno bisogno di un carico,
+> venditori che ne hanno uno, e un margine nel mezzo se sai eseguire.»
+> **Cosa guardare:** un margine di facciata alto non significa niente finché non
+> controlli cosa serve in anticipo: capitale proprio, margine sui futures, e la
+> riserva che la tua politica di capitale tiene intoccata.
+
+> *Physical inventory* — «La tua posizione fisica: tonnellate che possiedi, dove
+> sono, in che fase sono.»
+> **Cosa guardare:** una commodity fisica non è una riga di foglio di calcolo. Sta
+> in qualche posto, costa soldi stare lì, e le contestazioni sulla qualità
+> arrivano allo sbarco, non alla firma.
+
+> *Expansion* — «Questo è il modulo che apre il gioco. Quasi tutte le rotte del
+> mondo hanno bisogno di un ufficio vicino, non di un livello più alto.»
+
+## Tre regressioni della v51, corrette
+
+Rivelare i moduli progressivamente aveva creato pulsanti che puntavano al vuoto:
+
+- lo stato vuoto della flotta (livello 6) offriva "Apri il negozio impero", che è
+  livello 13; ora i pulsanti verso moduli bloccati semplicemente non compaiono;
+- l'azione rapida del briefing "Open risk desk" era presente dal livello 1, ma
+  Risk arriva al 4;
+- la ricerca globale elencava tutti e 22 i moduli, anche quelli inesistenti.
+
+## E una perdita della v50, recuperata
+
+Riscrivendo i messaggi di sblocco avevo orfanato `countryAccessTier`: le
+descrizioni dei corridoi erano scomparse. Sono tornate nella checklist —
+"Chile — developing origin — at level 2" invece del solo livello.
+
+---
+
+# World of Trade v51 — L'interfaccia si scopre giocando
+
+Al primo avvio il gioco mostrava **22 schede**: tutto lo strumentario di una casa
+di trading matura — compliance, stress test, valutazione d'impresa, classifica
+mondiale — a chi non ha ancora un cargo. Ora si parte con **due** e le altre
+compaiono quando il livello di esperienza le rende utili.
+
+Questo dà anche un senso concreto al salire di livello, che era il problema
+diagnosticato nella v50: i livelli XP quasi non aprivano nulla, perché le rotte
+dipendono dagli uffici. Adesso aprono l'interfaccia.
+
+## La scala
+
+| Livello | Si aggiunge |
+|---|---|
+| 1 | Trading desk · Opportunity market |
+| 2 | Physical inventory · Operations center |
+| 3 | Global intelligence |
+| 4 | Risk dashboard · Contracts & credit |
+| 5 | Commercial network · Treasury desk |
+| 6 | Fleet desk · WoT Academy |
+| 7 | Competitive intelligence · Supply chain control |
+| 8 | Compliance desk · Career progression |
+| 9 | Strategic growth office · Headquarters |
+| 11 | Board strategy · Performance office |
+| 13 | Empire shop · Trading empire |
+| 15 | Career League |
+
+Le **aree** della navigazione seguono: al livello 1 esiste solo *Desk*, *Operations*
+compare al 2, *Risk* al 3, *Growth* al 9. Anche i pulsanti *Shop* e *Offices* sul
+globo restano nascosti finché il modulo non esiste, e la relativa notifica non si
+accende su qualcosa che non si può ancora aprire.
+
+## Dettagli
+
+- Un **puntino luminoso** segnala l'area e il modulo appena guadagnati, e sparisce
+  alla prima visita.
+- L'annuncio di level-up mette i moduli al primo posto: sono la ricompensa più
+  tangibile del livello.
+- Nessuna scorciatoia — dock, ricerca globale, briefing, stati vuoti — può portare
+  a un modulo bloccato: al tentativo il gioco dice a che livello si apre.
+- Se il modulo attivo non è disponibile, si torna alla scrivania invece di mostrare
+  una sezione vuota.
+- Le **carriere esistenti non vedono nulla marcato come nuovo**: tutto ciò che il
+  livello raggiunto rende disponibile è considerato già visto. Verificato con una
+  carriera v50 di livello 9: 17 moduli disponibili, zero puntini.
+
+## Un bug trovato dai test
+
+La tabella dei livelli era dichiarata **dopo** la funzione che carica il
+salvataggio, ma usata da quella: al primo avvio della v51 ogni carriera esistente
+sarebbe risultata illeggibile e il gioco avrebbe tentato il backup. Un errore di
+zona morta temporale, invisibile alla lettura del codice e catturato dal test di
+compatibilità. La dichiarazione è stata spostata prima dell'uso.
+
+---
+
 # World of Trade v50.1 — Guscio Android riparato
 
 Nessuna modifica al gioco. Correzioni al progetto Android, che conteneva cinque

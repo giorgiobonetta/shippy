@@ -4146,3 +4146,348 @@ body.spotlight-active .tutorial-coach { z-index: 4300; }
   box-shadow: 0 0 0 4px rgba(114,213,255,.18);
 }
 .panel-group.active:focus-visible { outline-color: #06111f; box-shadow: 0 0 0 4px rgba(6,17,31,.28); }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   v48 · Scouting dei desk rivali
+   Gli otto desk avversari esistevano solo come nome sul tender tape. Ora sono
+   avversari con un profilo, dei corridoi presidiati e un testa a testa.
+   ══════════════════════════════════════════════════════════════════════════ */
+.rival-roster { display: grid; gap: 10px; padding: 0 16px 8px; }
+.rival-desk-card {
+  padding: 13px 14px;
+  border-radius: 13px;
+  border: 1px solid var(--border);
+  background: rgba(7, 12, 18, .72);
+  transition: border-color .18s ease, background .18s ease;
+}
+.rival-desk-card.engaged {
+  border-color: rgba(255, 154, 94, .32);
+  background: linear-gradient(180deg, rgba(46, 27, 14, .5), rgba(7, 12, 18, .72));
+}
+.rival-desk-top { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 10px; }
+.rival-flag { font-size: 19px; line-height: 1; }
+.rival-desk-top strong { display: block; font-size: 13.5px; letter-spacing: -.01em; }
+.rival-desk-top small { display: block; margin-top: 2px; color: var(--muted); font-size: 11.5px; }
+.rival-h2h {
+  min-width: 46px; padding: 4px 9px; border-radius: 999px; text-align: center;
+  background: rgba(255,255,255,.06); color: var(--muted);
+  font-size: 12px; font-weight: 800; font-variant-numeric: tabular-nums;
+}
+.rival-h2h.ahead  { background: rgba(97,242,166,.14); color: var(--green); }
+.rival-h2h.behind { background: rgba(255,100,121,.14); color: var(--red); }
+.rival-desk-profile { margin: 9px 0 11px; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.rival-traits { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 14px; margin-bottom: 10px; }
+.rival-traits > div { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 7px; }
+.rival-traits span { color: var(--muted); font-size: 10.5px; text-transform: uppercase; letter-spacing: .09em; font-weight: 750; }
+.rival-traits i { height: 5px; border-radius: 999px; background: rgba(255,255,255,.08); overflow: hidden; }
+.rival-traits b { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, #c8465a, #ff9a5e); }
+.rival-traits b.calm { background: linear-gradient(90deg, #2f7fbf, #6fc7ff); }
+.rival-traits small { color: var(--text); font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.rival-specialties { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 10px; }
+.rival-desk-foot {
+  display: flex; flex-wrap: wrap; gap: 4px 10px; justify-content: space-between; align-items: baseline;
+  padding-top: 9px; border-top: 1px solid rgba(255,255,255,.07);
+  color: var(--muted); font-size: 11.5px;
+}
+.rival-form { font-style: normal; font-weight: 700; }
+.rival-form.won  { color: var(--green); }
+.rival-form.lost { color: var(--red); }
+.rival-form.neutral { color: var(--muted); }
+
+@media (min-width: 1500px) { .rival-roster { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 620px) {
+  .rival-traits { grid-template-columns: 1fr; }
+  .rival-desk-profile { font-size: 11.5px; }
+}
+@media (prefers-reduced-motion: reduce) { .rival-desk-card { transition: none; } }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   v49 · Perché un cargo non si può ancora aprire
+   Il gioco rispondeva "Insufficient capital" senza dire quanto manca né come
+   rimediare. Ora l'ostacolo è esplicito e la copertura sostenibile è a un click.
+   ══════════════════════════════════════════════════════════════════════════ */
+.blocker-list { margin: 7px 0 0; padding-left: 17px; display: grid; gap: 4px; }
+.blocker-list li { font-size: 12px; line-height: 1.45; }
+.warning-box strong { display: block; margin-bottom: 2px; }
+.hedge-fit-button {
+  display: block; width: 100%; margin-top: 11px;
+  padding: 9px 12px; border-radius: 10px;
+  border: 1px solid rgba(114, 213, 255, .38);
+  background: linear-gradient(180deg, rgba(114,213,255,.17), rgba(114,213,255,.07));
+  color: #9ddcff; font-family: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer;
+  transition: background .16s ease, border-color .16s ease;
+}
+.hedge-fit-button:hover { background: linear-gradient(180deg, rgba(114,213,255,.28), rgba(114,213,255,.12)); border-color: rgba(114,213,255,.6); }
+.hedge-fit-button:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { .hedge-fit-button { transition: none; } }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   v50 · Requisiti di sblocco espliciti
+   Prima: "Requires a larger balance sheet, reputation or regional office".
+   Ora: esattamente cosa manca, con il progresso.
+   ══════════════════════════════════════════════════════════════════════════ */
+.unlock-checklist {
+  margin: 13px 0 4px; padding: 13px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 213, 122, .26);
+  background: linear-gradient(180deg, rgba(58, 42, 16, .5), rgba(10, 16, 26, .5));
+}
+.unlock-checklist > strong { display: block; margin-bottom: 9px; color: #ffd97a; font-size: 12px; }
+.unlock-checklist ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.unlock-need {
+  display: grid; grid-template-columns: 16px 1fr auto; align-items: center; gap: 8px;
+  font-size: 12.5px; color: var(--text);
+}
+.unlock-need i { font-style: normal; text-align: center; opacity: .8; }
+.unlock-need.level i      { color: #b78cff; }
+.unlock-need.office i     { color: #7de8ff; }
+.unlock-need.deals i      { color: #61f2a6; }
+.unlock-need.reputation i { color: #ffb45e; }
+.unlock-need em {
+  font-style: normal; font-size: 11.5px; font-weight: 700; color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.unlock-goto {
+  width: 100%; margin-top: 11px; padding: 8px 12px;
+  border-radius: 9px; border: 1px solid rgba(255,213,122,.34);
+  background: rgba(255,213,122,.12); color: #ffd97a;
+  font-family: inherit; font-size: 12px; font-weight: 700; cursor: pointer;
+}
+.unlock-goto:hover { background: rgba(255,213,122,.22); }
+.unlock-goto:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   v51 · Moduli nuovi appena sbloccati
+   Un puntino luminoso segnala l'area e la scheda mai aperte, e sparisce alla
+   prima visita: così un modulo appena guadagnato non passa inosservato.
+   ══════════════════════════════════════════════════════════════════════════ */
+.panel-group.fresh::after,
+.panel-tab.fresh::after {
+  content: '';
+  position: absolute; top: 5px; left: 6px;
+  width: 7px; height: 7px; border-radius: 50%;
+  background: #7de8ff;
+  box-shadow: 0 0 0 2px rgba(6,17,31,.75), 0 0 10px rgba(125,232,255,.95);
+  animation: freshPulse 1.9s ease-in-out infinite;
+}
+.panel-tab.fresh::after { top: 4px; left: 5px; width: 6px; height: 6px; }
+.panel-group.active.fresh::after { box-shadow: 0 0 0 2px rgba(255,217,122,.9), 0 0 10px rgba(125,232,255,.95); }
+@keyframes freshPulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%      { opacity: .55; transform: scale(.82); }
+}
+@media (prefers-reduced-motion: reduce) { .panel-group.fresh::after, .panel-tab.fresh::after { animation: none; } }
+.reduce-motion .panel-group.fresh::after, .reduce-motion .panel-tab.fresh::after { animation: none; }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   v52 · Il mentore
+   Ogni modulo appena sbloccato viene presentato dalla head trader del desk:
+   cos'è, come funziona, e cosa fa danni se lo ignori.
+   ══════════════════════════════════════════════════════════════════════════ */
+.mentor-dialog { border: 0; padding: 0; background: transparent; max-width: min(520px, calc(100vw - 28px)); }
+.mentor-dialog::backdrop { background: rgba(3,7,16,.74); backdrop-filter: blur(4px); }
+.mentor-dialog form {
+  padding: 22px 24px 18px; border-radius: 20px; color: var(--text);
+  background: linear-gradient(180deg, #14243d, #0c1626);
+  border: 2px solid rgba(255, 213, 122, .3);
+  box-shadow: 0 22px 60px rgba(0,0,0,.62), inset 0 1px 0 rgba(255,255,255,.09);
+  animation: luPop .38s cubic-bezier(.2,1.2,.35,1);
+}
+.mentor-head { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 12px; }
+.mentor-portrait { width: 56px; height: 56px; flex: 0 0 auto; }
+.mentor-portrait svg { display: block; border-radius: 50%; }
+.mentor-id strong { display: block; font-size: 14px; letter-spacing: -.01em; }
+.mentor-id small { display: block; margin-top: 2px; color: var(--muted); font-size: 11.5px; }
+.mentor-tag {
+  padding: 4px 10px; border-radius: 999px; white-space: nowrap;
+  background: rgba(255,255,255,.07); color: var(--muted);
+  font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .09em;
+}
+.mentor-tag.unlock { background: rgba(255,213,122,.18); color: #ffd97a; }
+.mentor-dialog h2 { margin: 17px 0 0; font-size: 20px; letter-spacing: -.02em; }
+.mentor-lead {
+  margin: 8px 0 16px; padding-left: 13px;
+  border-left: 3px solid rgba(255,213,122,.5);
+  color: #e6eefc; font-size: 14px; line-height: 1.55; font-style: italic;
+}
+.mentor-blocks { display: grid; gap: 10px; }
+.mentor-block { padding: 11px 13px; border-radius: 11px; background: rgba(255,255,255,.035); border: 1px solid var(--border); }
+.mentor-block.warn { border-color: rgba(255,154,94,.26); background: rgba(255,154,94,.06); }
+.mentor-block > span {
+  display: block; margin-bottom: 5px;
+  color: var(--muted); font-size: 10.5px; font-weight: 800;
+  text-transform: uppercase; letter-spacing: .1em;
+}
+.mentor-block.warn > span { color: #ffb45e; }
+.mentor-block p { margin: 0; font-size: 12.8px; line-height: 1.55; color: #d6e2f5; }
+.mentor-ask { font-weight: 800; }
+.mentor-ask[hidden] { display: none !important; }
+
+@media (max-width: 620px) {
+  .mentor-dialog form { padding: 18px 16px 14px; }
+  .mentor-dialog h2 { font-size: 18px; }
+  .mentor-lead { font-size: 13px; }
+  .mentor-block p { font-size: 12.2px; }
+  .mentor-head { grid-template-columns: auto 1fr; }
+  .mentor-tag { grid-column: 1 / -1; justify-self: start; }
+}
+@media (prefers-reduced-motion: reduce) { .mentor-dialog form { animation: none; } }
+.reduce-motion .mentor-dialog form { animation: none; }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   v54 · Riverniciatura sullo stile del logo
+   Il logo è blu reale con cornici dorate in rilievo, lettering crema→oro e
+   contorni spessi. L'interfaccia era navy quasi nero con accenti ciano: stessa
+   famiglia, ma non la stessa lingua. Qui le superfici passano al blu reale e le
+   cornici diventano oro smussato. Livello finale: non riscrive nulla, sovrascrive.
+   ══════════════════════════════════════════════════════════════════════════ */
+:root {
+  --royal:        #17418c;   /* blu dello scudo */
+  --royal-deep:   #0d2755;
+  --royal-dark:   #081a3c;
+  --royal-edge:   #2a5fbf;
+  --gold:         #ffd166;
+  --gold-mid:     #f0a81a;
+  --gold-deep:    #c67d0a;
+  --cream:        #fffaf0;
+  --ink:          #061334;   /* testo scuro sull'oro */
+
+  --bg: #050a16;
+  --panel: rgba(19, 48, 104, .90);
+  --panel-solid: #13306a;
+  --panel-soft: rgba(26, 63, 129, .74);
+  --border: rgba(255, 209, 102, .18);
+  --border-strong: rgba(255, 209, 102, .38);
+  --text: #f4f8ff;
+  --muted: #a8bde0;
+  --muted-2: #7189b5;
+  --shadow: 0 20px 52px rgba(3, 9, 28, .62);
+}
+
+body {
+  background:
+    radial-gradient(1100px 760px at 50% 26%, rgba(23, 65, 140, .40), transparent 70%),
+    radial-gradient(760px 520px at 84% 8%, rgba(198, 125, 10, .17), transparent 66%),
+    linear-gradient(180deg, #071232 0%, #050a16 62%, #03060f 100%) !important;
+}
+
+/* ── pannelli: blu reale con cornice oro smussata ─────────────────────────── */
+.left-panel, .right-panel, .glass-panel, .briefing-panel, .live-tracker {
+  background: linear-gradient(180deg, rgba(26, 66, 136, .93), rgba(11, 33, 74, .95)) !important;
+  border: 2px solid rgba(255, 209, 102, .26) !important;
+  box-shadow:
+    0 18px 46px rgba(3, 9, 28, .58),
+    inset 0 1px 0 rgba(255, 236, 180, .22),
+    inset 0 -2px 0 rgba(4, 14, 40, .5) !important;
+}
+.drawer-head, .inspector-topline, .briefing-head, .tracker-head {
+  border-bottom: 2px solid rgba(255, 209, 102, .20) !important;
+  background: linear-gradient(180deg, rgba(34, 80, 160, .55), rgba(19, 48, 104, 0)) !important;
+}
+.topbar {
+  background: linear-gradient(180deg, rgba(28, 72, 148, .92), rgba(10, 30, 70, .94)) !important;
+  border-bottom: 2px solid rgba(255, 209, 102, .28) !important;
+}
+
+/* ── card: rilievo, non piattume ──────────────────────────────────────────── */
+.deal-card, .opportunity-card, .inventory-card, .counterparty-card, .fleet-card,
+.investment-card, .shop-item-card, .rival-desk-card, .season-card, .builder-card,
+.mini-stats > div, .top-metric, .empty-card, .doctrine-card, .capital-policy-card,
+.stress-scenario-card, .slot-card, .achievement-card, .glossary-item {
+  background: linear-gradient(180deg, rgba(31, 74, 150, .78), rgba(15, 40, 88, .84)) !important;
+  border: 1px solid rgba(255, 209, 102, .16) !important;
+  box-shadow: 0 3px 0 rgba(5, 16, 44, .45), inset 0 1px 0 rgba(255, 236, 180, .12) !important;
+}
+.deal-card:hover, .opportunity-card:hover, .rival-desk-card:hover, .slot-card:hover {
+  border-color: rgba(255, 209, 102, .42) !important;
+}
+.deal-card.selected, .opportunity-card.selected {
+  border-color: var(--gold) !important;
+  box-shadow: 0 3px 0 rgba(5, 16, 44, .5), 0 0 0 1px rgba(255, 209, 102, .5), inset 0 1px 0 rgba(255, 246, 214, .2) !important;
+}
+
+/* ── titoli: crema→oro, come il lettering del logo ───────────────────────── */
+.section-head h2, .section-copy h2, .globe-header h1, .portfolio-value,
+.shop-hero h2, .mentor-dialog h2, .settlement-dialog h2 {
+  background: linear-gradient(180deg, var(--cream) 0%, var(--gold) 52%, var(--gold-mid) 100%);
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent; color: transparent;
+  text-shadow: none;
+  filter: drop-shadow(0 2px 0 rgba(5, 14, 40, .55));
+}
+.eyebrow { color: #ffca77 !important; }
+
+/* ── pulsanti principali: oro lucido con smusso ──────────────────────────── */
+.button.primary, .empty-action, .tutorial-actions button:not(.secondary),
+.dialog-actions .button.primary {
+  background: linear-gradient(180deg, #ffe9a8 0%, var(--gold) 44%, var(--gold-mid) 100%) !important;
+  color: var(--ink) !important;
+  border: 1px solid rgba(140, 88, 6, .55) !important;
+  box-shadow: 0 3px 0 rgba(150, 92, 6, .85), inset 0 1px 0 rgba(255, 255, 240, .75) !important;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, .35) !important;
+  font-weight: 800 !important;
+}
+.button.primary:hover, .empty-action:hover { filter: brightness(1.06); }
+.button.primary:active, .empty-action:active { transform: translateY(2px); box-shadow: 0 1px 0 rgba(150, 92, 6, .85), inset 0 1px 0 rgba(255, 255, 240, .6) !important; }
+.button.secondary {
+  background: linear-gradient(180deg, rgba(42, 95, 191, .55), rgba(19, 48, 104, .7)) !important;
+  border: 1px solid rgba(255, 209, 102, .30) !important;
+  color: var(--text) !important;
+  box-shadow: 0 3px 0 rgba(5, 16, 44, .45), inset 0 1px 0 rgba(255, 236, 180, .14) !important;
+}
+
+/* ── comandi sul globo e barra dei moduli ────────────────────────────────── */
+.command-button, .time-button, .icon-button, .layer-button, .market-ticker {
+  background: linear-gradient(180deg, rgba(34, 80, 160, .82), rgba(14, 38, 84, .88)) !important;
+  border: 1px solid rgba(255, 209, 102, .22) !important;
+  box-shadow: 0 3px 0 rgba(5, 16, 44, .42), inset 0 1px 0 rgba(255, 236, 180, .14) !important;
+}
+.command-button.primary {
+  background: linear-gradient(180deg, #ffe9a8, var(--gold) 46%, var(--gold-mid)) !important;
+  border-color: rgba(140, 88, 6, .5) !important;
+  box-shadow: 0 3px 0 rgba(150, 92, 6, .8), inset 0 1px 0 rgba(255, 255, 240, .7) !important;
+}
+.command-button.primary b, .command-button.primary span { color: var(--ink) !important; }
+.time-button.active, .layer-button.active {
+  background: linear-gradient(180deg, #ffe9a8, var(--gold) 48%, var(--gold-mid)) !important;
+  color: var(--ink) !important; border-color: rgba(140, 88, 6, .5) !important;
+}
+
+/* ── barre di progresso e tracce: oro ────────────────────────────────────── */
+.progress-track { background: rgba(6, 18, 48, .62) !important; box-shadow: inset 0 2px 3px rgba(0, 0, 0, .45); }
+.progress-track > span { background: linear-gradient(90deg, var(--gold-mid), var(--gold), #fff3cd) !important; }
+
+/* ── separatori interni ──────────────────────────────────────────────────── */
+.mini-stats { background: rgba(255, 209, 102, .16) !important; }
+.section-head { border-bottom: 1px solid rgba(255, 209, 102, .12); }
+
+/* ── dialoghi ────────────────────────────────────────────────────────────── */
+.confirm-dialog form, .glossary-dialog form, .search-dialog form, .slot-dialog form,
+.notifications-dialog form, .profile-dialog form, .daily-dialog form, .victory-dialog form {
+  background: linear-gradient(180deg, #1b4489, #0c2456) !important;
+  border: 2px solid rgba(255, 209, 102, .32) !important;
+  box-shadow: 0 24px 62px rgba(2, 7, 22, .68), inset 0 1px 0 rgba(255, 236, 180, .18) !important;
+}
+
+/* Contrasti verificati sul nuovo fondo blu: il rosso delle perdite e il grigio
+   secondario scendevano sotto 4,5:1 e sono stati schiariti fino a superarlo. */
+:root {
+  --red: #ff96a4;     /* era #ff6479 → 3,37:1 · ora 4,66:1 */
+  --muted-2: #a0b4d8; /* era #7189b5 → 2,73:1 · ora 4,59:1 */
+}
+
+/* La legenda del globo deve dire il vero: gli stessi colori che hubColor() disegna. */
+.legend-dot.hq       { background: #fffaf0 !important; }
+.legend-dot.supplier { background: #ffd166 !important; box-shadow: 0 0 6px rgba(255,209,102,.7); }
+.legend-dot.customer { background: #8fc0ff !important; }
+.legend-dot.port     { background: #5a86d8 !important; }
+.legend-dot.shipment { background: var(--green) !important; box-shadow: 0 0 6px var(--green); }
+.legend-dot.investment { background: #b79bff !important; box-shadow: 0 0 8px #b79bff; }
+.location-badge.chain-midstream { color: #8fc0ff !important; }
+.location-badge.chain-downstream { color: #b79bff !important; }
+
+/* Le rotte di mercato sul globo sono oro: anche l'icona del livello lo sia. */
+.layer-button[data-layer="opportunities"] .layer-icon { color: #ffd166 !important; }
+.layer-button[data-layer="portfolio"] .layer-icon { color: var(--green) !important; }
+.layer-button[data-layer="risk"] .layer-icon { color: var(--orange) !important; }
+.layer-button[data-layer="logistics"] .layer-icon { color: #8fc0ff !important; }

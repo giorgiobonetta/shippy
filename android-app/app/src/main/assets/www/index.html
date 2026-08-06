@@ -17,8 +17,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Baloo+2:wght@600;700;800&display=swap" />
-<link rel="stylesheet" href="styles.css?v=50.0.0" />
-  <link rel="stylesheet" href="native-shell.css?v=50.0.0" />
+<link rel="stylesheet" href="styles.css?v=55.0.0" />
+  <link rel="stylesheet" href="native-shell.css?v=55.0.0" />
   <script>
     (() => {
       const boot = window.__WOT_BOOT__ = { startedAt: Date.now(), status: 'HTML loaded', progress: 4, failed: false };
@@ -138,7 +138,7 @@
 
     <main class="game-layout">
       <aside class="left-panel glass-panel" id="leftDrawer" aria-hidden="true">
-        <div class="drawer-head"><div><span class="eyebrow">Command center</span><strong id="drawerTitle">Trading desk</strong></div><button class="icon-button small" id="closeLeftPanel" aria-label="Close menu">×</button></div>
+        <div class="drawer-head"><div><span class="eyebrow">Command center</span><strong id="drawerTitle">Trading desk</strong></div><button class="icon-button small mentor-ask" id="askMentorButton" title="Ask Hélène about this module" aria-label="Ask the head trader about this module">?</button><button class="icon-button small" id="closeLeftPanel" aria-label="Close menu">×</button></div>
         <!-- v46 · navigazione a due livelli: 5 aree, poi le schede dell'area attiva -->
         <div class="panel-groups" id="panelGroups" role="tablist" aria-label="Panel areas"></div>
         <div class="panel-tabs" id="panelTabs" role="tablist">
@@ -411,7 +411,7 @@
         <div class="drawer-backdrop" id="drawerBackdrop" aria-hidden="true"></div>
 
         <div class="globe-header">
-          <div><span class="eyebrow">Global operations view</span><h1>World of Trade · Global Trade Command <span class="version-badge">v50</span></h1></div>
+          <div><span class="eyebrow">Global operations view</span><h1>World of Trade · Global Trade Command <span class="version-badge">v55</span></h1></div>
           <div class="market-strip" id="marketStrip" aria-label="Markets" aria-hidden="true">
             <div class="market-ticker"><span>Copper</span><strong id="copperPrice">$9,500/t</strong><small id="copperMove">+0.0%</small><i class="ticker-spark" id="copperSpark"></i><em id="copperTermStructure" class="term-struct"></em></div>
             <div class="market-ticker"><span>Aluminium</span><strong id="aluminiumPrice">$2,450/t</strong><small id="aluminiumMove">+0.0%</small><i class="ticker-spark" id="aluminiumSpark"></i><em id="aluminiumTermStructure" class="term-struct"></em></div>
@@ -598,6 +598,48 @@
       <div class="dialog-actions"><button value="close" class="button primary">Continue trading</button></div>
     </form>
   </dialog>
+  <!-- v52 · il mentore presenta ogni modulo appena sbloccato -->
+  <dialog id="mentorDialog" class="mentor-dialog">
+    <form method="dialog">
+      <div class="mentor-head">
+        <div class="mentor-portrait" aria-hidden="true">
+          <svg viewBox="0 0 64 64" width="56" height="56">
+            <defs>
+              <linearGradient id="mentorBg" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#27436f"/><stop offset="100%" stop-color="#152943"/>
+              </linearGradient>
+            </defs>
+            <circle cx="32" cy="32" r="31" fill="url(#mentorBg)" stroke="rgba(255,213,122,.55)" stroke-width="2"/>
+            <circle cx="32" cy="25" r="9.5" fill="#e8d3b4"/>
+            <path d="M22.5 22c0-7 4.5-10 9.5-10s9.5 3 9.5 10c0 1.5-.5 2.5-.5 2.5-1-4-3.5-6-9-6s-8 2-9 6c0 0-.5-1-.5-2.5z" fill="#3b2a20"/>
+            <path d="M15 56c0-9.5 7.6-14.5 17-14.5S49 46.5 49 56z" fill="#22406b"/>
+            <path d="M32 41.5 27 56h10z" fill="#f0f5ff" opacity=".9"/>
+            <path d="M30 42.5 32 48l2-5.5-2-1.5z" fill="#c8455a"/>
+          </svg>
+        </div>
+        <div class="mentor-id">
+          <strong id="mentorName">Hélène Marchand</strong>
+          <small id="mentorRole">Head Trader · Geneva desk</small>
+        </div>
+        <span class="mentor-tag" id="mentorTag">New module</span>
+      </div>
+      <h2 id="mentorTitle">Module</h2>
+      <p class="mentor-lead" id="mentorLead"></p>
+      <div class="mentor-blocks">
+        <div class="mentor-block">
+          <span>How it works</span>
+          <p id="mentorHow"></p>
+        </div>
+        <div class="mentor-block warn">
+          <span>What to watch</span>
+          <p id="mentorWatch"></p>
+        </div>
+      </div>
+      <div class="dialog-actions">
+        <button value="close" class="button primary" id="mentorCloseButton">Got it</button>
+      </div>
+    </form>
+  </dialog>
   <dialog id="glossaryDialog" class="glossary-dialog">
     <form method="dialog">
       <div class="glossary-head">
@@ -645,7 +687,7 @@
       <div class="dialog-actions"><button value="cancel" class="button secondary" data-i18n="btn.cancel">Cancel</button><button value="save" class="button primary" data-i18n="btn.save">Save changes</button></div>
     </form>
   </dialog>
-  <script src="native-bridge.js?v=50.0.0"></script>
-  <script type="module" src="app.js?v=50.0.0"></script>
+  <script src="native-bridge.js?v=55.0.0"></script>
+  <script type="module" src="app.js?v=55.0.0"></script>
 </body>
 </html>

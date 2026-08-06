@@ -434,6 +434,21 @@
 
 
   // ── v33 progressive trading-house expansion ────────────────────────────────
+  const moduleUnlockLevels = {
+    portfolio: 1,   opportunities: 1,   // aprire e seguire il primo cargo
+    inventory: 2,   operations: 2,      // il cargo è in viaggio: merce e documenti
+    events: 3,                          // il mondo comincia a interferire
+    risk: 4,        contracts: 4,       // più posizioni, fatture da incassare
+    counterparties: 5, finance: 5,      // relazioni e tesoreria
+    fleet: 6,       academy: 6,
+    rivals: 7,      supply: 7,
+    compliance: 8,  career: 8,
+    expansion: 9,   hq: 9,              // la casa di trading inizia a crescere
+    strategy: 11,   performance: 11,
+    shop: 13,       empire: 13,
+    leaderboard: 15,
+  };
+
   const commodityUnlockLevels = {
     'Copper': 1, 'Aluminium': 4, 'Urea': 6, 'Diesel': 8, 'Coffee': 10,
     'Wheat': 11, 'Palm oil': 13, 'Cocoa': 14, 'Iron ore': 16, 'Steel': 18,
@@ -493,12 +508,101 @@
     const offices=(typeof officeCatalog !== 'undefined' ? officeCatalog : []).filter(office=>office.id!=='geneva' && office.minLevel===level).map(office=>`${office.city} office`);
     return { countries, commodities, offices };
   }
+  // ── v50 · requisiti di sblocco leggibili ────────────────────────────────────
+  // Il gioco aveva due sistemi sovrapposti: i livelli XP (visibili, con tabelle di
+  // commodity e paesi) e le funzioni `unlock` (invisibili, che chiedono uffici,
+  // cargo chiusi e reputazione). Il secondo e' quello che decide davvero, ma il
+  // giocatore vedeva solo "Requires a larger balance sheet, reputation or regional
+  // office". Qui i predicati vengono letti e tradotti in requisiti espliciti.
+  const _unlockCache = new Map();
+  function unlockRequirements(opp) {
+    if (!opp || typeof opp.unlock !== 'function') return { offices: [], officesMode: 'any', deals: 0, reputation: 0, parsed: true, always: true };
+    if (_unlockCache.has(opp.id)) return _unlockCache.get(opp.id);
+    const source = String(opp.unlock);
+    const body = source.slice(source.indexOf('=>') + 2).trim();
+    const result = { offices: [], officesMode: 'any', deals: 0, reputation: 0, parsed: false, always: false };
+    if (/^true;?$/.test(body)) { result.parsed = true; result.always = true; _unlockCache.set(opp.id, result); return result; }
+
+    const officeIds = [...body.matchAll(/officeOwned\('([a-z-]+)'\)/g)].map(m => m[1]);
+    result.offices = [...new Set(officeIds)];
+    // "A || B" = uno qualsiasi; "A && B" fra due uffici = servono entrambi
+    const officeSegment = body.split('&&')[0];
+    result.officesMode = (result.offices.length > 1 && !/\|\|/.test(officeSegment)) ? 'all' : 'any';
+    const deals = body.match(/completedDeals\s*>=\s*(\d+)/);
+    if (deals) result.deals = Number(deals[1]);
+    const reputation = body.match(/reputation\s*>=\s*(\d+)/);
+    if (reputation) result.reputation = Number(reputation[1]);
+    // riconosciuto tutto? (nessun altro riferimento allo stato che non sappiamo leggere)
+    const known = body.replace(/officeOwned\('[a-z-]+'\)/g, '')
+      .replace(/s\.completedDeals\s*>=\s*\d+/g, '')
+      .replace(/s\.reputation\s*>=\s*\d+/g, '')
+      .replace(/[()&|\s;]/g, '');
+    result.parsed = known.length === 0;
+    _unlockCache.set(opp.id, result);
+    return result;
+  }
+
+  // Elenco dei requisiti ancora mancanti, con il progresso attuale.
+  function missingUnlockRequirements(opp) {
+    const missing = [];
+    if (!opp) return missing;
+    const progression = opportunityProgressionRequirements(opp);
+    if (playerLevel() < progression.commodityLevel) {
+      missing.push({ kind: 'level', label: `${opp.commodity} trading licence at level ${progression.commodityLevel}`, progress: `level ${playerLevel()}/${progression.commodityLevel}` });
+    }
+    progression.lockedCountries.forEach(entry => {
+      // v52 - reintegrata la descrizione del corridoio, persa nella riscrittura v50
+      missing.push({ kind: 'level', label: `${entry.country} \u2014 ${countryAccessTier(entry.country).toLowerCase()} \u2014 at level ${entry.level}`, progress: `level ${playerLevel()}/${entry.level}` });
+    });
+    const requirements = unlockRequirements(opp);
+    if (requirements.always) return missing;
+    if (!requirements.parsed) {
+      if (typeof opp.unlock === 'function' && !opp.unlock(state)) {
+        missing.push({ kind: 'other', label: 'Additional balance-sheet or network requirements', progress: '' });
+      }
+      return missing;
+    }
+    const ownedOffices = requirements.offices.filter(id => officeOwned(id));
+    const officeNames = requirements.offices.map(id => getOffice(id)?.city || id);
+    if (requirements.offices.length) {
+      const satisfied = requirements.officesMode === 'all' ? ownedOffices.length === requirements.offices.length : ownedOffices.length > 0;
+      if (!satisfied) {
+        missing.push({
+          kind: 'office',
+          label: requirements.officesMode === 'all' ? `Offices in ${officeNames.join(' and ')}` : `An office in ${officeNames.join(' or ')}`,
+          progress: `${ownedOffices.length}/${requirements.officesMode === 'all' ? requirements.offices.length : 1}`,
+          officeIds: requirements.offices.filter(id => !officeOwned(id)),
+        });
+      }
+    }
+    if (requirements.deals && (state.completedDeals || 0) < requirements.deals) {
+      missing.push({ kind: 'deals', label: `${requirements.deals} cargoes settled`, progress: `${state.completedDeals || 0}/${requirements.deals}` });
+    }
+    if (requirements.reputation && (state.reputation || 0) < requirements.reputation) {
+      missing.push({ kind: 'reputation', label: `Reputation ${requirements.reputation}`, progress: `${Math.round(state.reputation || 0)}/${requirements.reputation}` });
+    }
+    return missing;
+  }
+
+  // Versione compatta per le card: il primo ostacolo, piu' il conteggio del resto.
   function unlockReason(opp) {
-    const req=opportunityProgressionRequirements(opp);
-    if (playerLevel() < req.commodityLevel) return `${opp.commodity} unlocks at level ${req.commodityLevel}`;
-    if (req.lockedCountries.length) return `${req.lockedCountries.map(x=>`${x.country} (${countryAccessTier(x.country)})`).join(' / ')} unlocks at level ${req.requiredLevel}`;
-    if (typeof opp.unlock === 'function' && !opp.unlock(state)) return 'Requires a larger balance sheet, reputation or regional office';
-    return '';
+    const missing = missingUnlockRequirements(opp);
+    if (!missing.length) return '';
+    const first = missing[0];
+    const head = first.progress ? `${first.label} \u00b7 ${first.progress}` : first.label;
+    return missing.length > 1 ? `${head} \u00b7 +${missing.length - 1} more` : head;
+  }
+
+  // Versione estesa per l'inspector: elenco con spunta e progresso.
+  function unlockChecklistHtml(opp) {
+    const missing = missingUnlockRequirements(opp);
+    if (!missing.length) return '';
+    const icons = { level: '\u2605', office: '\u2302', deals: '\u2713', reputation: '\u25C6', other: '\u2022' };
+    return `<div class="unlock-checklist">
+      <strong>To open this corridor you still need</strong>
+      <ul>${missing.map(item => `<li class="unlock-need ${item.kind}"><i>${icons[item.kind] || '\u2022'}</i><span>${item.label}</span>${item.progress ? `<em>${item.progress}</em>` : ''}</li>`).join('')}</ul>
+      ${missing.some(item => item.kind === 'office') ? '<button type="button" class="unlock-goto" data-empty-action="module:expansion">Open the growth office</button>' : ''}
+    </div>`;
   }
 
 
@@ -729,7 +833,7 @@
 
   const opportunities = [
     {
-      id: 'baltic-copper', origin: 'tallinn', destination: 'brescia', via: [], commodity: 'Copper', quantity: 500,
+      id: 'baltic-copper', origin: 'tallinn', destination: 'brescia', via: [], commodity: 'Copper', quantity: 175,
       capital: 1_650_000, equity: 240_000, basePnl: 38_000, duration: 28, risk: 'Low', riskClass: 'low', priceKey: 'copper', recommendedHedge: 100, transportMode: 'Rail / Truck',
       title: 'Baltic Express', description: 'Short overland route, lower capital usage and manageable documentary risk.',
       unlock: () => true,
@@ -783,7 +887,7 @@
     {
       id: 'maghreb-urea', origin: 'casablanca', destination: 'brescia', via: ['genova'], commodity: 'Urea', quantity: 900,
       capital: 1_800_000, equity: 280_000, basePnl: 64_000, duration: 21, risk: 'Medium', riskClass: 'medium', priceKey: 'urea', recommendedHedge: 70, transportMode: 'Coaster / Truck',
-      title: 'Maghreb Nutrients', description: 'Urea parcel from North Africa to the Italyn agricultural market. Fast margin, but quality and port congestion require strong execution.',
+      title: 'Maghreb Nutrients', description: 'Urea parcel from North Africa to the Italian agricultural market. Fast margin, but quality and port congestion require strong execution.',
       unlock: (s) => (officeOwned('casablanca') || officeOwned('genova')) && s.completedDeals >= 2,
       event: {
         dayRatio: .48,
@@ -987,7 +1091,7 @@
     { id: 'gulf-refining', name: 'Gulf Refining & Trading LLC', type: 'Supplier', country: 'USA', credit: 87, creditRating: 'A', reliability: 89, kyc: 'Approved', description: 'Gulf Coast refinery with a regular cargo program and strict specifications.' },
     { id: 'ara-fuels', name: 'ARA Fuels BV', type: 'Buyer', country: 'Netherlands', credit: 90, creditRating: 'A', reliability: 91, kyc: 'Approved', description: 'Investment-grade European distributor active in the distillates market.' },
     { id: 'santos-coffee', name: 'Santos Coffee Export SA', type: 'Supplier', country: 'Brazil', credit: 78, creditRating: 'BBB', reliability: 83, kyc: 'Approved', description: 'Brazilian exporter with a network of cooperatives and quality laboratories.' },
-    { id: 'italia-roasters', name: 'Italyn Roasters Group', type: 'Buyer', country: 'Italy', credit: 81, creditRating: 'A', reliability: 86, kyc: 'Approved', description: 'European roaster sensitive to cup profile, moisture and traceability.' },
+    { id: 'italia-roasters', name: 'Italian Roasters Group', type: 'Buyer', country: 'Italy', credit: 81, creditRating: 'A', reliability: 86, kyc: 'Approved', description: 'European roaster sensitive to cup profile, moisture and traceability.' },
     { id: 'pampa-grains', name: 'Pampa Grains SA', type: 'Supplier', country: 'Argentina', credit: 70, creditRating: 'BBB', reliability: 79, kyc: 'Approved', description: 'Agricultural origination house on the Paraná corridor.' },
     { id: 'pilbara-mining', name: 'Pilbara Mining Ltd.', type: 'Supplier', country: 'Australia', credit: 92, creditRating: 'A', reliability: 94, kyc: 'Approved', description: 'High-volume mining producer with strong loading discipline.' },
     { id: 'yangtze-steel', name: 'Yangtze Steel Group', type: 'Buyer', country: 'China', credit: 85, creditRating: 'A', reliability: 84, kyc: 'Approved', description: 'Steel group with Panamax-scale iron ore demand.' },
@@ -1085,16 +1189,42 @@
     liquidity: { id:'liquidity', icon:'!', label:'Global liquidity crisis', subtitle:'Margins rise and bank capacity falls', description:'Tests cash reserves, collateral and credit-line resilience.' }
   };
 
+  // v48 - ogni desk rivale ha ora un profilo leggibile: come opera, su cosa punta
+  // e come si comporta contro di te. I numeri di gara restano quelli di prima.
   const aiRivalDesks = [
-    { id:'helios', name:'Helios Commodities', city:'Zurich', specialties:['Copper','Aluminium','Diesel'], aggression:86, discipline:91 },
-    { id:'northsea', name:'NorthSea Trading', city:'Rotterdam', specialties:['Diesel','Aluminium','Iron ore'], aggression:78, discipline:94 },
-    { id:'pacific', name:'Pacific Bulk Partners', city:'Singapore', specialties:['Iron ore','Wheat','Coffee'], aggression:82, discipline:87 },
-    { id:'andean', name:'Andean Resources', city:'Santiago', specialties:['Copper','Coffee'], aggression:74, discipline:90 },
-    { id:'atlas', name:'Atlas Merchant Group', city:'London', specialties:['Urea','Copper','Wheat'], aggression:88, discipline:84 },
-    { id:'stratus', name:'Stratus Energy', city:'Houston', specialties:['Diesel','Urea'], aggression:92, discipline:76 },
-    { id:'orion', name:'Orion Agri Trade', city:'Geneva', specialties:['Coffee','Wheat','Urea'], aggression:72, discipline:89 },
-    { id:'rhine', name:'Rhine Metals Desk', city:'Geneva', specialties:['Copper','Aluminium'], aggression:80, discipline:95 }
+    { id:'helios', name:'Helios Commodities', city:'Zurich', flag:'\u{1F1E8}\u{1F1ED}', specialties:['Copper','Aluminium','Diesel'], aggression:86, discipline:91,
+      style:'Balance-sheet led', profile:'Deep bank lines and patient capital. Rarely overpays, but will sit on a corridor for months until the seller blinks.' },
+    { id:'northsea', name:'NorthSea Trading', city:'Rotterdam', flag:'\u{1F1F3}\u{1F1F1}', specialties:['Diesel','Aluminium','Iron ore'], aggression:78, discipline:94,
+      style:'Logistics led', profile:'Owns terminal slots in ARA. Wins on execution certainty rather than price, and almost never misses a delivery window.' },
+    { id:'pacific', name:'Pacific Bulk Partners', city:'Singapore', flag:'\u{1F1F8}\u{1F1EC}', specialties:['Iron ore','Wheat','Coffee'], aggression:82, discipline:87,
+      style:'Freight arbitrage', profile:'Charters ahead of the market and monetises the freight leg. Most dangerous when the Baltic index is moving.' },
+    { id:'andean', name:'Andean Resources', city:'Santiago', flag:'\u{1F1E8}\u{1F1F1}', specialties:['Copper','Coffee'], aggression:74, discipline:90,
+      style:'Producer aligned', profile:'Long-standing offtake with South American mines. Hard to displace at origin, weaker on the delivered leg.' },
+    { id:'atlas', name:'Atlas Merchant Group', city:'London', flag:'\u{1F1EC}\u{1F1E7}', specialties:['Urea','Copper','Wheat'], aggression:88, discipline:84,
+      style:'Volume hunter', profile:'Chases market share and will cut margin to hold a corridor. Overextends when several tenders land in the same week.' },
+    { id:'stratus', name:'Stratus Energy', city:'Houston', flag:'\u{1F1FA}\u{1F1F8}', specialties:['Diesel','Urea'], aggression:92, discipline:76,
+      style:'Opportunistic', profile:'The most aggressive bidder on the tape and the least disciplined. Takes flat-price risk others refuse.' },
+    { id:'orion', name:'Orion Agri Trade', city:'Geneva', flag:'\u{1F1E8}\u{1F1ED}', specialties:['Coffee','Wheat','Urea'], aggression:72, discipline:89,
+      style:'Seasonal specialist', profile:'Trades the agricultural calendar. Quiet out of season, then bids hard through harvest windows.' },
+    { id:'rhine', name:'Rhine Metals Desk', city:'Geneva', flag:'\u{1F1E8}\u{1F1ED}', specialties:['Copper','Aluminium'], aggression:80, discipline:95,
+      style:'Risk disciplined', profile:'Your closest neighbour and the most consistent desk in the league. Walks away from a tender rather than break a limit.' }
   ];
+
+  // ── v48 · registro testa a testa ────────────────────────────────────────────
+  // Conta solo esiti gia' prodotti dalla simulazione: non cambia nessuna probabilita'.
+  function rivalRecord(rivalId) {
+    state.rivalRecord = state.rivalRecord || {};
+    if (!state.rivalRecord[rivalId]) state.rivalRecord[rivalId] = { won: 0, lost: 0, lastCycle: null, lastTitle: null, lastResult: null };
+    return state.rivalRecord[rivalId];
+  }
+  function recordRivalOutcome(rivalId, playerWon, title) {
+    if (!rivalId) return;
+    const record = rivalRecord(rivalId);
+    if (playerWon) record.won += 1; else record.lost += 1;
+    record.lastCycle = state.marketCycle;
+    record.lastTitle = title || null;
+    record.lastResult = playerWon ? 'won' : 'lost';
+  }
 
   const achievementCatalog = [
     { id:'first-cargo', icon:'01', title:'First Cargo', description:'Close your first physical commodity deal.', achieved:s=>s.completedDeals>=1 },
@@ -1317,9 +1447,9 @@
 
   // ── v35 global office network ──────────────────────────────────────────────
   const officeCatalog = [
-    { id:'geneva', name:'Geneva Headquarters', city:'Geneva', country:'Switzerland', flag:'🇨🇭', region:'Group HQ', hub:'geneva', cost:0, buildDays:0, dailyCost:900, minLevel:1, minReputation:0, minDeals:0, minHqTier:1, pnlBonus:0, acceptance:0, equityReduction:0, durationBonus:0, riskReduction:0, creditBonus:0, coverageCountries:['Switzerland'], focusCommodities:[], description:'The group command centre for capital, risk, compliance, banks and global strategy.', benefit:'Controls the entire merchant network.' },
-    { id:'genova', name:'Genoa Operations Office', city:'Genoa', country:'Italy', flag:'🇮🇹', region:'Southern Europe', hub:'genova', cost:120_000, buildDays:3, dailyCost:600, minLevel:2, minReputation:18, minDeals:1, minHqTier:1, pnlBonus:4_000, acceptance:2, equityReduction:.01, durationBonus:2, riskReduction:1, creditBonus:50_000, coverageCountries:['Italy'], focusCommodities:['Copper','Aluminium','Urea','Coffee','Wheat','Palm oil','Cocoa'], description:'Port operations, customs, bonded storage and final delivery into Northern Italy.', benefit:'Faster Italian deliveries and stronger buyer relationships.' },
-    { id:'santiago', name:'Santiago Origination Office', city:'Santiago', country:'Chile', flag:'🇨🇱', region:'Andean Americas', hub:'santiago', cost:260_000, buildDays:5, dailyCost:850, minLevel:4, minReputation:24, minDeals:2, minHqTier:1, pnlBonus:9_000, acceptance:3, equityReduction:.015, durationBonus:1, riskReduction:1, creditBonus:100_000, coverageCountries:['Chile'], focusCommodities:['Copper'], description:'Mine relationships, concentrate expertise and local copper origination.', benefit:'Improves Chilean copper margin and supplier access.' },
+    { id:'geneva', name:'Geneva Headquarters', city:'Geneva', country:'Switzerland', flag:'🇨🇭', region:'Group HQ', hub:'geneva', cost:0, buildDays:0, dailyCost:150, minLevel:1, minReputation:0, minDeals:0, minHqTier:1, pnlBonus:0, acceptance:0, equityReduction:0, durationBonus:0, riskReduction:0, creditBonus:0, coverageCountries:['Switzerland'], focusCommodities:[], description:'The group command centre for capital, risk, compliance, banks and global strategy.', benefit:'Controls the entire merchant network.' },
+    { id:'genova', name:'Genoa Operations Office', city:'Genoa', country:'Italy', flag:'🇮🇹', region:'Southern Europe', hub:'genova', cost:120_000, buildDays:3, dailyCost:600, minLevel:2, minReputation:15, minDeals:1, minHqTier:1, pnlBonus:4_000, acceptance:2, equityReduction:.01, durationBonus:2, riskReduction:1, creditBonus:50_000, coverageCountries:['Italy'], focusCommodities:['Copper','Aluminium','Urea','Coffee','Wheat','Palm oil','Cocoa'], description:'Port operations, customs, bonded storage and final delivery into Northern Italy.', benefit:'Faster Italian deliveries and stronger buyer relationships.' },
+    { id:'santiago', name:'Santiago Origination Office', city:'Santiago', country:'Chile', flag:'🇨🇱', region:'Andean Americas', hub:'santiago', cost:260_000, buildDays:5, dailyCost:850, minLevel:4, minReputation:21, minDeals:2, minHqTier:1, pnlBonus:9_000, acceptance:3, equityReduction:.015, durationBonus:1, riskReduction:1, creditBonus:100_000, coverageCountries:['Chile'], focusCommodities:['Copper'], description:'Mine relationships, concentrate expertise and local copper origination.', benefit:'Improves Chilean copper margin and supplier access.' },
     { id:'dubai', name:'Dubai Commercial Office', city:'Dubai', country:'UAE', flag:'🇦🇪', region:'Middle East', hub:'dubai', cost:390_000, buildDays:6, dailyCost:1_150, minLevel:6, minReputation:30, minDeals:3, minHqTier:2, pnlBonus:11_000, acceptance:4, equityReduction:.015, durationBonus:1, riskReduction:1, creditBonus:180_000, coverageCountries:['UAE','Qatar'], focusCommodities:['Copper','Aluminium','Diesel','LNG'], description:'Regional commercial coverage, Islamic trade finance and Gulf supplier access.', benefit:'Stronger Gulf negotiations and funding capacity.' },
     { id:'casablanca', name:'Casablanca Fertilizer Office', city:'Casablanca', country:'Morocco', flag:'🇲🇦', region:'North Africa', hub:'casablanca', cost:330_000, buildDays:6, dailyCost:900, minLevel:8, minReputation:34, minDeals:3, minHqTier:2, pnlBonus:10_000, acceptance:4, equityReduction:.018, durationBonus:2, riskReduction:2, creditBonus:120_000, coverageCountries:['Morocco'], focusCommodities:['Urea'], description:'Fertilizer origination, quality control and Mediterranean freight execution.', benefit:'Unlocks a durable North African sourcing franchise.' },
     { id:'rotterdam', name:'Rotterdam Trading Office', city:'Rotterdam', country:'Netherlands', flag:'🇳🇱', region:'Northern Europe', hub:'rotterdam', cost:520_000, buildDays:8, dailyCost:1_450, minLevel:9, minReputation:40, minDeals:4, minHqTier:2, pnlBonus:13_000, acceptance:4, equityReduction:.025, durationBonus:2, riskReduction:2, creditBonus:300_000, coverageCountries:['Netherlands','Belgium','Germany'], focusCommodities:['Aluminium','Diesel','Soybeans','Zinc','LNG'], description:'ARA storage, blending, barges, derivatives and access to industrial buyers.', benefit:'Major European hub with freight, financing and storage advantages.' },
@@ -1537,7 +1667,7 @@
       counterparties: {},
       activeGlobalEvents: [],
       worldEventFeed: [],
-      nextGlobalEventDay: 6,
+      nextGlobalEventDay: 14,
       difficulty: 'standard',
       onboardingComplete: false,
       academyProgress: {},
@@ -1560,6 +1690,8 @@
       streakDay: null,
       insolventDays: 0,
       overdraft: 0,
+      rivalRecord: {},
+      seenModules: null,   // v51 - null = da inizializzare; [] = nuova carriera
       distressedOpportunity: null,
       distressedCargoDay: null,
       soundEnabled: true,
@@ -1650,7 +1782,7 @@
     migrated.dayIndex = migrated.dayIndex || 0;
     migrated.marketCycle = migrated.marketCycle || 1;
     migrated.marketCycleDay = migrated.marketCycleDay || 0;
-    migrated.nextGlobalEventDay = migrated.nextGlobalEventDay || 6;
+    migrated.nextGlobalEventDay = migrated.nextGlobalEventDay || 14;
     migrated.academyProgress = migrated.academyProgress || {};
     migrated.academyScore = migrated.academyScore || 0;
     migrated.marginCalls = migrated.marginCalls || 0;
@@ -1679,6 +1811,17 @@
     migrated.streakDay = migrated.streakDay || null;
     migrated.insolventDays = Number.isFinite(migrated.insolventDays) ? migrated.insolventDays : 0;
     migrated.overdraft = Number.isFinite(migrated.overdraft) ? migrated.overdraft : 0;
+    migrated.rivalRecord = (migrated.rivalRecord && typeof migrated.rivalRecord === 'object') ? migrated.rivalRecord : {};
+    // v51 - una carriera esistente non deve vedere tutto marcato come nuovo:
+    // si considerano gia' visti i moduli disponibili al livello raggiunto.
+    if (!Array.isArray(migrated.seenModules)) {
+      // salvataggio anteriore alla v51: tutto cio' che il livello raggiunto rende
+      // disponibile si considera gia' visto, altrimenti apparirebbe tutto "nuovo"
+      const reachedLevel = Math.max(1, Number(migrated.xpLevel) || 1);
+      migrated.seenModules = Object.entries(moduleUnlockLevels)
+        .filter(([, required]) => required <= reachedLevel)
+        .map(([tab]) => tab);
+    }
     migrated.soundEnabled = migrated.soundEnabled !== false;
     migrated.language = (migrated.language === 'it') ? 'it' : 'en';
     migrated.prestigeLevel = Number.isFinite(migrated.prestigeLevel) ? migrated.prestigeLevel : loadPrestige();
@@ -3081,6 +3224,11 @@
       tender.status = 'awarded';
       tender.awardedTo = rival.id;
       state.tenderLosses = (state.tenderLosses || 0) + 1;
+      // v48 - il testa a testa conta solo le gare davvero contestate: una gara
+      // ignorata non e' una sconfitta contro quel desk.
+      const contested = (tender.bidAttempts || 0) > 0
+        || state.negotiations?.[opp.id]?.cycle === state.marketCycle;
+      if (contested) recordRivalOutcome(rival.id, false, opp.title);
       state.rivalFeed.unshift({ date:state.date, cycle:state.marketCycle, opportunityId:opp.id, rivalId:rival.id, title:`${rival.name} wins ${opp.title}`, description:`${opp.commodity} tender awarded after ${tender.pressure}% competitive pressure.` });
       state.rivalFeed = state.rivalFeed.slice(0,18);
     });
@@ -3182,11 +3330,27 @@
     const _creditMod = _ratingMod[buyer?.creditRating] ?? 0;
     return clamp(54 + state.reputation * .18 + (relationship - 50) * .45 + (buyer?.credit || 70) * .08 + commercial.acceptance + payment.acceptance + pricing.acceptance + delivery.acceptance + incoterm.acceptance + (financing.acceptance || 0) + vertical.acceptanceBonus + shop.acceptanceBonus + difficultySettings().acceptance + regime.acceptance + season.acceptance + doctrine.acceptance + procurement.acceptance + specialization.acceptance + franchise.acceptance + framework.acceptance + hq.acceptance + office.acceptance - route.acceptancePenalty - competitionPenalty(opp) + _creditMod + crisisAdjustments(opp).acceptanceShock, 5, 97);
   }
+  // ── v50 · impatto degli eventi proporzionale al cargo ───────────────────────
+  // Gli eventi globali applicavano importi fissi (-5.000 … -45.000) a cargo con
+  // margini da 38.000 a 520.000. Sul cargo iniziale un solo evento valeva fino al
+  // 37% del margine: nella simulazione tre cargo su quattro chiudevano in perdita
+  // pur essendo coperti al 100% e con esecuzione perfetta, e gli unici in utile
+  // erano quelli che non avevano incontrato eventi. Ora l'importo del catalogo e'
+  // riferito a un cargo di dimensione tipica (~150.000 di margine) e viene scalato.
+  const EVENT_REFERENCE_MARGIN = 150_000;
+  function scaleEventImpact(amount, opp) {
+    if (!amount || !opp) return amount || 0;
+    const margin = Math.abs(Number(opp.basePnl) || EVENT_REFERENCE_MARGIN);
+    // fra 0,35x e 1,6x: i cargo piccoli restano colpiti, ma non annientati
+    const factor = clamp(margin / EVENT_REFERENCE_MARGIN, 0.35, 1.6);
+    return Math.round(amount * factor);
+  }
+
   function crisisAdjustments(opp) {
     return activeCrisisDefinitions().filter(event => event.affects?.(opp)).reduce((acc, event) => {
       const response = crisisResponseAdjustments(event);
       acc.duration += Math.max(0, (event.dealDays || 0) - (response.durationReduction || 0));
-      const rawPnl = event.dealPnl || 0;
+      const rawPnl = scaleEventImpact(event.dealPnl || 0, opp);
       acc.pnl += rawPnl < 0 ? Math.round(rawPnl * (response.lossFactor || 1)) : rawPnl;
       acc.pnlFactor *= event.pnlFactor || 1;
       acc.equityFactor *= (event.equityFactor || 1) * (response.equityFactor || 1);
@@ -3218,7 +3382,13 @@
     const framework = commercialFrameworkAdjustments(opp);
     const hq = hqAdjustments();
     const tender = rivalTenderFor(opp.id);
-    const competitionCost = Math.round(Math.max(0, (tender?.pressure || 0) - 45) * 240 * procurement.competitionFactor);
+    // v50 - il costo della competizione era 240 $ per punto di pressione, uguale
+    // per un cargo da 38k di margine e per uno da 520k: sul cargo iniziale valeva
+    // il 24% del margine, su quelli grandi l'1%. Ora e' una quota del margine.
+    // Il coefficiente e' tarato perche' un cargo da ~150k di margine paghi
+    // esattamente quanto prima; cambia solo la distorsione agli estremi.
+    const competitionPressure = Math.max(0, (tender?.pressure || 0) - 45);
+    const competitionCost = Math.round(offer.basePnl * clamp(competitionPressure * 0.0016, 0, 0.10) * procurement.competitionFactor);
     const financeStaffFactor = hasStaff('trade-finance-manager') ? .9 : 1;
     const equity = Math.min(offer.capital, Math.round(offer.equity * payment.equityFactor * incoterm.equityFactor * financeStaffFactor * crisis.equityFactor * structure.financing.equityFactor * vertical.equityFactor * shop.equityFactor * regime.equityFactor * doctrine.equityFactor * procurement.equityFactor * capitalPolicy.equityFactor * specialization.equityFactor * franchise.equityFactor * framework.equityFactor * hq.equityFactor * office.equityFactor));
     const borrowed = Math.max(0, offer.capital - equity);
@@ -3282,6 +3452,7 @@
     const badge=$('#officeBadge');
     const button=$('#openOfficesButton');
     if(!badge||!button) return;
+    if(!moduleUnlocked('expansion')){ badge.classList.add('hidden'); return; }
     const snapshot=officeAvailabilitySnapshot();
     const count=snapshot.projects.length || snapshot.affordable.length || snapshot.available.length;
     badge.textContent=String(count);
@@ -3730,8 +3901,9 @@
       if (deal.globalEventImpacts.includes(definition.id)) return;
       deal.globalEventImpacts.push(definition.id);
       deal.duration += definition.dealDays || 0;
-      deal.pnlAdjustments += definition.dealPnl || 0;
-      eventImpact += definition.dealPnl || 0;
+      const scaledImpact = scaleEventImpact(definition.dealPnl || 0, opp);
+      deal.pnlAdjustments += scaledImpact;
+      eventImpact += scaledImpact;
       affectedCargoes += 1;
       deal.eventResult = `${definition.title}: impact incorporated into route timing and P&L.`;
     });
@@ -3791,7 +3963,9 @@
 
     if (state.dayIndex >= (state.nextGlobalEventDay || 6)) {
       triggerGlobalEvent();
-      state.nextGlobalEventDay = state.dayIndex + 8 + Math.floor(deterministicRandom(`${state.date}-next-world`) * 6);
+      // v53 - da 8-14 a 14-24 giorni: un voyage da 35 giorni ne incontra uno o due
+      // invece di due o tre, e il margine del cargo torna difendibile.
+      state.nextGlobalEventDay = state.dayIndex + 14 + Math.floor(deterministicRandom(`${state.date}-next-world`) * 11);
     }
     // Counterparty relationship decay every 21 days without active deal
     if ((state.dayIndex || 0) % 21 === 0 && state.dayIndex > 0) {
@@ -4623,12 +4797,12 @@
         const isSelected = selected.type === 'opportunity' && selected.id === opp.id;
         const points = routePoints(opp, 36);
         drawProjectedRoute(points, {
-          color: isSelected ? 'rgba(87,230,255,.82)' : 'rgba(87,230,255,.20)',
+          color: isSelected ? 'rgba(255,209,102,.88)' : 'rgba(255,209,102,.22)',
           width: isSelected ? 1.8 : .9,
           dash: isSelected ? [] : [3, 5], lift: .045, alpha: 1
         });
         // la rotta selezionata "respira": un impulso la percorre da origine a destino
-        if (isSelected && motionEnabled()) drawRouteFlow(points, 'rgba(180,246,255,.95)', 0.00016, .045, .07);
+        if (isSelected && motionEnabled()) drawRouteFlow(points, 'rgba(255,246,214,.95)', 0.00016, .045, .07);
       });
     }
     if (layers.portfolio) {
@@ -4673,7 +4847,8 @@
   }
 
   function hubColor(hub) {
-    return { hq: '#ffffff', supplier: '#ffb45e', customer: '#57e6ff', port: '#6d91ff' }[hub.type] || '#ad8cff';
+    // v55 - tavolozza del logo: crema, oro, blu reale. Il ciano fluo stonava.
+    return { hq: '#fffaf0', supplier: '#ffd166', customer: '#8fc0ff', port: '#5a86d8' }[hub.type] || '#b79bff';
   }
 
   // ── v46 · porti toccati da una crisi in corso ───────────────────────────────
@@ -4778,7 +4953,7 @@
         ctx.setLineDash([]);
       }
       if (officeOwned(hub.id) && hub.id !== 'geneva') {
-        ctx.strokeStyle = '#ffd34e';
+        ctx.strokeStyle = '#ffd166';
         ctx.globalAlpha = clamp(p.z * 1.5, .35, .95);
         ctx.lineWidth = selectedHub ? 2.4 : 1.6;
         ctx.beginPath();
@@ -4786,7 +4961,7 @@
         ctx.stroke();
       }
       if (activeOfficeProject(hub.id)) {
-        ctx.strokeStyle = '#7de8ff';
+        ctx.strokeStyle = '#8fc0ff';
         ctx.setLineDash([3,3]);
         ctx.lineWidth = 1.5;
         ctx.beginPath();
@@ -4824,7 +4999,7 @@
       if (!record.level && !record.buildingTo) return;
       const hub=getHub(asset.hub); if(!hub) return;
       const p=project(hub.lon,hub.lat,.025); if(p.z<=0) return;
-      const chainColor={upstream:'#ffb45e',midstream:'#57e6ff',downstream:'#ad8cff'}[asset.chain];
+      const chainColor={upstream:'#ffb45e',midstream:'#8fc0ff',downstream:'#b79bff'}[asset.chain];
       const selectedAsset=selected.type==='investment'&&selected.id===asset.id;
       const pulse=1+Math.sin(animationTime*.004+hub.lon)*.08;
       ctx.save();ctx.globalAlpha=clamp(p.z*1.5,.3,1);ctx.translate(p.x+13,p.y-9);
@@ -4927,7 +5102,7 @@
       ctx.globalAlpha = clamp((p.z + .15) * 1.3, .25, 1);
       ctx.translate(p.x,p.y);ctx.rotate(angle);
       if(['ship','tanker','bulk','barge'].includes(type)){
-        ctx.strokeStyle='rgba(102,225,255,.34)';ctx.lineWidth=1.2;ctx.setLineDash([2,3]);
+        ctx.strokeStyle='rgba(200,232,255,.34)';ctx.lineWidth=1.2;ctx.setLineDash([2,3]);
         ctx.beginPath();ctx.moveTo(-12,-3);ctx.lineTo(-25,-6);ctx.moveTo(-12,3);ctx.lineTo(-25,6);ctx.stroke();ctx.setLineDash([]);
       } else {
         ctx.strokeStyle='rgba(97,242,166,.28)';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(-10,0);ctx.lineTo(-24,0);ctx.stroke();
@@ -5151,13 +5326,179 @@
     return drawerLabels[id];
   }
 
+  // ── v52 · il mentore ────────────────────────────────────────────────────────
+  // Ogni modulo che si sblocca viene presentato da Hélène Marchand, head trader
+  // del desk di Ginevra: cos'è, come si usa, e la cosa che fa più danni se la
+  // ignori. Le schede restano riapribili dal pulsante "?" di ogni sezione.
+  const MENTOR = { name: 'Hélène Marchand', role: 'Head Trader · Geneva desk' };
+
+  const moduleBriefings = {
+    portfolio: {
+      lead: 'This is your book. Everything you have money in, and what it is worth right now.',
+      how: 'The equity curve tracks your net asset value against the capital you started with. Below it sit your open cargoes: each card shows unrealized P&L, days to arrival, hedge level and how ready the operation is.',
+      watch: 'Unrealized P&L is not money. It becomes real only at settlement, after financing, operations and market moves have taken their cut.'
+    },
+    opportunities: {
+      lead: 'The market. Buyers who need a cargo, sellers who have one, and a margin in between if you can execute.',
+      how: 'Offers refresh every seven game days. Compare expected margin against the capital it locks up and the days it takes — a small fast cargo can beat a large slow one. Click a route to open it on the globe and negotiate.',
+      watch: 'A high headline margin means nothing until you check what the deal needs upfront: your own equity, plus futures margin, plus the reserve your capital policy keeps untouched.'
+    },
+    inventory: {
+      lead: 'Your physical position: tonnes you own, where they are, and what phase they are in.',
+      how: 'Each cargo moves through sourcing, loading, transit and discharge. Value is marked against the current market price, so it drifts while the ship sails.',
+      watch: 'Physical commodity is not a spreadsheet entry. It sits somewhere, it costs money to sit there, and quality disputes happen on arrival, not at signing.'
+    },
+    operations: {
+      lead: 'Execution. Documents, carriers, terminals, and everything that can delay a cargo.',
+      how: 'The readiness score aggregates paperwork, transport booking and terminal slots. You can pay to expedite documents or upgrade transport when a deadline is at risk.',
+      watch: 'Readiness below 70% costs you reputation at settlement even if the trade makes money. Buyers remember late deliveries longer than good prices.'
+    },
+    supply: {
+      lead: 'The network behind the trade: congestion, capacity and long-term supplier commitments.',
+      how: 'Every corridor has a congestion score that adds days and freight cost at booking. Procurement agreements lock in supply at agreed terms, in exchange for volume commitments.',
+      watch: 'A framework you cannot fill costs you a penalty. Commit to volumes you can actually move.'
+    },
+    contracts: {
+      lead: 'What happens after the cargo lands: invoices, payment terms and getting paid.',
+      how: 'Delivered cargoes become receivables. Payment terms you agreed in negotiation decide when cash comes back — and whether the buyer can default before it does.',
+      watch: 'Selling on thirty days is a loan to your buyer. Cheap when they are good, expensive when they are not. Credit insurance and factoring exist for the second case.'
+    },
+    fleet: {
+      lead: 'Ships. Chartering them, positioning them, and deciding whether to own or hire.',
+      how: 'Charter from the market for a set number of days, then assign a vessel to a cargo. An owned or time-chartered ship at the right port improves your margin and your execution certainty.',
+      watch: 'A chartered vessel costs money whether or not you use it. Position matters as much as capacity: a ship on the wrong ocean is a bill, not an asset.'
+    },
+    risk: {
+      lead: 'What could hurt you, measured. Flat price, currency, concentration, liquidity, credit.',
+      how: 'The risk score aggregates your exposures. Flat-price risk is the tonnes you have not hedged; concentration is having too much in one commodity or corridor; liquidity is whether you could survive a margin call.',
+      watch: 'The exposure that kills a desk is rarely the one it was watching. Diversify before you have to.'
+    },
+    opportunitiesAlias: null,
+    counterparties: {
+      lead: 'The people you trade with. In physical, relationships are collateral.',
+      how: 'Every supplier and buyer carries a credit rating, a reliability score and a relationship level with you. Relationship rises with punctual, clean execution and falls with claims and delays. It moves the terms you can get.',
+      watch: 'Your buyer credit limit is a hard ceiling on deal size. Improve the relationship, secure the payment, or request a limit increase before you need it.'
+    },
+    finance: {
+      lead: 'Treasury. Where the money to fund cargoes comes from, and what it costs.',
+      how: 'Cargoes are funded by your equity plus bank facilities. Interest accrues daily on what you borrow. Futures collateral sits here too, and moves when prices move against your hedge.',
+      watch: 'A margin call does not ask whether it is convenient. Keep liquidity headroom, or the desk finances itself at emergency rates.'
+    },
+    compliance: {
+      lead: 'Know your counterparty, and know your cargo. The part nobody thanks you for until it goes wrong.',
+      how: 'Higher-risk routes and counterparties need enhanced due diligence before you can trade them. Cleared reviews stay valid for the market cycle. The decision journal records what you chose and why.',
+      watch: 'A blocked counterparty is not a negotiation. Clear the review first, or the deal simply cannot open.'
+    },
+    events: {
+      lead: 'The world, interfering. Strikes, weather, sanctions, transit closures, supply shocks.',
+      how: 'Active disruptions change prices, freight, financing rates, timing and buyer appetite. They affect cargoes that match their profile — a Suez closure only hurts if you are shipping through it.',
+      watch: 'On a thirty-five day voyage you will meet two or three of these. Build the expectation into the margin you accept, not into your hopes.'
+    },
+    performance: {
+      lead: 'Where the money actually came from, and whether the desk would survive a shock.',
+      how: 'P&L attribution splits your result into commercial margin, market moves, currency, financing and operations. The scenario lab applies severe shocks to your current book and reports the damage.',
+      watch: 'A profitable desk that only makes money on flat price is a lucky desk, not a good one. Read the attribution honestly.'
+    },
+    academy: {
+      lead: 'The theory, short enough to read between cargoes.',
+      how: 'Lessons cover pricing, hedging, incoterms, trade finance and logistics, with a glossary linked to the terms used across the interface.',
+      watch: 'Nothing here is required to play. All of it makes the difference between guessing and deciding.'
+    },
+    career: {
+      lead: 'Your track record: role, missions, achievements and how you got here.',
+      how: 'Missions reward specific behaviours — a hedged profitable cargo, a second office, a full quarter above target. Analytics break your results down by commodity and corridor.',
+      watch: 'Experience level opens the interface and the trading licences. Reputation opens the offices. They are not the same currency.'
+    },
+    rivals: {
+      lead: 'Eight competing desks. They want the same cargoes you do.',
+      how: 'Each has a specialisation, an aggression and a discipline. Competitive pressure on a tender lowers the margin you can hold and the odds you win it. The head-to-head record tracks the tenders you actually contested.',
+      watch: 'Aggressive desks overpay and overextend. Disciplined desks walk away. Knowing which one you are bidding against is worth more than a lower price.'
+    },
+    strategy: {
+      lead: 'How the desk operates, and what the board expects of it.',
+      how: 'A doctrine sets your operating model — margin, risk appetite, overhead, capital intensity. Seasonal demand shows which commodities are in their window. Board mandates set long-term objectives.',
+      watch: 'A doctrine is a commitment, not a bonus. It changes your economics in both directions, and you cannot switch it every week.'
+    },
+    expansion: {
+      lead: 'Growing the house: headquarters, international offices, specialisation, market standing.',
+      how: 'Offices unlock the corridors around them and improve the terms you get there. Each has a reputation and cargo threshold to open, and a daily cost once running.',
+      watch: 'This is the module that opens the game. Most routes in the world need an office nearby, not a higher level. Genoa is the cheapest first step.'
+    },
+    hq: {
+      lead: 'The organisation: office network, project teams and the specialists you hire.',
+      how: 'HQ tiers add margin, acceptance, credit capacity and risk reduction, at a rising daily cost. Specialists each remove a specific friction — documents, hedging, chartering, trade finance.',
+      watch: 'Every upgrade is permanent overhead. Grow the cost base after the revenue, not before it.'
+    },
+    shop: {
+      lead: 'Permanent capacity: vessels, warehouses, terminals. Assets instead of rentals.',
+      how: 'Purchases occupy a project team until delivery, then generate lasting operating advantages on matching cargoes — better freight, lower equity requirements, storage optionality.',
+      watch: 'Owned capacity pays off with volume. Buy it when your flow justifies it, not because the balance looks healthy today.'
+    },
+    empire: {
+      lead: 'Vertical integration: mines, refineries, terminals, distribution. Owning the chain.',
+      how: 'Upstream secures supply, midstream captures processing, downstream reaches the end buyer. Each asset takes capital and construction time, then produces income and structural advantages.',
+      watch: 'Integration ties you to a commodity. It is the strongest position in physical trading and the hardest to unwind.'
+    },
+    leaderboard: {
+      lead: 'Where your house stands against the industry.',
+      how: 'Rating combines realized P&L, execution quality, risk discipline and reach. Seasons are archived every ninety game days.',
+      watch: 'The ranking rewards consistency, not a single lucky quarter.'
+    },
+  };
+  delete moduleBriefings.opportunitiesAlias;
+
+  function moduleBriefing(tab) { return moduleBriefings[tab] || null; }
+
+  // Coda: quando un livello apre due moduli insieme si presentano uno dopo l'altro
+  let _mentorQueue = [];
+  let _mentorTimer = null;
+
+  function queueMentorBriefing(tab, reason = 'unlock') {
+    if (!moduleBriefing(tab)) return;
+    if (_mentorQueue.some(item => item.tab === tab)) return;
+    _mentorQueue.push({ tab, reason });
+    if (!_mentorTimer) _mentorTimer = setTimeout(showNextMentorBriefing, 460);
+  }
+
+  function showMentorBriefing(tab, reason = 'reference') {
+    const briefing = moduleBriefing(tab);
+    const dialog = $('#mentorDialog');
+    if (!briefing) return;
+    if (!dialog) { showToast(briefing.lead, 'info'); return; }
+    if (dialog.open) { queueMentorBriefing(tab, reason); return; }
+    $('#mentorName').textContent = MENTOR.name;
+    $('#mentorRole').textContent = MENTOR.role;
+    $('#mentorTitle').textContent = drawerLabel(tab) || tab;
+    $('#mentorLead').textContent = briefing.lead;
+    $('#mentorHow').textContent = briefing.how;
+    $('#mentorWatch').textContent = briefing.watch;
+    const tag = $('#mentorTag');
+    if (tag) {
+      tag.textContent = reason === 'unlock' ? `Unlocked at level ${moduleUnlockLevel(tab)}` : 'Briefing';
+      tag.classList.toggle('unlock', reason === 'unlock');
+    }
+    const close = $('#mentorCloseButton');
+    if (close) close.textContent = reason === 'unlock' ? 'Got it' : 'Close';
+    try { Sound.play('info'); } catch (error) {}
+    dialog.showModal();
+  }
+
+  function showNextMentorBriefing() {
+    _mentorTimer = null;
+    const next = _mentorQueue.shift();
+    if (!next) return;
+    const dialog = $('#mentorDialog');
+    if (dialog?.open) { _mentorQueue.unshift(next); _mentorTimer = setTimeout(showNextMentorBriefing, 700); return; }
+    showMentorBriefing(next.tab, next.reason);
+  }
+
   const searchModuleIcons = {
     portfolio:'◇', inventory:'▣', operations:'≋', supply:'⛓', contracts:'§', fleet:'⌁', risk:'!', opportunities:'◎', rivals:'⚔', strategy:'◈', expansion:'↗',
     counterparties:'○', compliance:'✓', events:'⚠', finance:'$', performance:'Σ', academy:'A', empire:'▲', shop:'▦', hq:'⌂', career:'↗', leaderboard:'#'
   };
 
   function buildGlobalSearchItems() {
-    const modules = Object.keys(drawerLabels).map((id) => ({ type:'module', id, title:drawerLabel(id), subtitle:'Open command-center module', icon:searchModuleIcons[id] || '•', group:'Modules' }));
+    const modules = Object.keys(drawerLabels).filter(moduleUnlocked).map((id) => ({ type:'module', id, title:drawerLabel(id), subtitle:'Open command-center module', icon:searchModuleIcons[id] || '•', group:'Modules' }));
     const hubItems = hubs.filter(hub => hubVisible(hub) || hub.type === 'hq').map(hub => ({ type:'hub', id:hub.id, title:hub.name, subtitle:`${hub.country} · ${hub.subtitle}`, icon:hub.type === 'port' ? '⚓' : hub.type === 'supplier' ? '↑' : hub.type === 'customer' ? '↓' : '⌂', group:'World' }));
     const dealItems = state.activeDeals.map(deal => {
       const opp = getOpportunity(deal.opportunityId);
@@ -5326,6 +5667,9 @@
   // Una sezione vuota diceva soltanto che era vuota. Ora spiega qual e' il passo
   // successivo e ci porta con un click. Un solo handler delegato li serve tutti.
   function emptyState(message, action) {
+    // v52 - con la scoperta progressiva dei moduli un pulsante poteva puntare a
+    // una sezione non ancora sbloccata: in quel caso si mostra solo il messaggio.
+    if (action && action.type === 'module' && !moduleUnlocked(action.id)) action = null;
     if (!action) return `<div class="empty-card">${message}</div>`;
     return `<div class="empty-card empty-card-action">
       <span>${message}</span>
@@ -5369,7 +5713,7 @@
     const quick = [];
     if (signals.pending[0]) quick.push({ label: 'Resolve decision', type: 'deal', id: signals.pending[0].id });
     if (signals.recommended) quick.push({ label: 'Review best trade', type: 'opportunity', id: signals.recommended.opp.id });
-    quick.push({ label: 'Open risk desk', type: 'module', id: 'risk' });
+    if (moduleUnlocked('risk')) quick.push({ label: 'Open risk desk', type: 'module', id: 'risk' });
     $('#briefingActions').innerHTML = quick.map((item, index) => `<button data-briefing-quick="${index}">${item.label}</button>`).join('');
     $$('[data-briefing-quick]', $('#briefingActions')).forEach(button => button.addEventListener('click', () => {
       const item = quick[Number(button.dataset.briefingQuick)];
@@ -5800,6 +6144,7 @@
         tender.status = 'player_reserved';
         tender.awardedTo = 'player';
         state.tenderWins = (state.tenderWins || 0) + 1; addXp(25, 'tender');
+        recordRivalOutcome(tender.leaderId, true, opp.title);
         state.rivalFeed.unshift({ date:state.date, cycle:state.marketCycle, opportunityId:opp.id, rivalId:'player', title:`${state.companyName} secures ${opp.title}`, description:`Player bid accepted against ${tender.pressure}% competitive pressure.` });
         state.rivalFeed = state.rivalFeed.slice(0,18);
       }
@@ -5840,6 +6185,7 @@
       tender.status = 'player_reserved';
       tender.awardedTo = 'player';
       state.tenderWins = (state.tenderWins || 0) + 1; addXp(25, 'tender');
+      recordRivalOutcome(tender.leaderId, true, opp.title);
       state.rivalFeed.unshift({ date: state.date, cycle: state.marketCycle, opportunityId: oppId, rivalId: 'player', title: `${state.companyName || 'Player'} secures tender`, description: `Competitive bid accepted for ${opp.title} with ${Math.round(winPct)}% win probability.` });
       state.rivalFeed = state.rivalFeed.slice(0, 18);
       // Temporarily apply margin adjustment for this deal
@@ -5856,11 +6202,69 @@
       showToast(`Tender won! Margin offered: ${money(opp.basePnl + adj)}. Deal started.`);
     } else {
       state.tenderLosses = (state.tenderLosses || 0) + 1;
+      recordRivalOutcome(tender.leaderId, false, opp.title);
       if (tender) tender.pressure = clamp((tender.pressure || 0) + 8, 0, 99);
       showToast(`Bid not accepted. Rival interest has risen to ${tender.pressure}%. Improve your offer or try the next cycle.`);
     }
     saveState();
     renderAll();
+  }
+
+  // ── v49 · diagnosi dell'apribilita' ─────────────────────────────────────────
+  // Misurando la curva e' emerso che al livello di copertura raccomandato il primo
+  // deal della carriera costa piu' della liquidita' iniziale: 520.656 $ fra capitale
+  // proprio e margine contro 500.000 $ di cassa, piu' 100.000 $ di riserva di policy.
+  // La partita resta possibile abbassando la copertura, ma il gioco lo comunicava
+  // con un generico "Insufficient capital". Qui si dice esattamente cosa manca.
+  function startBlockers(opp) {
+    const blockers = [];
+    if (!opp) return [{ code: 'missing', message: 'Opportunity unavailable.' }];
+    const negotiation = state.negotiations?.[opp.id];
+    const economics = opportunityEconomics(opp, negotiation || negotiationFor(opp.id));
+    const stats = portfolioStats();
+    const reserve = minimumCashReserve();
+    const upfront = economics.equity + economics.initialMargin;
+
+    if (!opportunityAvailable(opp)) blockers.push({ code: 'window', message: 'The offer window for this cargo has closed.' });
+    if (!(opp.distressed || (negotiation?.cycle === state.marketCycle && negotiation.status === 'accepted'))) {
+      blockers.push({ code: 'terms', message: 'The buyer has not accepted your terms yet.' });
+    }
+    const compliance = complianceProfileForOpportunity(opp);
+    if (!compliance.canTrade) blockers.push({ code: 'compliance', message: 'Compliance clearance is required before the cargo can be opened.' });
+    const buyerId = partiesForOpportunity(opp).buyerId;
+    if (buyerId && counterpartyCreditHeadroom(buyerId) < prospectiveCreditExposure(opp, economics)) {
+      const gap = prospectiveCreditExposure(opp, economics) - counterpartyCreditHeadroom(buyerId);
+      blockers.push({ code: 'buyer-credit', message: `Buyer credit limit short by ${money(gap)}. Use a safer payment term or request an increase.` });
+    }
+    const structure = economics.structure;
+    if (!financingAvailable(structure.financingId)) blockers.push({ code: 'financing', message: 'The selected financing structure needs a specialist you have not hired.' });
+    if (stats.creditAvailable < economics.borrowed) {
+      blockers.push({ code: 'facility', message: `Bank facility short by ${money(economics.borrowed - stats.creditAvailable)}.` });
+    }
+    if (state.cash < upfront) {
+      blockers.push({ code: 'cash', message: `Needs ${money(upfront)} upfront (${money(economics.equity)} equity + ${money(economics.initialMargin)} margin) against ${money(state.cash)} of cash.`, shortfall: upfront - state.cash });
+    } else if (state.cash - upfront < reserve) {
+      blockers.push({ code: 'reserve', message: `${activeCapitalPolicy().label} keeps ${money(reserve)} in reserve; this cargo would leave ${money(state.cash - upfront)}.`, shortfall: reserve - (state.cash - upfront) });
+    }
+    return blockers;
+  }
+
+  // Copertura piu' alta che la liquidita' consente, a passi del 10%.
+  function affordableHedgeRatio(opp) {
+    const negotiation = state.negotiations?.[opp.id] || negotiationFor(opp.id);
+    const reserve = minimumCashReserve();
+    const previous = selectedHedgeRatios[opp.id];
+    let best = null;
+    try {
+      for (let ratio = 100; ratio >= 0; ratio -= 10) {
+        selectedHedgeRatios[opp.id] = ratio;
+        const economics = opportunityEconomics(opp, negotiation);
+        if (state.cash - economics.equity - economics.initialMargin >= reserve) { best = ratio; break; }
+      }
+    } finally {
+      if (previous === undefined) delete selectedHedgeRatios[opp.id]; else selectedHedgeRatios[opp.id] = previous;
+    }
+    return best;
   }
 
   function canStartOpportunity(opp) {
@@ -5888,13 +6292,19 @@
       }
     }
     if (!canStartOpportunity(opp)) {
-      const compliance = complianceProfileForOpportunity(opp);
-      const buyerId = partiesForOpportunity(opp).buyerId;
-      const economics = opportunityEconomics(opp, negotiation);
-      if (!compliance.canTrade) showToast('Compliance clearance is required before the deal can be opened.');
-      else if (buyerId && counterpartyCreditHeadroom(buyerId) < prospectiveCreditExposure(opp, economics)) showToast('Buyer credit limit is insufficient. Improve payment security or request a limit increase.');
-      else if (state.cash - economics.equity - economics.initialMargin < minimumCashReserve()) showToast(`${activeCapitalPolicy().label} requires a minimum liquidity reserve of ${money(minimumCashReserve())}.`);
-      else showToast('Insufficient capital or bank credit capacity for this deal.');
+      // v49 - messaggio specifico invece del generico "Insufficient capital",
+      // con il suggerimento della copertura sostenibile quando il problema e' la cassa.
+      const blockers = startBlockers(opp);
+      const first = blockers[0];
+      let message = first ? first.message : 'This cargo cannot be opened yet.';
+      if (first && (first.code === 'cash' || first.code === 'reserve')) {
+        const affordable = affordableHedgeRatio(opp);
+        const currentHedge = Number(selectedHedgeRatios[opp.id] ?? opp.recommendedHedge ?? 100);
+        if (affordable !== null && affordable < currentHedge) {
+          message += ` A ${affordable}% hedge fits your liquidity.`;
+        }
+      }
+      showToast(message, 'warning');
       return;
     }
     const strategy = selectedCarrierStrategies[opp.id] || 'spot';
@@ -6197,7 +6607,9 @@
     state.completedDeals += 1;
     const readiness = operationsReadiness(deal);
     const opsRep = readiness >= 92 ? 2 : readiness < 70 ? -2 : 0;
-    const baseRep = pnl >= 0 ? 2 : -3;
+    // v53 - la penalita' per un cargo in perdita era piu' pesante del premio per
+    // uno in utile: la reputazione non cresceva mai abbastanza per il primo ufficio
+    const baseRep = pnl >= 0 ? 3 : -2;
     state.reputation = clamp(state.reputation + baseRep + opsRep + deal.reputationAdjustments, 0, 100);
     updateMarketReputationAfterDeal(opp, pnl, readiness);
     [deal.supplierId, deal.buyerId].filter(Boolean).forEach(counterpartyId => {
@@ -6964,7 +7376,7 @@
       ['nickel',  state.nickelPrice || 16000, state.nickelPrev || 16000, `${money(state.nickelPrice||16000)}/t`, 2],
       ['lng',     state.lngPrice    || 12.5,  state.lngPrev    || 12.5,  `$${(state.lngPrice||12.5).toFixed(2)}/MMBtu`, 2]
     ];
-    const _tsKeys = { copper:'copper', aluminium:'aluminium', urea:'urea', crude:'crude', wheat:'wheat', ironore:'ironore', zinc:'zinc', nickel:'nickel', lng:'lng' };
+    const _tsKeys = { copper:'copper', aluminium:'aluminium', urea:'urea', crude:'crude', wheat:'wheat', ironore:'ironore', coffee:'coffee', zinc:'zinc', nickel:'nickel', lng:'lng' };
     marketDisplays.forEach(([id, value, previous, label, decimals]) => {
       const move = (previous && Number.isFinite(previous) && previous !== 0) ? (value / previous - 1) * 100 : 0;
       const priceEl = $(`#${id}Price`);
@@ -7098,6 +7510,34 @@
     { id:'growth',  label:'Growth',     icon:'\u2197', tabs:['strategy','expansion','empire','shop','hq'] },
     { id:'career',  label:'Career',     icon:'\u2605', tabs:['career','leaderboard','academy'] },
   ];
+
+  // ── v51 · scoperta progressiva dei moduli ───────────────────────────────────
+  // Prima il giocatore vedeva 22 schede al primo avvio: tutto lo strumentario di
+  // una casa di trading matura, senza avere ancora un cargo. Ora si parte con due
+  // schede e le altre compaiono quando il livello di esperienza le rende utili —
+  // il che dà anche un senso concreto al salire di livello.
+  const moduleUnlockLevel = tab => moduleUnlockLevels[tab] || 1;
+  const moduleUnlocked = tab => playerLevel() >= moduleUnlockLevel(tab);
+
+  // Moduli che si aprono esattamente a un dato livello, per l'annuncio di level-up
+  function modulesUnlockedAtLevel(level) {
+    return Object.entries(moduleUnlockLevels)
+      .filter(([, required]) => required === level)
+      .map(([tab]) => drawerLabel(tab) || tab);
+  }
+
+  // I moduli mai aperti restano marcati come nuovi
+  function moduleIsNew(tab) {
+    if (!moduleUnlocked(tab)) return false;
+    if (moduleUnlockLevel(tab) <= 1) return false;
+    return !(Array.isArray(state.seenModules) ? state.seenModules : []).includes(tab);
+  }
+  function markModuleSeen(tab) {
+    if (!tab || !moduleIsNew(tab)) return;
+    state.seenModules = [...(Array.isArray(state.seenModules) ? state.seenModules : []), tab];
+    // v52 - alla prima apertura il mentore spiega di cosa si tratta
+    queueMentorBriefing(tab, 'unlock');
+  }
   const tabGroupsIT = { desk:'Scrivania', ops:'Operazioni', riskfin:'Rischio', growth:'Crescita', career:'Carriera' };
   const groupOfTab = tab => (tabGroups.find(group => group.tabs.includes(tab)) || tabGroups[0]).id;
   let activeTabGroup = 'desk';
@@ -7152,6 +7592,9 @@
 
   function renderTabs() {
     const attention = tabAttention();
+    // v51 - se il modulo attivo non e' (piu') disponibile si torna alla scrivania
+    if (!moduleUnlocked(activeLeftTab)) activeLeftTab = 'portfolio';
+    markModuleSeen(activeLeftTab);
     activeTabGroup = groupOfTab(activeLeftTab);
 
     const groupRail = $('#panelGroups');
@@ -7160,11 +7603,13 @@
     const focusWasOnGroup = Boolean(document.activeElement?.closest?.('#panelGroups'));
     if (groupRail) {
       const useIT = state.language === 'it';
-      groupRail.innerHTML = tabGroups.map(group => {
-        const count = group.tabs.reduce((sum, tab) => sum + (attention[tab] || 0), 0);
+      groupRail.innerHTML = tabGroups.filter(group => group.tabs.some(moduleUnlocked)).map(group => {
+        const visible = group.tabs.filter(moduleUnlocked);
+        const count = visible.reduce((sum, tab) => sum + (attention[tab] || 0), 0);
+        const fresh = visible.some(moduleIsNew);
         const label = useIT ? (tabGroupsIT[group.id] || group.label) : group.label;
         const isActive = group.id === activeTabGroup;
-        return `<button class="panel-group ${isActive ? 'active' : ''}" data-tab-group="${group.id}" role="tab" aria-selected="${isActive}" tabindex="${isActive ? 0 : -1}" aria-label="${label}${count ? `, ${count} item${count === 1 ? '' : 's'} need attention` : ''}">
+        return `<button class="panel-group ${isActive ? 'active' : ''} ${fresh ? 'fresh' : ''}" data-tab-group="${group.id}" role="tab" aria-selected="${isActive}" tabindex="${isActive ? 0 : -1}" aria-label="${label}${count ? `, ${count} item${count === 1 ? '' : 's'} need attention` : ''}${fresh ? ', contains a new module' : ''}">
           <i aria-hidden="true">${group.icon}</i><span>${label}</span>${count ? `<em class="group-count">${count > 9 ? '9+' : count}</em>` : ''}
         </button>`;
       }).join('');
@@ -7172,8 +7617,10 @@
       $$('[data-tab-group]', groupRail).forEach(button => button.addEventListener('click', () => {
         const group = tabGroups.find(item => item.id === button.dataset.tabGroup);
         if (!group) return;
-        // apre la prima scheda dell'area che richiede attenzione, altrimenti la prima
-        const target = group.tabs.find(tab => attention[tab]) || group.tabs[0];
+        // apre il modulo nuovo, poi quello che richiede attenzione, altrimenti il primo
+        const available = group.tabs.filter(moduleUnlocked);
+        const target = available.find(moduleIsNew) || available.find(tab => attention[tab]) || available[0];
+        if (!target) return;
         activeLeftTab = target;
         try { Sound.play('click'); } catch (e) {}
         renderTabs();
@@ -7184,8 +7631,10 @@
     $$('.panel-tab').forEach(button => {
       const tab = button.dataset.leftTab;
       const isActive = tab === activeLeftTab;
+      const unlocked = moduleUnlocked(tab);
       button.classList.toggle('active', isActive);
-      button.hidden = button.dataset.group !== activeTabGroup;
+      button.classList.toggle('fresh', moduleIsNew(tab));
+      button.hidden = !unlocked || button.dataset.group !== activeTabGroup;
       // v47 - roving tabindex: Tab entra nella barra, poi ci si muove con le frecce
       button.setAttribute('role', 'tab');
       button.setAttribute('aria-selected', String(isActive));
@@ -7203,6 +7652,12 @@
     wireArrowNavigation($('#panelGroups'), '[data-tab-group]');
     wireArrowNavigation($('#panelTabs'), '.panel-tab');
 
+    // v51 - anche i comandi sul globo seguono la scoperta progressiva dei moduli
+    const shopButton = $('#openShopButton');
+    if (shopButton) shopButton.hidden = !moduleUnlocked('shop');
+    const officesButton = $('#openOfficesButton');
+    if (officesButton) officesButton.hidden = !moduleUnlocked('expansion');
+
     $$('.left-section').forEach(section => {
       const isActive = section.id === `left-${activeLeftTab}`;
       section.classList.toggle('active', isActive);
@@ -7211,6 +7666,8 @@
     });
     if (_renderedLeftTab !== activeLeftTab) renderSection(activeLeftTab, { animate: true });
     if ($('#drawerTitle')) $('#drawerTitle').textContent = drawerLabel(activeLeftTab) || 'Command center';
+    const askButton = $('#askMentorButton');
+    if (askButton) askButton.hidden = !moduleBriefing(activeLeftTab);
   }
 
   function renderActiveDeals() {
@@ -7847,6 +8304,45 @@
         <div class="tender-pressure-track"><span style="width:${tender.pressure}%"></span></div>
       </button>`;
     }).join('');
+    // ── v48 · scouting dei desk rivali ────────────────────────────────────────
+    const roster = $('#rivalRoster');
+    if (roster) {
+      const cycleTenders = Object.entries(state.rivalMarket || {}).filter(([, tender]) => tender.cycle === state.marketCycle);
+      roster.innerHTML = aiRivalDesks.map(rival => {
+        const record = rivalRecord(rival.id);
+        const played = record.won + record.lost;
+        const winRate = played ? Math.round(record.won / played * 100) : null;
+        // corridoi che il desk sta presidiando in questo ciclo
+        const leading = cycleTenders
+          .filter(([, tender]) => tender.leaderId === rival.id && tender.status === 'open')
+          .map(([oppId]) => getOpportunity(oppId))
+          .filter(Boolean);
+        const heat = leading.length ? Math.round(cycleTenders
+          .filter(([, tender]) => tender.leaderId === rival.id && tender.status === 'open')
+          .reduce((sum, [, tender]) => sum + (tender.pressure || 0), 0) / leading.length) : 0;
+        const form = record.lastResult
+          ? `<em class="rival-form ${record.lastResult}">${record.lastResult === 'won' ? 'You won the last one' : 'They took the last one'}${record.lastTitle ? ` \u00b7 ${esc(record.lastTitle)}` : ''}</em>`
+          : '<em class="rival-form neutral">No head-to-head yet</em>';
+        return `<article class="rival-desk-card ${leading.length ? 'engaged' : ''}">
+          <div class="rival-desk-top">
+            <span class="rival-flag">${rival.flag}</span>
+            <div><strong>${rival.name}</strong><small>${rival.city} \u00b7 ${rival.style}</small></div>
+            <span class="rival-h2h ${winRate === null ? '' : winRate >= 50 ? 'ahead' : 'behind'}">${played ? `${record.won}\u2013${record.lost}` : '\u2013'}</span>
+          </div>
+          <p class="rival-desk-profile">${rival.profile}</p>
+          <div class="rival-traits">
+            <div><span>Aggression</span><i><b style="width:${rival.aggression}%"></b></i><small>${rival.aggression}</small></div>
+            <div><span>Discipline</span><i><b class="calm" style="width:${rival.discipline}%"></b></i><small>${rival.discipline}</small></div>
+          </div>
+          <div class="rival-specialties">${rival.specialties.map(item => `<span class="tag">${item}</span>`).join('')}</div>
+          <div class="rival-desk-foot">
+            <span>${leading.length ? `Leading ${leading.length} open tender${leading.length === 1 ? '' : 's'} \u00b7 avg pressure ${heat}%` : 'Not leading any open tender this cycle'}</span>
+            ${form}
+          </div>
+        </article>`;
+      }).join('');
+    }
+
     const entries = state.rivalFeed || [];
     feed.innerHTML = entries.length ? entries.slice(0,10).map(item => `<div class="rival-feed-card"><div><span>${formatDate(new Date(item.date))} · cycle ${item.cycle}</span><strong>${item.title}</strong></div><p>${item.description}</p></div>`).join('') : '<div class="empty-card">No tender awards yet. Rival desks will begin bidding as game days advance.</div>';
     $$('[data-rival-opportunity]', list).forEach(button=>button.addEventListener('click',()=>selectOpportunity(button.dataset.rivalOpportunity)));
@@ -8745,6 +9241,7 @@
       <h2>${opp.title}</h2>
       <div class="inspector-subtitle">${origin.name} → ${destination.name}${opp.via?.length ? ` via ${opp.via.map(id=>getHub(id).name).join(', ')}` : ''}</div>
       <p class="inspector-subtitle" style="margin-top:12px">${opp.description}</p>
+      ${unlockChecklistHtml(opp)}
       ${economics.crisisLabels.length ? `<div class="global-impact-box"><strong>Global disruption impact</strong><span>${economics.crisisLabels.join(' · ')}</span></div>` : ''}
       ${economics.verticalSources?.length ? `<div class="vertical-impact-box"><strong>Vertical integration advantage</strong><span>${economics.verticalSources.join(' · ')}</span></div>` : ''}
       <div class="supply-impact-box ${economics.routeCondition.severity.toLowerCase()}"><div><span>Supply-chain capacity</span><strong>${economics.routeCondition.severity} · ${economics.routeCondition.score}/100</strong></div><small>${economics.routeCondition.bottleneck} · +${economics.routeCondition.delayDays} days · ${money(economics.routeCondition.freightCost)} capacity cost${economics.procurementAgreement ? ` · strategic agreement active with ${getCounterparty(economics.procurementAgreement.supplierId)?.name || 'supplier'}` : ''}</small></div>
@@ -8838,9 +9335,21 @@
         <label for="hedgeRatioInput"><span>Futures hedge ratio</span><strong id="hedgeRatioValue">${selectedHedge}%</strong></label>
         <input id="hedgeRatioInput" type="range" min="0" max="100" step="10" value="${selectedHedge}">
         <div class="hedge-scale"><span>0% speculative</span><span>${opp.recommendedHedge}% recommended</span><span>100% protected</span></div>
-        <div class="timeline-mini-row" style="margin-top:12px;margin-bottom:0"><i></i><span>Residual flat-price exposure</span><strong id="residualExposureValue">${money(residualExposure, true)}</strong></div>
+        <div class="timeline-mini-row" style="margin-top:12px;margin-bottom:0"><i></i><span>Margin posted at this hedge</span><strong id="marginPostedValue">${money(economics.initialMargin, true)}</strong></div>
+        <div class="timeline-mini-row" style="margin-bottom:0"><i></i><span>Residual flat-price exposure</span><strong id="residualExposureValue">${money(residualExposure, true)}</strong></div>
+        ${(() => {
+          // v49 - il margine iniziale scala con la copertura: se il cargo non e'
+          // finanziabile al livello scelto, si offre il livello sostenibile.
+          const affordable = affordableHedgeRatio(opp);
+          if (affordable === null || affordable >= selectedHedge) return '';
+          return `<button type="button" class="hedge-fit-button" id="fitHedgeButton">Fit to liquidity \u00b7 ${affordable}% hedge</button>`;
+        })()}
       </div>
-      ${accepted && fundsReady ? '<div class="success-box">Contract accepted and funding available. You can open the deal.</div>' : accepted ? '<div class="warning-box">Offer accepted, but cash, margin collateral, facility capacity or the financing structure is insufficient.</div>' : '<div class="warning-box">The deal cannot start until the buyer accepts the terms.</div>'}
+      ${accepted && fundsReady
+        ? '<div class="success-box">Contract accepted and funding available. You can open the deal.</div>'
+        : accepted
+          ? `<div class="warning-box"><strong>Cannot open yet</strong><ul class="blocker-list">${startBlockers(opp).filter(item => item.code !== 'terms').map(item => `<li>${item.message}</li>`).join('') || '<li>Structure or facility capacity is insufficient.</li>'}</ul></div>`
+          : '<div class="warning-box">The deal cannot start until the buyer accepts the terms.</div>'}
       ${opp.tender ? `
       <div class="inspector-section tender-section">
         <h3>Competitive tender</h3>
@@ -9063,6 +9572,15 @@
         const econ = opportunityEconomics(opp);
         const exposure = physicalNotional(opp, econ.quantity, econ.capital) * Math.max(0, 1 - Number(hedgeInput.value) / 100);
         $('#residualExposureValue').textContent = money(exposure, true);
+        const postedEl = $('#marginPostedValue');
+        if (postedEl) postedEl.textContent = money(econ.initialMargin, true);
+      });
+      $('#fitHedgeButton')?.addEventListener('click', () => {
+        const affordable = affordableHedgeRatio(opp);
+        if (affordable === null) return showToast('Even an unhedged cargo exceeds your liquidity right now.', 'warning');
+        selectedHedgeRatios[opp.id] = affordable;
+        renderInspector();
+        showToast(`Hedge set to ${affordable}% \u2014 the highest your liquidity supports.`, 'success');
       });
       ['commercial','payment','pricing','delivery','incoterm'].forEach(field => {
         const id = field === 'commercial' ? '#commercialTermSelect' : field === 'payment' ? '#paymentTermSelect' : field === 'pricing' ? '#pricingTermSelect' : field === 'delivery' ? '#deliveryTermSelect' : '#incotermSelect';
@@ -9190,9 +9708,12 @@
 
   function configureDifficulty(level) {
     state.difficulty = level;
-    if (level === 'guided') { state.cash = prestigeStartCash(650_000); state.creditLimit = prestigeStartCredit(2_000_000); state.reputation = prestigeStartReputation(15); state.nextGlobalEventDay = 9; }
-    else if (level === 'expert') { state.cash = prestigeStartCash(480_000); state.creditLimit = prestigeStartCredit(1_250_000); state.reputation = prestigeStartReputation(8); state.nextGlobalEventDay = 3; }
-    else { state.cash = prestigeStartCash(500_000); state.creditLimit = prestigeStartCredit(1_500_000); state.reputation = prestigeStartReputation(12); state.nextGlobalEventDay = 6; }
+    // v53 - il fido iniziale deve coprire il prestito richiesto dal primo cargo
+    // (~1,42 M): con 1,25 M Expert non permetteva di aprire alcun deal, mai.
+    // Le tre difficolta' restano distinte su margine, perdite e liquidita'.
+    if (level === 'guided') { state.cash = prestigeStartCash(680_000); state.creditLimit = prestigeStartCredit(2_200_000); state.reputation = prestigeStartReputation(16); state.nextGlobalEventDay = 18; }
+    else if (level === 'expert') { state.cash = prestigeStartCash(520_000); state.creditLimit = prestigeStartCredit(1_800_000); state.reputation = prestigeStartReputation(12); state.nextGlobalEventDay = 10; }
+    else { state.cash = prestigeStartCash(560_000); state.creditLimit = prestigeStartCredit(2_000_000); state.reputation = prestigeStartReputation(14); state.nextGlobalEventDay = 14; }
     state.startingCapital = state.cash;
     state.xp = 0; state.xpLevel = 1;
     state.riskPnlImpact = 0; state.riskLedger = [];
@@ -9270,8 +9791,26 @@
     while (state.xp >= xpForLevel(state.xpLevel)) {
       state.xp -= xpForLevel(state.xpLevel);
       state.xpLevel += 1;
+      // v50 - il messaggio di livello prometteva "Unlocked: Urea market" anche
+      // quando la rotta restava chiusa perche' mancavano ufficio, cargo chiusi o
+      // reputazione. Ora distingue le rotte che si aprono davvero dalle licenze.
       const unlockedNow = newlyUnlockedAtLevel(state.xpLevel);
-      _lastUnlockMessage = [...unlockedNow.commodities.map(x=>`${x} market`), ...unlockedNow.countries.map(x=>`${x} corridor`), ...(unlockedNow.offices||[])].join(' · ');
+      const routesOpened = opportunities.filter(opp => {
+        if (!isOpportunityUnlocked(opp)) return false;
+        const progression = opportunityProgressionRequirements(opp);
+        return progression.requiredLevel === state.xpLevel;   // si e' aperta proprio adesso
+      }).map(opp => opp.title);
+      const licences = [...unlockedNow.commodities.map(x => `${x} licence`), ...unlockedNow.countries.map(x => `${x} corridor`)];
+      // v51 - i moduli che si aprono a questo livello vengono annunciati per primi:
+      // sono la ricompensa piu' tangibile del salire di livello.
+      const modulesNow = modulesUnlockedAtLevel(state.xpLevel);
+      _lastUnlockMessage = modulesNow.length
+        ? `New module${modulesNow.length === 1 ? '' : 's'}: ${modulesNow.join(' · ')}`
+        : routesOpened.length
+          ? `Now tradable: ${routesOpened.join(' · ')}`
+          : licences.length
+            ? `${licences.join(' · ')} licensed \u2014 an office is still required`
+            : (unlockedNow.offices || []).join(' \u00b7 ');
       leveled = true;
       const reward = 4000 + state.xpLevel * 2500;
       state.cash += reward;
@@ -9701,6 +10240,11 @@
       state.tutorialStep = Math.max(0, currentTutorialStep() - 1);
       saveState();
       renderTutorialCoach();
+    });
+    // v52 - il mentore si puo' richiamare in qualsiasi momento sul modulo aperto
+    $('#askMentorButton')?.addEventListener('click', () => showMentorBriefing(activeLeftTab, 'reference'));
+    $('#mentorDialog')?.addEventListener('close', () => {
+      if (_mentorQueue.length && !_mentorTimer) _mentorTimer = setTimeout(showNextMentorBriefing, 320);
     });
     $('#skipTutorialButton')?.addEventListener('click', () => {
       state.tutorialEnabled = false;

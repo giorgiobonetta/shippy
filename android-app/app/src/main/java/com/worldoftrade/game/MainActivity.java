@@ -35,7 +35,7 @@ public class MainActivity extends Activity {
     private static final int REQUEST_OPEN_FILE = 2001;
     private static final int REQUEST_SAVE_FILE = 2002;
     private static final String APP_URL = "https://appassets.androidplatform.net/assets/www/index.html?native=android";
-    private static final String NATIVE_VERSION = "50.0.0";
+    private static final String NATIVE_VERSION = "55.0.0";
 
     private WebView webView;
     private ValueCallback<Uri[]> fileChooserCallback;
@@ -50,8 +50,8 @@ public class MainActivity extends Activity {
         // v50 - non si forza piu' l'orizzontale: dalla v44 l'interfaccia ha un layout
         // verticale curato per telefono, e la v46 aveva già corretto il manifest web.
         setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_FULL_USER);
-        getWindow().setStatusBarColor(Color.rgb(6, 19, 52));
-        getWindow().setNavigationBarColor(Color.rgb(6, 19, 52));
+        getWindow().setStatusBarColor(Color.rgb(7, 18, 50));
+        getWindow().setNavigationBarColor(Color.rgb(7, 18, 50));
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         enterImmersiveMode();
 
@@ -60,7 +60,7 @@ public class MainActivity extends Activity {
                 .build();
 
         webView = new WebView(this);
-        webView.setBackgroundColor(Color.rgb(6, 19, 52));
+        webView.setBackgroundColor(Color.rgb(7, 18, 50));
         setContentView(webView);
 
         WebSettings settings = webView.getSettings();

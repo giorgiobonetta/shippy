@@ -1,5 +1,5 @@
-const CACHE_NAME = 'world-of-trade-v50';
-const ASSET_VERSION = '50.0.0';
+const CACHE_NAME = 'world-of-trade-v55';
+const ASSET_VERSION = '55.0.0';
 // v45 — le stringhe di versione qui erano ferme a 36.0.0 mentre index.html chiedeva
 // 44.0.0: le voci precaricate non venivano mai riutilizzate e mancavano quattro
 // texture della Terra, quindi offline il globo restava incompleto.
