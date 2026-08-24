@@ -1,11 +1,13 @@
-const CACHE_NAME = 'world-of-trade-v55';
-const ASSET_VERSION = '55.0.0';
+const CACHE_NAME = 'world-of-trade-v60';
+const ASSET_VERSION = '60.0.0';
 // v45 — le stringhe di versione qui erano ferme a 36.0.0 mentre index.html chiedeva
 // 44.0.0: le voci precaricate non venivano mai riutilizzate e mancavano quattro
 // texture della Terra, quindi offline il globo restava incompleto.
 const CORE = [
   './',
   './index.html',
+  './landing.html',
+  './privacy.html',
   `./styles.css?v=${ASSET_VERSION}`,
   `./native-shell.css?v=${ASSET_VERSION}`,
   `./native-bridge.js?v=${ASSET_VERSION}`,
@@ -58,7 +60,7 @@ self.addEventListener('message', event => {
   if (event.data === 'skip-waiting') self.skipWaiting();
 });
 
-const CRITICAL_PATHS = ['/app.js', '/styles.css', '/index.html', '/manifest.webmanifest', '/native-bridge.js', '/native-shell.css'];
+const CRITICAL_PATHS = ['/app.js', '/styles.css', '/index.html', '/landing.html', '/privacy.html', '/manifest.webmanifest', '/native-bridge.js', '/native-shell.css'];
 
 self.addEventListener('fetch', event => {
   if (event.request.method !== 'GET') return;
@@ -77,12 +79,15 @@ self.addEventListener('fetch', event => {
           if (response && response.ok) {
             const copy = response.clone();
             caches.open(CACHE_NAME)
-              .then(cache => cache.put(isNavigation ? './index.html' : event.request, copy))
+              .then(cache => cache.put(event.request, copy))
               .catch(() => undefined);
           }
           return response;
         })
-        .catch(() => caches.match(isNavigation ? './index.html' : event.request)
+        .catch(() => caches.match(event.request)
+          .then(cached => cached
+            // offline su un indirizzo mai visitato: si ripiega sul gioco
+            || (isNavigation ? caches.match('./index.html') : null))
           .then(cached => cached || Response.error()))
     );
     return;

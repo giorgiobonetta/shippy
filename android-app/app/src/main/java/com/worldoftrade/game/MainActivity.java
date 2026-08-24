@@ -35,7 +35,7 @@ public class MainActivity extends Activity {
     private static final int REQUEST_OPEN_FILE = 2001;
     private static final int REQUEST_SAVE_FILE = 2002;
     private static final String APP_URL = "https://appassets.androidplatform.net/assets/www/index.html?native=android";
-    private static final String NATIVE_VERSION = "55.0.0";
+    private static final String NATIVE_VERSION = "60.0.0";
 
     private WebView webView;
     private ValueCallback<Uri[]> fileChooserCallback;

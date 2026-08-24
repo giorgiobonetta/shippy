@@ -197,18 +197,28 @@
     { key:'basis', term:'Basis', category:'Market structure', def:'The difference between the local physical price at a hub and the benchmark/reference price. Trading basis is a core physical-merchant skill.' },
     { key:'hedge', term:'Hedge ratio', category:'Risk', def:'The share of a position protected with an offsetting paper trade. A 100% hedge locks the margin and removes flat-price risk; 0% leaves you fully exposed to price moves.' },
     { key:'margincall', term:'Margin call', category:'Risk', def:'A demand for additional cash collateral when a hedge moves against you. Enough liquidity to meet margin calls is essential to survive volatility.' },
-    { key:'var', term:'Value at Risk (VaR)', category:'Risk', def:'An estimate of the maximum loss expected over a period at a given confidence level. A headline risk metric for the desk.' },
+    { key:'var', term:'Value at Risk (VaR)', category:'Risk', def:'The loss that will not be exceeded over a set horizon at a given confidence level \u2014 a quantile of the loss distribution, not a worst case. At 95% one-day VaR, one day in twenty is expected to be worse.' },
     { key:'kyc', term:'KYC', category:'Compliance', def:'Know Your Customer — the due-diligence process to verify a counterparty\'s identity, ownership and legitimacy before trading.' },
     { key:'compliance', term:'Compliance review', category:'Compliance', def:'A check that a route, counterparty or structure meets sanctions, AML and internal-policy requirements before a deal can proceed.' },
     { key:'demurrage', term:'Demurrage', category:'Logistics', def:'A penalty paid to a vessel owner when loading or discharge takes longer than the agreed laytime. A common cost when ports are congested.' },
     { key:'laycan', term:'Laycan', category:'Logistics', def:'The window (laydays/cancelling) during which a vessel must arrive to load. Missing it can void the charter.' },
     { key:'charter', term:'Time charter', category:'Logistics', def:'Hiring a vessel for a period at a daily rate. You control the voyages; the owner runs the ship. Owned vessels avoid the rate but carry maintenance.' },
-    { key:'lc', term:'Letter of credit (L/C)', category:'Finance', def:'A bank guarantee that the buyer will pay once compliant shipping documents are presented. It reduces payment risk in cross-border trade.' },
+    { key:'lc', term:'Letter of credit (L/C)', category:'Finance', def:'An undertaking by the issuing bank to pay against documents that comply with the credit\u2019s terms. The bank pays on documents, not on performance: it substitutes bank risk for buyer risk, and a discrepant set can be refused even when the cargo is sound.' },
     { key:'nav', term:'Net asset value (NAV)', category:'Finance', def:'The total value of the trading house: cash, open-position value and asset book value, net of what you owe.' },
     { key:'creditline', term:'Credit line', category:'Finance', def:'The revolving financing the bank extends to fund inventory and receivables. Using it costs interest; exceeding it blocks new deals.' },
     { key:'enterprisevalue', term:'Enterprise valuation', category:'Finance', def:'A forward-looking value of the whole business — NAV plus capitalised earnings, assets, relationships and execution track record. Reaching $50M wins the game.' },
     { key:'regime', term:'Market regime', category:'Market', def:'The prevailing market mood (balanced, risk-on, soft, freight-driven, squeeze) that shifts volatility, margins and acceptance across all commodities.' },
     { key:'tender', term:'Tender', category:'Commercial', def:'A competitive bid process where you and AI rivals compete to win a cargo. Conceding margin raises your win probability.' },
+    { key:'qp', term:'Quotational period (QP)', category:'Pricing', def:'The window whose average or chosen date sets the price of a physical cargo \u2014 M+1, month of arrival, or a date the buyer declares. Whoever holds the QP option holds free optionality, which is why it is priced. In this game the buyer pricing option is a QP option.' },
+    { key:'provisional-invoice', term:'Provisional and final invoice', category:'Pricing', def:'Cargoes priced on a later QP, or on assay results, are first invoiced provisionally on estimated weight, quality and price, then trued up in a final invoice. The gap between the two is working capital you fund and price risk you may still carry.' },
+    { key:'assay', term:'Assay and weight franchise', category:'Quality', def:'Independent laboratories determine the metal content of a concentrate; the two sides split the difference if their results diverge within a tolerance. A weight franchise is the small shortfall the buyer accepts without a claim.' },
+    { key:'bill-of-lading', term:'Bill of lading (B/L)', category:'Documents', def:'Receipt for the cargo, evidence of the carriage contract, and a document of title. Whoever holds an original negotiable B/L controls the goods \u2014 which is why banks take it as security and why a lost or clean-versus-fouled B/L becomes a dispute.' },
+    { key:'laytime', term:'Laytime', category:'Logistics', def:'The time the charter allows for loading or discharge, counted from a valid notice of readiness. Time saved may earn despatch; time exceeded costs demurrage.' },
+    { key:'nor', term:'Notice of readiness (NOR)', category:'Logistics', def:'The master\u2019s declaration that the vessel has arrived and is ready to work cargo. It starts the laytime clock, so its validity and timing are frequently contested.' },
+    { key:'washout', term:'Washout', category:'Commercial', def:'Closing a physical contract by agreeing a cash settlement instead of moving the cargo, priced off the difference between contract and market. A clean way out when the trade no longer works \u2014 and a real alternative to defaulting.' },
+    { key:'working-capital', term:'Working capital cycle', category:'Finance', def:'The days between paying your supplier and being paid by your buyer. Physical trading is the business of funding that gap: every extra day of transit, storage or credit term has to be financed and priced.' },
+    { key:'counterparty-exposure', term:'Counterparty credit exposure', category:'Risk', def:'What you would lose if a counterparty failed to perform \u2014 unpaid receivables, prepayments, and the cost of replacing the contract at market. Limits per counterparty exist because concentration, not volatility, is what usually kills a desk.' },
+    { key:'carry', term:'Cost of carry', category:'Market structure', def:'Storage, insurance and finance for holding physical over time. When contango exceeds the carry, storing the cargo and selling forward is profitable; when it does not, holding inventory destroys value.' },
     { key:'prestige', term:'Prestige', category:'Progression', def:'A legacy reset: once you reach the top valuation tier you can restart with permanent bonuses (+12% capital, +8% credit, higher reputation per level).' },
   ];
   const glossaryMap = Object.fromEntries(glossaryTerms.map(t => [t.key, t]));
@@ -937,7 +947,7 @@
     },
     {
       id: 'argentina-wheat', origin: 'rosario', destination: 'brescia', via: ['genova'], commodity: 'Wheat', quantity: 5000,
-      capital: 2_350_000, equity: 350_000, basePnl: 88_000, duration: 31, risk: 'Medium', riskClass: 'medium', priceKey: 'wheat', recommendedHedge: 75, transportMode: 'Handysize / Truck',
+      capital: 2_350_000, equity: 350_000, basePnl: 88_000, duration: 31, risk: 'Medium', riskClass: 'medium', priceKey: 'wheat', recommendedHedge: 75, transportMode: 'Handysize part cargo / Truck',
       title: 'Paraná Wheat Parcel', description: 'Grain origination from the Paraná to Northern Italy. Basis, protein content and river logistics determine the outcome.',
       unlock: s => (officeOwned('rosario') || officeOwned('genova')) && s.completedDeals >= 4 && s.reputation >= 60,
       event: { dayRatio: .28, title: 'Low river level', text: 'The Paraná river level reduces available draft and loadable quantity.', choices: [
@@ -947,7 +957,7 @@
     },
     {
       id: 'pilbara-iron', origin: 'port-hedland', destination: 'shanghai', via: [], commodity: 'Iron ore', quantity: 55000,
-      capital: 7_400_000, equity: 1_150_000, basePnl: 245_000, duration: 34, risk: 'High', riskClass: 'high', priceKey: 'ironore', recommendedHedge: 70, transportMode: 'Panamax bulk carrier',
+      capital: 7_400_000, equity: 1_150_000, basePnl: 245_000, duration: 34, risk: 'High', riskClass: 'high', priceKey: 'ironore', recommendedHedge: 70, transportMode: 'Supramax part cargo',
       title: 'Pilbara–Yangtze Ore', description: 'Large dry-bulk cargo to China. Freight, Fe grade, moisture and port congestion dominate P&L.',
       unlock: s => (officeOwned('port-hedland') || officeOwned('singapore')) && s.completedDeals >= 6 && s.reputation >= 70,
       event: { dayRatio: .64, title: 'Shanghai anchorage congestion', text: 'The vessel joins the queue and may exceed allowed laytime.', choices: [
@@ -972,7 +982,7 @@
     },
     {
       id: 'ivory-cocoa', origin: 'abidjan', destination: 'brescia', via: ['genova'], commodity: 'Cocoa', quantity: 800,
-      capital: 5_600_000, equity: 820_000, basePnl: 168_000, duration: 42, risk: 'Medium', riskClass: 'medium', priceKey: 'coffee', recommendedHedge: 75, transportMode: 'Container / reefer',
+      capital: 5_600_000, equity: 820_000, basePnl: 168_000, duration: 42, risk: 'Medium', riskClass: 'medium', priceKey: 'coffee', recommendedHedge: 75, transportMode: 'Ventilated container',
       title: "Côte d'Ivoire Cocoa Flow", description: 'Premium West African cocoa for Italian fine-chocolate manufacturers. Grading certification, humidity control and traceability documentation are the execution-critical variables.',
       tender: true,
       unlock: s => (officeOwned('abidjan') || officeOwned('genova')) && s.completedDeals >= 5 && s.reputation >= 66,
@@ -988,7 +998,7 @@
     },
     {
       id: 'gulf-soybeans', origin: 'new-orleans', destination: 'rotterdam', via: [], commodity: 'Soybeans', quantity: 25000,
-      capital: 9_200_000, equity: 1_350_000, basePnl: 290_000, duration: 28, risk: 'Medium', riskClass: 'medium', priceKey: 'wheat', recommendedHedge: 85, transportMode: 'Panamax bulk carrier',
+      capital: 9_200_000, equity: 1_350_000, basePnl: 290_000, duration: 28, risk: 'Medium', riskClass: 'medium', priceKey: 'wheat', recommendedHedge: 85, transportMode: 'Handysize bulk carrier',
       title: 'Gulf–ARA Soybean Express', description: 'Large Panamax soybean cargo from the US Gulf to the ARA crushing complex. Basis risk (CBOT vs physical), moisture and protein differentials determine final P&L.',
       unlock: s => (officeOwned('houston') || officeOwned('rotterdam')) && s.completedDeals >= 6 && s.reputation >= 70,
       event: {
@@ -1035,7 +1045,7 @@
       id: 'zambia-zinc', origin: 'durban', destination: 'antwerp', via: [], commodity: 'Zinc',
       quantity: 1600, capital: 4_500_000, equity: 700_000, basePnl: 195_000, duration: 32,
       risk: 'Medium', riskClass: 'medium', priceKey: 'zinc', recommendedHedge: 75,
-      transportMode: 'Supramax bulk', title: 'Zambia Zinc Concentrate', locked: true, unlock: s => (officeOwned('durban') || officeOwned('rotterdam')) && s.completedDeals >= 5 && s.reputation >= 68,
+      transportMode: 'Containerised bulk', title: 'Zambia Zinc Concentrate', locked: true, unlock: s => (officeOwned('durban') || officeOwned('rotterdam')) && s.completedDeals >= 5 && s.reputation >= 68,
       description: 'High-grade zinc concentrate from Zambia\'s Copperbelt. FOB Durban for delivery to ARA smelters. Quality specs: min 52% Zn, max 1.5% Pb.',
       counterparties: { supplierId: 'zambia-zinc-co', buyerId: 'ara-zinc-smelter' },
       events: []
@@ -1044,7 +1054,7 @@
       id: 'indonesia-nickel', origin: 'singapore', destination: 'rotterdam', via: [], commodity: 'Nickel',
       quantity: 850, capital: 13_500_000, equity: 2_100_000, basePnl: 420_000, duration: 38,
       risk: 'High', riskClass: 'high', priceKey: 'nickel', recommendedHedge: 90, tender: true,
-      transportMode: 'Supramax bulk', title: 'Indonesia Nickel Matte', locked: true, unlock: s => officeOwned('singapore') && officeOwned('rotterdam') && s.completedDeals >= 8 && s.reputation >= 75,
+      transportMode: 'Containerised', title: 'Indonesia Nickel Matte', locked: true, unlock: s => officeOwned('singapore') && officeOwned('rotterdam') && s.completedDeals >= 8 && s.reputation >= 75,
       description: 'Class I nickel matte from Indonesian HPAL operations. Competitive tender against two Asian trading houses. DES Rotterdam.',
       counterparties: { supplierId: 'indo-nickel-corp', buyerId: 'europe-battery-materials' },
       events: []
@@ -1129,9 +1139,9 @@
       prepay: { label: '20% advance', equityFactor: .8, acceptance: -16 }
     },
     pricing: {
-      fixed: { label: 'Fixed price', pnl: 0, acceptance: 0, basisRisk: 0, description: 'Both physical legs are fixed around execution. Lowest residual basis risk.' },
-      average: { label: 'Monthly average', pnl: 7_000, acceptance: 5, basisRisk: .12, description: 'Pricing follows a monthly average. Better client fit, but hedge timing creates basis risk.' },
-      buyer: { label: 'Buyer pricing option', pnl: 16_000, acceptance: 10, basisRisk: .28, description: 'The buyer chooses the pricing date inside a window. Higher premium, materially higher optionality risk.' }
+      fixed: { label: 'Fixed price', pnl: 0, acceptance: 0, basisRisk: 0, description: 'Both legs priced flat around execution. No quotational period, so almost no residual basis risk \u2014 and no premium either.' },
+      average: { label: 'Monthly average QP', pnl: 7_000, acceptance: 5, basisRisk: .12, description: 'Priced on the average of the quotational period, typically the month of arrival. Standard for metals and easier for the buyer to accept, but your hedge is a single date against an average: that mismatch is basis risk.' },
+      buyer: { label: 'Buyer\u2019s QP option', pnl: 16_000, acceptance: 10, basisRisk: .28, description: 'The buyer declares the pricing date inside the quotational period. You are short an option you did not price properly unless you charge for it \u2014 hence the premium, and the materially higher basis risk.' }
     },
     delivery: {
       priority: { label: 'Priority window', duration: -3, pnl: -9_000, acceptance: 10 },
@@ -1399,11 +1409,11 @@
     'atlantic-diesel': { carrier: 'MT Gulf Horizon', mode: 'MR product tanker', booking: 'Subjects lifted', warehouse: 'Rotterdam Independent Tank Terminal', warehouseHub: 'rotterdam', storageDays: 5, purchaseTerms: 'FOB Houston · Platts-linked', salesTerms: 'CIF Rotterdam · 10 days', documentSet: ['Commercial invoice','Certificate of quality','Certificate of quantity','Certificate of origin','Bill of lading','Cargo manifest','Insurance certificate','Customs release'] },
     'brazil-coffee': { carrier: 'Atlantic Container Line', mode: 'Container / truck', booking: 'Confirmed', warehouse: 'Genoa Food Grade Warehouse', warehouseHub: 'genova', storageDays: 6, purchaseTerms: 'FOB Santos · ICE differential', salesTerms: 'DAP Brescia · 20 days', documentSet: ['Commercial invoice','Packing list','Quality certificate','Phytosanitary certificate','Certificate of origin','Bill of lading','Insurance certificate','Customs release'] },
     'argentina-wheat': { carrier: 'MV Paraná Trader', mode: 'Handysize bulk carrier', booking: 'Firm booking', warehouse: 'Genoa Grain Terminal', warehouseHub: 'genova', storageDays: 4, purchaseTerms: 'FOB Upriver · MATIF basis', salesTerms: 'DAP Brescia · payment at delivery', documentSet: ['Commercial invoice','Weight certificate','Protein certificate','Phytosanitary certificate','Certificate of origin','Bill of lading','Insurance certificate','Customs release'] },
-    'pilbara-iron': { carrier: 'MV Southern Cape', mode: 'Panamax bulk carrier', booking: 'Firm charter', warehouse: 'Shanghai Bulk Terminal', warehouseHub: 'shanghai', storageDays: 2, purchaseTerms: 'FOB Port Hedland · index-linked', salesTerms: 'CFR Shanghai · LC at sight', documentSet: ['Commercial invoice','Draft survey','Fe assay certificate','Moisture certificate','Certificate of origin','Bill of lading','Insurance certificate','LC compliance'] },
+    'pilbara-iron': { carrier: 'MV Southern Cape', mode: 'Supramax part cargo', booking: 'Firm charter', warehouse: 'Shanghai Bulk Terminal', warehouseHub: 'shanghai', storageDays: 2, purchaseTerms: 'FOB Port Hedland · index-linked', salesTerms: 'CFR Shanghai · LC at sight', documentSet: ['Commercial invoice','Draft survey','Fe assay certificate','Moisture certificate','Certificate of origin','Bill of lading','Insurance certificate','LC compliance'] },
     'qatar-lng': { carrier: 'MT Mercs Excellence', mode: 'LNG carrier', booking: 'Subject to vetting approval', warehouse: 'Rotterdam Gate Terminal', warehouseHub: 'rotterdam', storageDays: 2, purchaseTerms: 'FOB Ras Laffan · JKM-linked', salesTerms: 'DES Rotterdam · LC at sight', documentSet: ['Commercial invoice','Certificate of quality','Certificate of quantity','Certificate of origin','Bill of lading','Cargo manifest','Insurance certificate','LC compliance','IMO 9 document'] },
     'malaysia-palm': { carrier: 'MT Palmera Star', mode: 'Vegetable oil tanker', booking: 'Subject to sustainability docs', warehouse: 'Genoa Food Grade Terminal', warehouseHub: 'genova', storageDays: 5, purchaseTerms: 'FOB Port Klang · MPOB index + premium', salesTerms: 'DDP Brescia · 20 days', documentSet: ['Commercial invoice','Packing list','FFA assay certificate','Moisture certificate','RSPO certificate','Certificate of origin','Bill of lading','Insurance certificate','Customs release','Phytosanitary certificate'] },
     'ivory-cocoa':    { carrier: 'Maersk West Africa Line', mode: 'Container / reefer', booking: 'Confirmed FCL booking', warehouse: 'Genoa Food Grade Warehouse', warehouseHub: 'genova', storageDays: 5, purchaseTerms: 'FOB Abidjan · ICCO index + quality premium', salesTerms: 'DAP Brescia · 20 days', documentSet: ['Commercial invoice','Packing list','Quality grading certificate','Humidity certificate','Phytosanitary certificate','Certificate of origin','Bill of lading','Insurance certificate','Customs release','Traceability certificate'] },
-    'gulf-soybeans':  { carrier: 'MV Gulf Horizon Trader', mode: 'Panamax bulk carrier', booking: 'Firm charter', warehouse: 'Rotterdam Grain Terminal', warehouseHub: 'rotterdam', storageDays: 3, purchaseTerms: 'FOB New Orleans · CBOT basis', salesTerms: 'CFR Rotterdam · LC at sight', documentSet: ['Commercial invoice','Weight certificate','Protein certificate','Moisture certificate','Phytosanitary certificate','Certificate of origin','Bill of lading','Insurance certificate','LC compliance'] },
+    'gulf-soybeans':  { carrier: 'MV Gulf Horizon Trader', mode: 'Handysize bulk carrier', booking: 'Firm charter', warehouse: 'Rotterdam Grain Terminal', warehouseHub: 'rotterdam', storageDays: 3, purchaseTerms: 'FOB New Orleans · CBOT basis', salesTerms: 'CFR Rotterdam · LC at sight', documentSet: ['Commercial invoice','Weight certificate','Protein certificate','Moisture certificate','Phytosanitary certificate','Certificate of origin','Bill of lading','Insurance certificate','LC compliance'] },
     'shanghai-steel': { carrier: 'MV Pacific Iron', mode: 'General cargo vessel', booking: 'Subject to mill certificate', warehouse: 'Antwerp Steel Terminal', warehouseHub: 'antwerp', storageDays: 7, purchaseTerms: 'FOB Shanghai · mill price + premium', salesTerms: 'DAP Antwerp · 30 days', documentSet: ['Commercial invoice','Packing list','Mill certificate','Quality certificate','Certificate of origin','Bill of lading','Insurance certificate','Customs release','EU import declaration','Anti-dumping compliance'] }
   };
 
@@ -2090,7 +2100,11 @@
   const selectedFxHedgeRatios = Object.fromEntries(opportunities.map(o => [o.id, ['geneva','brescia','genova','rotterdam'].includes(o.destination) ? 80 : 100]));
   const selectedNegotiationDrafts = Object.fromEntries(opportunities.map(o => [o.id, null]));
   let layers = { opportunities: true, portfolio: true, risk: false, logistics: true };
+  // v59 - il tempo non parte subito (le offerte scadrebbero mentre leggi) ma si
+  // avvia da solo appena un cargo e' in viaggio, e si ferma quando serve te.
   let runningSpeed = 0;
+  // v59 - ricorda se il giocatore ha aperto i controlli di struttura
+  let structureExpanded = false;
   let clockTimer = null;
   let toastTimer = null;
   let leftDrawerOpen = false;
@@ -2725,7 +2739,6 @@
     const workInProgress = (state.officeProjects || []).reduce((sum,p)=>sum+(p.cost||0)*.68,0);
     return Math.round(commissioned + workInProgress);
   }
-  function officeCountries() { return new Set(officeCatalog.filter(o=>officeOwned(o.id)).map(o=>o.country)); }
   function officeCoverageMatch(office, opp) {
     if (!opp || office.id === 'geneva') return { direct:false, regional:false, focus:false };
     const routeHubs=[opp.origin,opp.destination,...(opp.via||[])].map(getHub).filter(Boolean);
@@ -3432,8 +3445,6 @@
       terms: { commercial: negotiation.commercial, payment: negotiation.payment, pricing: negotiation.pricing || 'fixed', delivery: negotiation.delivery, incoterm: negotiation.incoterm || 'fob' }
     };
   }
-  function effectiveEquity(opp) { return opportunityEconomics(opp).equity; }
-  function effectiveBorrowed(opp) { return opportunityEconomics(opp).borrowed; }
   function charterHireCost(vessel) {
     let factor = hasStaff('freight-charterer') ? .85 : 1;
     if (officeOwned('rotterdam')) factor *= .95;
@@ -3609,7 +3620,6 @@
   function getHub(id) { return hubs.find(h => h.id === id); }
   function getActiveDeal(id) { return state.activeDeals.find(d => d.id === id); }
   function getHistoryDeal(id) { return state.history.find(d => d.id === id); }
-  function getSelectedDeal() { return selected.type === 'deal' ? getActiveDeal(selected.id) : null; }
   function getVesselCatalog(id) { return vesselCatalog.find(v => v.id === id); }
   function getFleetAsset(id) { return state.fleetAssets.find(v => v.id === id); }
   function transportClassForOpportunity(opp) {
@@ -4847,7 +4857,6 @@
   }
 
   function hubColor(hub) {
-    // v55 - tavolozza del logo: crema, oro, blu reale. Il ciano fluo stonava.
     return { hq: '#fffaf0', supplier: '#ffd166', customer: '#8fc0ff', port: '#5a86d8' }[hub.type] || '#b79bff';
   }
 
@@ -6253,12 +6262,16 @@
   function affordableHedgeRatio(opp) {
     const negotiation = state.negotiations?.[opp.id] || negotiationFor(opp.id);
     const reserve = minimumCashReserve();
+    const facilityHeadroom = portfolioStats().creditAvailable;
     const previous = selectedHedgeRatios[opp.id];
     let best = null;
     try {
       for (let ratio = 100; ratio >= 0; ratio -= 10) {
         selectedHedgeRatios[opp.id] = ratio;
         const economics = opportunityEconomics(opp, negotiation);
+        // Il prestito non dipende dalla copertura: se il fido non basta, nessun
+        // livello di hedge sblocca il cargo e non va suggerito niente.
+        if (facilityHeadroom < economics.borrowed) continue;
         if (state.cash - economics.equity - economics.initialMargin >= reserve) { best = ratio; break; }
       }
     } finally {
@@ -6278,6 +6291,52 @@
     const buyerId = partiesForOpportunity(opp).buyerId;
     const creditClearance = !buyerId || counterpartyCreditHeadroom(buyerId) >= prospectiveCreditExposure(opp, economics);
     return opportunityAvailable(opp) && commercialClearance && compliance.canTrade && creditClearance && financingAvailable(structure.financingId) && state.cash >= economics.equity + economics.initialMargin && state.cash - economics.equity - economics.initialMargin >= minimumCashReserve() && stats.creditAvailable >= economics.borrowed;
+  }
+
+  // ── v59 · percorso rapido ───────────────────────────────────────────────────
+  // Per aprire un cargo servivano ~13 decisioni su 20 controlli, prima di vedere
+  // qualsiasi risultato. Qui si impostano i valori raccomandati, si negozia e si
+  // apre: una mossa. I 20 controlli restano per chi li vuole usare.
+  function quickStartOpportunity(oppId) {
+    const opp = getOpportunity(oppId);
+    if (!opp) return;
+
+    // struttura prudente e leggibile: copertura raccomandata, termini di mercato,
+    // consegna standard, FOB, linea revolving, coperture di base
+    selectedHedgeRatios[oppId] = Number(opp.recommendedHedge ?? 100);
+    selectedFxHedgeRatios[oppId] = 80;
+    selectedFinancingStrategies[oppId] = 'revolver';
+    selectedInsuranceStrategies[oppId] = 'basic';
+    selectedInspectionStrategies[oppId] = 'standard';
+    selectedCarrierStrategies[oppId] = 'spot';
+    ['commercial','payment','pricing','delivery','incoterm'].forEach(field => {
+      const value = { commercial:'market', payment:'delivery', pricing:'fixed', delivery:'standard', incoterm:'fob' }[field];
+      setNegotiationDraft(oppId, field, value);
+    });
+
+    // se la copertura raccomandata non e' finanziabile, si scende a quella sostenibile
+    if (!canStartOpportunity(opp)) {
+      const affordable = affordableHedgeRatio(opp);
+      if (affordable !== null) selectedHedgeRatios[oppId] = affordable;
+    }
+
+    const negotiation = state.negotiations?.[oppId];
+    const accepted = negotiation?.cycle === state.marketCycle && negotiation.status === 'accepted';
+    if (!accepted && !opp.distressed) {
+      submitNegotiation(oppId);
+      const now = state.negotiations?.[oppId];
+      if (!(now?.cycle === state.marketCycle && now.status === 'accepted')) {
+        showToast('Buyer declined at market terms. Adjust price, payment or delivery and try again.', 'warning');
+        renderInspector();
+        return;
+      }
+    }
+    startOpportunity(oppId);
+    // se il cargo e' partito, il tempo riprende: il giocatore vede muoversi qualcosa
+    if (state.activeDeals.some(deal => deal.opportunityId === oppId) && runningSpeed === 0) {
+      runningSpeed = 1;
+      updateClock();
+    }
   }
 
   function startOpportunity(oppId) {
@@ -6402,6 +6461,8 @@
     selectedCarrierStrategies[opp.id] = 'spot';
     state.cash -= deal.equity + deal.marginCollateral;
     state.activeDeals.push(deal);
+    // v59 - il tempo comincia a scorrere: c'e' finalmente qualcosa da attendere
+    if (runningSpeed === 0) { runningSpeed = 1; setTimeout(updateClock, 0); }
     registerProcurementLift(opp, deal, economics);
     registerCommercialFrameworkLift(opp, deal);
     state.negotiations[opp.id] = { ...negotiation, status: 'consumed' };
@@ -6866,8 +6927,11 @@
   function advanceDay({ silent = false, deferRender = false } = {}) {
     if (state.activeDeals.some(d => d.pendingDecision)) {
       const pending = state.activeDeals.find(d => d.pendingDecision);
+      // v59 - l'orologio si ferma da solo: prima continuava a scattare a vuoto
+      // ripetendo lo stesso avviso a ogni tick.
+      if (runningSpeed > 0) { runningSpeed = 0; updateClock(); }
       selectDeal(pending.id);
-      if (!silent) showToast('Resolve the open operational decision first.');
+      if (!silent) showToast('A decision is waiting on this cargo. Time is paused.', 'warning');
       return false;
     }
     simulationDayAnchor = performance.now();
@@ -9264,7 +9328,21 @@
           <div class="party-mini"><span>Buyer · ${buyer?.country || ''}</span><strong>${buyer?.name || 'Buyer'}</strong><small>Credit ${buyer?.credit || 0} · relationship ${buyerState.relationship}</small></div>
         </div>
       </div>
-      <div class="negotiation-box">
+      ${(() => {
+        // v59 - la via rapida: termini di mercato, copertura raccomandata, FOB,
+        // linea revolving. Chi vuole entrare nel dettaglio trova tutto sotto.
+        const already = state.activeDeals.some(deal => deal.opportunityId === opp.id);
+        if (already || opp.distressed) return '';
+        return `<div class="quick-start-box">
+          <div class="quick-start-copy">
+            <strong>Open at market terms</strong>
+            <span>${opp.recommendedHedge ?? 100}% hedge \u00b7 FOB \u00b7 payment at delivery \u00b7 revolving facility</span>
+          </div>
+          <button type="button" class="button primary" id="quickStartButton">Source this cargo</button>
+          <button type="button" class="quick-start-toggle" id="structureToggle" aria-expanded="false">Structure it myself</button>
+        </div>`;
+      })()}
+      <div class="negotiation-box structure-zone" data-structure-zone>
         <div class="negotiation-heading"><div><span class="eyebrow">Contract negotiation</span><h3>Build your offer</h3></div><strong>${Math.round(economics.acceptance)}%</strong></div>
         <div class="acceptance-meter"><span style="width:${economics.acceptance}%"></span></div>
         <label>Commercial quote<select id="commercialTermSelect">
@@ -9288,7 +9366,7 @@
         </div>
         <button class="button secondary" id="submitNegotiationButton" ${consumed ? 'disabled' : ''}>${accepted ? 'Renegotiate terms' : rejected ? 'Submit a new offer' : 'Submit offer to buyer'}</button>
       </div>
-      <div class="inspector-section"><h3>Capital structure</h3>
+      <div class="inspector-section structure-zone" data-structure-zone><h3>Capital structure</h3>
         <div class="timeline-mini-row"><i></i><span>Required equity</span><strong>${money(requiredEquity)}</strong></div>
         <div class="capital-bar"><span style="width:${clamp(cashCoverage*100,0,100)}%"></span></div>
         <div class="timeline-mini-row" style="margin-top:12px"><i></i><span>Credit facility</span><strong>${money(borrowed)}</strong></div>
@@ -9296,7 +9374,7 @@
         <div class="timeline-mini-row" style="margin-top:12px"><i></i><span>Initial futures margin</span><strong>${money(economics.initialMargin)}</strong></div>
         <div class="capital-bar margin"><span style="width:${clamp(state.cash/Math.max(1,economics.initialMargin)*100,0,100)}%"></span></div>
       </div>
-      <div class="deal-structure-box">
+      <div class="deal-structure-box structure-zone" data-structure-zone>
         <span class="eyebrow">Deal structuring</span><h3>Funding, insurance and controls</h3>
         <label>Trade finance<select id="financingStrategySelect">
           ${Object.entries(financingProfiles).map(([id,item])=>`<option value="${id}" ${structure.financingId===id?'selected':''} ${financingAvailable(id)?'':'disabled'}>${item.label}${financingAvailable(id)?'':' · requires Trade Finance Manager'}</option>`).join('')}
@@ -9605,6 +9683,22 @@
       $('#inspectionStrategySelect')?.addEventListener('change', event => { selectedInspectionStrategies[opp.id] = event.target.value; renderInspector(); renderOpportunityList(); });
       $('#fxHedgeRatioInput')?.addEventListener('input', event => { selectedFxHedgeRatios[opp.id] = Number(event.target.value); $('#fxHedgeRatioValue').textContent = `${event.target.value}%`; });
       $('#startDealButton')?.addEventListener('click', () => startOpportunity(opp.id));
+      $('#quickStartButton')?.addEventListener('click', () => quickStartOpportunity(opp.id));
+      // v59 - i 20 controlli restano, ma partono chiusi: si aprono a richiesta
+      const structureToggle = $('#structureToggle');
+      const structureZones = $$('[data-structure-zone]');
+      const applyStructureVisibility = (open) => {
+        structureZones.forEach(zone => zone.classList.toggle('collapsed', !open));
+        if (structureToggle) {
+          structureToggle.textContent = open ? 'Hide the details' : 'Structure it myself';
+          structureToggle.setAttribute('aria-expanded', String(open));
+        }
+      };
+      applyStructureVisibility(structureExpanded);
+      structureToggle?.addEventListener('click', () => {
+        structureExpanded = !structureExpanded;
+        applyStructureVisibility(structureExpanded);
+      });
       $('#requestBuyerLimitButton')?.addEventListener('click', () => { const buyerId=partiesForOpportunity(opp).buyerId; if(buyerId) requestCreditLimit(buyerId); });
       const tenderInput = $('#tenderBidInput');
       if (tenderInput) {

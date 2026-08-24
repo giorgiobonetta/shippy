@@ -4481,13 +4481,53 @@ body {
 .legend-dot.supplier { background: #ffd166 !important; box-shadow: 0 0 6px rgba(255,209,102,.7); }
 .legend-dot.customer { background: #8fc0ff !important; }
 .legend-dot.port     { background: #5a86d8 !important; }
-.legend-dot.shipment { background: var(--green) !important; box-shadow: 0 0 6px var(--green); }
 .legend-dot.investment { background: #b79bff !important; box-shadow: 0 0 8px #b79bff; }
 .location-badge.chain-midstream { color: #8fc0ff !important; }
 .location-badge.chain-downstream { color: #b79bff !important; }
-
-/* Le rotte di mercato sul globo sono oro: anche l'icona del livello lo sia. */
 .layer-button[data-layer="opportunities"] .layer-icon { color: #ffd166 !important; }
-.layer-button[data-layer="portfolio"] .layer-icon { color: var(--green) !important; }
-.layer-button[data-layer="risk"] .layer-icon { color: var(--orange) !important; }
 .layer-button[data-layer="logistics"] .layer-icon { color: #8fc0ff !important; }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   v59 · Percorso rapido
+   Aprire un cargo richiedeva ~13 decisioni su 20 controlli prima di vedere
+   qualsiasi risultato. Ora la via principale è una mossa; il dettaglio resta,
+   ma chiuso finché non lo si chiede.
+   ══════════════════════════════════════════════════════════════════════════ */
+.quick-start-box {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-areas: "copy action" "toggle toggle";
+  align-items: center;
+  gap: 12px 14px;
+  margin: 16px 0 14px;
+  padding: 15px 16px;
+  border-radius: 14px;
+  border: 2px solid rgba(255, 209, 102, .34);
+  background: linear-gradient(180deg, rgba(48, 92, 172, .5), rgba(15, 40, 88, .6));
+  box-shadow: inset 0 1px 0 rgba(255, 236, 180, .18);
+}
+.quick-start-copy { grid-area: copy; }
+.quick-start-copy strong { display: block; font-size: 14.5px; color: #fff8e6; }
+.quick-start-copy span { display: block; margin-top: 3px; color: var(--muted); font-size: 11.5px; line-height: 1.45; }
+.quick-start-box .button.primary { grid-area: action; white-space: nowrap; }
+.quick-start-toggle {
+  grid-area: toggle;
+  justify-self: start;
+  padding: 5px 0;
+  border: 0;
+  background: none;
+  color: #9ddcff;
+  font-family: inherit; font-size: 12px; font-weight: 700;
+  text-decoration: underline; text-underline-offset: 3px;
+  cursor: pointer;
+}
+.quick-start-toggle:hover { color: #c8ecff; }
+.quick-start-toggle:focus-visible { outline: 2px solid var(--cyan); outline-offset: 3px; border-radius: 4px; }
+
+/* le zone di struttura si richiudono senza lasciare buchi nel layout */
+.structure-zone.collapsed { display: none !important; }
+
+@media (max-width: 620px) {
+  .quick-start-box { grid-template-columns: 1fr; grid-template-areas: "copy" "action" "toggle"; }
+  .quick-start-box .button.primary { width: 100%; }
+}

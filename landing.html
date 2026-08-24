@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>World of Trade — a physical commodity trading simulator</title>
+<meta name="description" content="A browser simulation of the physical commodity trading cycle: origination, negotiation, QP pricing, hedging, trade finance, execution and settlement. 18 routes, 10 commodities, no install." />
+<meta property="og:title" content="World of Trade — physical commodity trading simulator" />
+<meta property="og:description" content="Source, hedge, ship and settle physical cargoes — from one Geneva desk to a global merchant house." />
+<meta property="og:image" content="world-of-trade-premium-logo.png" />
+<meta property="og:type" content="website" />
+<meta name="theme-color" content="#071232" />
+<link rel="icon" href="world-of-trade-premium-icon-192.png" type="image/png" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" />
+<style>
+  :root{
+    --navy:#071232; --navy-deep:#03060f; --royal:#17418c;
+    --gold:#ffd166; --gold-mid:#f0a81a; --cream:#fffaf0;
+    --ink:#061334; --text:#f4f8ff; --muted:#a8bde0; --muted-2:#8fa5c9;
+    --edge:rgba(255,209,102,.22); --edge-strong:rgba(255,209,102,.42);
+    --display:'Fredoka',ui-rounded,'Segoe UI',system-ui,sans-serif;
+    --body:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0;color:var(--text);font-family:var(--body);font-size:16px;line-height:1.7;
+    background:
+      radial-gradient(1200px 800px at 50% -8%,rgba(23,65,140,.55),transparent 68%),
+      radial-gradient(760px 520px at 88% 4%,rgba(198,125,10,.20),transparent 64%),
+      linear-gradient(180deg,var(--navy) 0%,#050b1c 58%,var(--navy-deep) 100%);
+    background-attachment:fixed;
+  }
+  .wrap{max-width:1020px;margin:0 auto;padding:0 22px}
+  h1,h2,h3{font-family:var(--display);font-weight:700;letter-spacing:-.01em;margin:0}
+  .gold{background:linear-gradient(180deg,var(--cream) 0%,var(--gold) 54%,var(--gold-mid) 100%);
+    -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent;
+    filter:drop-shadow(0 2px 0 rgba(4,12,36,.5))}
+  .eyebrow{display:block;font-family:var(--display);font-weight:600;font-size:12px;letter-spacing:.16em;
+    text-transform:uppercase;color:#ffca77;margin-bottom:12px}
+  header{padding:64px 0 56px;text-align:center}
+  .logo{width:min(340px,74vw);height:auto;display:block;margin:0 auto 26px;
+    filter:drop-shadow(0 22px 34px rgba(0,0,0,.58))}
+  h1{font-size:clamp(30px,5.2vw,50px);line-height:1.12}
+  .lede{max-width:660px;margin:20px auto 0;color:#dbe6fa;font-size:clamp(16px,2.1vw,18.5px)}
+  .cta{display:flex;flex-wrap:wrap;gap:14px;justify-content:center;margin-top:34px}
+  .btn{display:inline-flex;align-items:center;gap:9px;padding:15px 30px;border-radius:13px;
+    font-family:var(--display);font-weight:700;font-size:16px;text-decoration:none;cursor:pointer;
+    transition:filter .16s ease,transform .12s ease}
+  .btn-primary{background:linear-gradient(180deg,#ffe9a8 0%,var(--gold) 46%,var(--gold-mid) 100%);
+    color:var(--ink);border:1px solid rgba(140,88,6,.55);
+    box-shadow:0 4px 0 rgba(150,92,6,.9),inset 0 1px 0 rgba(255,255,240,.75)}
+  .btn-primary:hover{filter:brightness(1.06)}
+  .btn-primary:active{transform:translateY(3px);box-shadow:0 1px 0 rgba(150,92,6,.9),inset 0 1px 0 rgba(255,255,240,.6)}
+  .btn-ghost{background:rgba(42,95,191,.34);color:var(--text);border:1px solid var(--edge-strong)}
+  .btn-ghost:hover{background:rgba(42,95,191,.52)}
+  .note{margin-top:16px;color:var(--muted-2);font-size:13.5px}
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px}
+  .stat{padding:16px 14px;border-radius:13px;text-align:center;
+    background:linear-gradient(180deg,rgba(31,74,150,.62),rgba(15,40,88,.7));
+    border:1px solid var(--edge);box-shadow:0 3px 0 rgba(5,16,44,.4),inset 0 1px 0 rgba(255,236,180,.12)}
+  .stat b{display:block;font-family:var(--display);font-weight:700;font-size:27px;color:var(--gold);line-height:1.1}
+  .stat span{display:block;margin-top:5px;color:var(--muted);font-size:12.5px;line-height:1.4}
+  section{padding:54px 0}
+  section.divide{border-top:1px solid rgba(255,209,102,.14)}
+  h2{font-size:clamp(23px,3.4vw,32px);margin-bottom:10px}
+  .sub{color:var(--muted);max-width:680px;margin:0 0 30px}
+  ol.cycle{list-style:none;margin:0;padding:0;display:grid;gap:14px}
+  ol.cycle li{display:grid;grid-template-columns:44px 1fr;gap:16px;align-items:start;
+    padding:18px 20px;border-radius:14px;
+    background:linear-gradient(180deg,rgba(31,74,150,.5),rgba(13,36,80,.6));
+    border:1px solid var(--edge);box-shadow:inset 0 1px 0 rgba(255,236,180,.1)}
+  ol.cycle .num{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;
+    font-family:var(--display);font-weight:700;font-size:16px;color:var(--ink);
+    background:linear-gradient(180deg,#ffe9a8,var(--gold-mid));box-shadow:inset 0 1px 0 rgba(255,255,240,.6)}
+  ol.cycle h3{font-size:17px;margin-bottom:5px}
+  ol.cycle p{margin:0;color:#cfdcf3;font-size:14.5px;line-height:1.65}
+  ol.cycle code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;
+    color:#ffd9a0;background:rgba(255,209,102,.1);padding:1px 6px;border-radius:5px}
+  .lessons{display:grid;gap:16px}
+  .lesson{padding:22px 24px;border-radius:14px;
+    background:linear-gradient(180deg,rgba(38,84,164,.4),rgba(12,34,76,.55));
+    border:1px solid var(--edge);border-left:3px solid var(--gold)}
+  .lesson h3{font-size:18px;margin-bottom:8px}
+  .lesson p{margin:0;color:#cfdcf3;font-size:14.5px}
+  .lesson p+p{margin-top:9px}
+  ul.limits{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(272px,1fr));gap:11px}
+  ul.limits li{padding:14px 16px;border-radius:11px;background:rgba(9,24,54,.55);
+    border:1px solid rgba(255,255,255,.08);color:#c3d3ee;font-size:14px;line-height:1.6}
+  ul.limits b{color:var(--text);font-weight:600}
+  footer{padding:44px 0 60px;border-top:1px solid rgba(255,209,102,.14);color:var(--muted-2);font-size:13.5px}
+  footer a{color:#9ddcff}
+  .foot-row{display:flex;flex-wrap:wrap;gap:10px 26px;align-items:center;justify-content:space-between}
+  @media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}.btn{transition:none}}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <img class="logo" src="world-of-trade-premium-logo.webp" alt="World of Trade"
+         onerror="this.onerror=null;this.src='world-of-trade-premium-logo.png'" />
+    <h1><span class="gold">Trade the cargo, not the chart.</span></h1>
+    <p class="lede">A browser simulation of the physical commodity trading cycle — origination,
+      negotiation, quotational periods, hedging, trade finance, execution and settlement.
+      Built to understand where a merchant desk actually makes and loses money.</p>
+    <div class="cta">
+      <a class="btn btn-primary" href="index.html">Play in your browser</a>
+      <a class="btn btn-ghost" href="#cycle">See what it models</a>
+    </div>
+    <p class="note">No install, no account, no sign-up. Works offline once loaded.</p>
+  </div>
+</header>
+
+<section class="divide">
+  <div class="wrap">
+    <div class="stats">
+      <div class="stat"><b>18</b><span>physical routes</span></div>
+      <div class="stat"><b>10</b><span>commodities</span></div>
+      <div class="stat"><b>20</b><span>ports and hubs</span></div>
+      <div class="stat"><b>5</b><span>incoterms, EXW&rarr;DDP</span></div>
+      <div class="stat"><b>4</b><span>financing structures</span></div>
+      <div class="stat"><b>17</b><span>global disruptions</span></div>
+    </div>
+  </div>
+</section>
+
+<section class="divide" id="cycle">
+  <div class="wrap">
+    <span class="eyebrow">The cycle</span>
+    <h2><span class="gold">One cargo, end to end</span></h2>
+    <p class="sub">Every decision moves both economics and probability, in opposite directions.
+      That tension is the whole game.</p>
+    <ol class="cycle">
+      <li><span class="num">1</span><div>
+        <h3>Origination</h3>
+        <p>A rolling market of cargoes, each with an origin, a destination, a tonnage and a
+        capital requirement. Offers expire weekly, so waiting costs. Every corridor carries a
+        congestion score that adds transit days and freight cost at the moment you book.</p>
+      </div></li>
+      <li><span class="num">2</span><div>
+        <h3>Negotiation</h3>
+        <p>Price level, payment terms, pricing formula and delivery window. Selling on
+        <code>30 days</code> is a loan to your buyer: it wins the order and ties up your capital.
+        A <code>buyer's QP option</code> earns a premium because you are short optionality you
+        cannot hedge cleanly.</p>
+      </div></li>
+      <li><span class="num">3</span><div>
+        <h3>Structuring</h3>
+        <p>Hedge ratio, FX cover, incoterm from <code>EXW</code> to <code>DDP</code>, insurance,
+        inspection, carrier. Funding is a real choice: revolving facility, LC-backed trade
+        finance, borrowing base against cargo and receivables, or your own balance sheet &mdash;
+        each changing required equity, cost of funds and payment risk.</p>
+      </div></li>
+      <li><span class="num">4</span><div>
+        <h3>Execution</h3>
+        <p>Documentary readiness, terminal slots, laytime and demurrage. Purchase and sales
+        terms are explicit per route &mdash; <code>FOB Port Hedland &middot; index-linked</code> selling
+        <code>CFR Shanghai &middot; LC at sight</code> &mdash; with the document set that trade actually
+        needs: draft survey, Fe assay, moisture certificate, bill of lading, LC compliance.</p>
+      </div></li>
+      <li><span class="num">5</span><div>
+        <h3>Settlement</h3>
+        <p>The result is broken out line by line: commercial margin, market exposure, FX,
+        operations and claims, financing cost, storage optionality, credit result. The point
+        the whole simulation is built around &mdash; <b>commercial margin is not P&amp;L</b>.</p>
+      </div></li>
+    </ol>
+  </div>
+</section>
+
+<section class="divide">
+  <div class="wrap">
+    <span class="eyebrow">What it teaches</span>
+    <h2><span class="gold">Three things that are hard to see from outside</span></h2>
+    <div class="lessons">
+      <div class="lesson">
+        <h3>A hedge protects margin, not solvency</h3>
+        <p>A cargo hedged at 100% has almost no flat-price exposure and can still take the desk
+        under. The paper leg demands cash daily through variation margin; the physical leg pays
+        once, at the end.</p>
+        <p>Price risk and liquidity risk are different risks, managed with different tools.</p>
+      </div>
+      <div class="lesson">
+        <h3>Working capital is the business</h3>
+        <p>Once payment terms, transit days and quotational periods are modelled honestly, the
+        days between paying your supplier and being paid by your buyer matter more to returns
+        than the margin you negotiated. A shorter voyage on a thinner margin often wins.</p>
+      </div>
+      <div class="lesson">
+        <h3>Fixed costs decide who survives</h3>
+        <p>While balancing the simulation I measured the opening position and found it
+        structurally loss-making: roughly <b>$38k of gross margin per cargo against $56k of
+        overhead per cycle</b>. No amount of good trading fixed it.</p>
+        <p>A desk's cost base sets the minimum flow it needs &mdash; a decision made before any
+        trade is done.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="divide">
+  <div class="wrap">
+    <span class="eyebrow">Honest limits</span>
+    <h2><span class="gold">What it deliberately leaves out</span></h2>
+    <p class="sub">Being clear about the edges matters more than pretending there aren't any.</p>
+    <ul class="limits">
+      <li><b>No order book, no market impact.</b> Prices follow a mean-reverting process with
+        seasonal volatility. You are a price taker.</li>
+      <li><b>Hedging is a ratio, not a strategy.</b> No specific lots, no roll management, no
+        options book. Basis risk is parameterised, not derived from two real curves.</li>
+      <li><b>One benchmark per commodity.</b> No grade or brand differentials beyond a single
+        hub basis.</li>
+      <li><b>Freight is a cost and an index, not a market.</b> No voyage calculation, no bunker
+        exposure, no contracts of affreightment.</li>
+      <li><b>Simplified credit.</b> Counterparty limits and default probabilities are
+        assumptions, not a rating model.</li>
+      <li><b>Storage optionality is a flag,</b> not a real arbitrage against the curve.</li>
+    </ul>
+  </div>
+</section>
+
+<section class="divide">
+  <div class="wrap" style="text-align:center">
+    <h2><span class="gold">Start with one cargo</span></h2>
+    <p class="sub" style="margin:12px auto 26px">Copper from Tallinn to Brescia. One click opens it
+      at market terms; the details are there when you want them.</p>
+    <div class="cta">
+      <a class="btn btn-primary" href="index.html">Play in your browser</a>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap foot-row">
+    <span>World of Trade &mdash; physical commodity trading simulator.</span>
+    <span>Vanilla JavaScript, no framework, runs entirely client-side.
+      <a href="privacy.html">Privacy</a></span>
+  </div>
+</footer>
+
+</body>
+</html>

@@ -10,8 +10,8 @@ android {
         applicationId 'com.worldoftrade.game'
         minSdk 24
         targetSdk 36
-        versionCode 55
-        versionName '55.0.0'
+        versionCode 60
+        versionName '60.0.0'
     }
 
     buildTypes {

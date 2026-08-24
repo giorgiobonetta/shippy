@@ -1,38 +1,214 @@
-# World of Trade v55 — Anche il globo entra nella tavolozza
+# World of Trade v60 — Landing page
 
-La v54 ha ridipinto l'interfaccia, ma il globo era rimasto fuori: i suoi colori
-sono nel JavaScript che disegna sul canvas, non nel CSS. Era la parte più visibile
-del gioco e l'unica ancora in ciano fluo.
+Pagina di presentazione da mettere online, pensata per chi arriva dal CV e non sa
+ancora se valga il suo tempo. Stabilisce credibilità prima di invitare a giocare.
 
-## Cosa cambia sul globo
+## Struttura
 
-- **Rotte di mercato in oro** (`rgba(255,209,102,…)`) al posto del ciano: nel logo
-  l'oro è il colore di ciò che vale, ed è il segnale giusto per un'opportunità.
-  L'impulso che percorre la rotta selezionata passa a crema.
-- **Marcatori dei porti nella tavolozza del logo**: quartier generale crema
-  `#fffaf0`, fornitori oro `#ffd166`, clienti blu chiaro `#8fc0ff`, porti blu reale
-  `#5a86d8`. Il ciano fluo dei clienti stonava contro i pannelli blu.
-- Anello degli uffici posseduti allineato all'oro esatto del logo; cantieri in
-  corso in blu chiaro invece che ciano.
-- Schiuma della scia della nave più calda, meno neon.
-- Catene di integrazione verticale: midstream e downstream riportati nella
-  tavolozza.
+1. **Logo e claim** — *"Trade the cargo, not the chart."* Il gioco non è sul prezzo,
+   è su tutto quello che sta in mezzo.
+2. **Sei numeri reali**, estratti dal codice e non inventati: 18 rotte fisiche, 10
+   commodity, 20 porti, 5 incoterms, 4 strutture di finanziamento, 17 shock globali.
+3. **Il ciclo in cinque passi** — origination, negoziazione, strutturazione,
+   esecuzione, settlement. Con i termini veri visibili: *buyer's QP option*,
+   *FOB Port Hedland · index-linked* → *CFR Shanghai · LC at sight*, draft survey,
+   Fe assay.
+4. **Tre cose che insegna** — l'hedge protegge il margine non la solvibilità; il
+   capitale circolante è il business; i costi fissi decidono chi sopravvive, con il
+   numero misurato (38k di margine contro 56k di costi per ciclo).
+5. **Limiti dichiarati** — cosa è deliberatamente semplificato. È la sezione che
+   rende credibile tutto il resto.
 
-## La legenda non mente più
+Grafica allineata al logo: navy profondo, blu reale, oro crema→ambra, pulsanti in
+rilievo. Un solo file, nessuna dipendenza oltre il font, responsive.
 
-I pallini della legenda del globo erano definiti nel CSS con i colori *vecchi*:
-dopo il cambio avrebbero indicato tonalità che il gioco non disegna più. Ora sono
-allineati, e la corrispondenza è verificata a macchina confrontando quanto
-restituisce `hubColor()` con quanto dichiara il foglio di stile.
+## Struttura degli indirizzi
 
-Allineate anche le icone dei livelli del globo: oro per le opportunità, verde per
-il portafoglio, arancio per il rischio, blu per la logistica.
+`vercel.json` ora serve la **landing page sulla radice** e il gioco su `/play`
+(oltre a `/index.html`). Il link da mettere nel CV è la radice del dominio.
+
+## Un conflitto risolto
+
+Il service worker salvava **tutte** le navigazioni sotto `./index.html`. Con la
+radice che serve la landing page, alla prima visita offline il gioco avrebbe
+mostrato la landing al posto di sé stesso. Ora ogni navigazione viene messa in
+cache col proprio indirizzo, con il gioco come ripiego per indirizzi mai visitati.
+Landing e privacy sono anche precaricate.
+
+## Ripristinato
+
+`privacy.html`, che era nella v56 andata perduta con lo svuotamento della cartella.
+
+---
+
+# World of Trade v59 — Da modulo da compilare a ciclo di gioco
+
+Feedback: *"molto completo però poco intuitivo e poco giocabile"*. Misurando il
+problema è venuto fuori quanto fosse concreto.
+
+## Cosa non funzionava, in numeri
+
+Per aprire **un** cargo servivano circa **13 decisioni** su **20 controlli** nello
+stesso pannello: revisione compliance, limite dell'acquirente, cinque termini
+contrattuali, invio dell'offerta, finanziamento, assicurazione, ispezione,
+copertura cambio, vettore, classe di nave, rapporto di copertura, apri.
+
+Poi l'orologio partiva **in pausa**: un viaggio da 35 giorni erano 35 click su
+"+1 giorno". E se arrivava una decisione, il timer continuava a scattare a vuoto
+ripetendo lo stesso avviso a ogni tick.
+
+Tredici decisioni, trentacinque click, un risultato. Un modulo da compilare
+seguito da un'attesa.
+
+## Un cargo in un click
+
+Il pannello di un'opportunità apre ora con un solo riquadro:
+
+> **Open at market terms** — 100% hedge · FOB · payment at delivery · revolving facility
+> **[ Source this cargo ]**   *Structure it myself*
+
+Il pulsante imposta i valori raccomandati, negozia e apre la posizione. Se
+l'acquirente rifiuta ai termini di mercato lo dice e lascia il controllo al
+giocatore. Se la copertura raccomandata non è finanziabile scende da sola a quella
+sostenibile.
+
+**Controlli visibili all'apertura: uno** — il cursore della copertura, che è la
+decisione che conta davvero. *Structure it myself* riapre tutti e dieci gli altri
+per chi li vuole, e la scelta viene ricordata.
+
+## Il tempo si comporta come deve
+
+- **Non parte subito**: le offerte scadrebbero mentre leggi il mercato.
+- **Parte da solo appena un cargo è in viaggio**, a velocità normale: da quel
+  momento c'è qualcosa da attendere, e la nave si muove sul globo.
+- **Si ferma da solo quando serve una decisione**, invece di girare a vuoto.
+  L'avviso ora dice *"A decision is waiting on this cargo. Time is paused."*
+
+Il ciclo diventa: scegli un cargo → un click → guarda la nave partire → il tempo
+si ferma su un evento → decidi → riprende → settlement con il conto economico.
 
 ## Verifica
 
-Intercettando `fillStyle` e `strokeStyle` durante un frame reale del globo, con un
-cargo a metà viaggio: **27 colori distinti, zero residui di ciano fluo**, oro e
-crema presenti. Nessun errore, e i 34 test delle versioni precedenti passano.
+Tredici controlli automatici sul flusso: pulsante presente, dettaglio chiuso
+all'apertura, un solo controllo visibile invece di venti, riapertura completa a
+dieci controlli, un click che apre il cargo con la copertura raccomandata, tempo
+che parte da solo, pausa automatica sulla decisione. Tutti verdi, e i test delle
+versioni precedenti non sono regrediti.
+
+---
+
+# World of Trade v58 — Rifiniture per un artefatto professionale
+
+Chiusura delle cose rimaste aperte, con un criterio diverso dal solito: l'app deve
+reggere lo sguardo di chi lavora nel settore, quindi ogni pezzo visibilmente
+incompleto è un costo, non una funzione in più.
+
+## Un bug nel punto più esposto
+
+Il suggerimento **"Fit to liquidity"**, che propone la copertura più alta
+sostenibile, guardava solo cassa e riserva di policy — non il **fido bancario**.
+Su difficoltà Expert questo produceva il caso peggiore possibile: il gioco diceva
+*"il 100% rientra nella tua liquidità"* mentre il cargo restava bloccato, perché
+il vincolo era la linea di credito.
+
+Il prestito non dipende dal livello di copertura, quindi se il fido non basta non
+esiste alcun hedge che sblocchi il cargo. Ora la funzione lo verifica e in quel
+caso non promette nulla. È un bug che stava esattamente nella meccanica che un
+trader guarda per prima.
+
+## Traduzione italiana rimossa dall'interfaccia
+
+Copriva 58 elementi su un'interfaccia di migliaia di stringhe. Chi valuta l'app e
+prova a passare all'italiano vede un lavoro a metà — l'opposto del segnale che
+serve. Il selettore è stato togliato dal pannello profilo; il meccanismo di
+traduzione resta nel codice, pronto se un giorno la traduzione verrà completata.
+
+L'inglese è comunque la lingua del settore.
+
+## Pulizia
+
+Rimosse quattro funzioni dichiarate e mai chiamate (`effectiveBorrowed`,
+`effectiveEquity`, `getSelectedDeal`, `officeCountries`). Ora il conteggio è zero
+su 458 funzioni.
+
+## Documento di accompagnamento
+
+In `WHAT-THIS-MODELS.md` il campo dell'URL è stato reso impossibile da dimenticare:
+è l'unica cosa che il documento non può contenere da sé.
+
+---
+
+# World of Trade v57 — Audit di credibilità del dominio
+
+Cambio di obiettivo: l'app serve come biglietto da visita per ruoli nel physical
+commodity trading. Quello che conta non è più il Play Store, è che regga davanti a
+chi fa questo mestiere. Questa versione è un audit del dominio, non del codice.
+
+Include anche la riverniciatura del globo della v55, il cui pacchetto era andato
+perso.
+
+## Cosa era già forte
+
+Vale dirlo, perché ha condizionato l'audit: il contenuto di dominio era in buona
+parte corretto e in alcuni punti sofisticato.
+
+- Incoterms modellati bene: EXW→FOB→CFR→CIF→DDP con obbligo, prezzo e intensità di
+  capitale crescenti in modo coerente.
+- Le quattro strutture di finanziamento (revolver, LC, borrowing base, mezzi propri)
+  sono reali e differenziate correttamente.
+- L'Academy contiene tre affermazioni da addetto: *"il margine commerciale non è il
+  P&L finale"*; *"cosa paga la banca sotto un LC documentario? documenti conformi ai
+  termini dell'LC"*; *"gli incoterms allocano costi e trasferimento del rischio
+  logistico, non determinano automaticamente il titolo giuridico"*.
+- Le schede operative per rotta hanno termini di acquisto e vendita espliciti
+  (*FOB Port Hedland · index-linked* → *CFR Shanghai · LC at sight*) e set
+  documentali corretti: draft survey e Fe assay per il minerale di ferro,
+  phytosanitary per la soia, certificati di umidità, origine, polizza di carico.
+
+## Due definizioni imprecise
+
+- **Value at Risk** era *"la perdita massima attesa"*. Il VaR è un quantile della
+  distribuzione delle perdite, non un caso peggiore: è la perdita che non verrà
+  superata con una data confidenza. Un risk manager lo nota.
+- **Letter of credit** era *"una garanzia bancaria che il compratore pagherà"*.
+  L'LC è l'impegno della banca emittente a pagare **contro documenti conformi**:
+  sostituisce il rischio banca al rischio compratore, e un set discrepante può
+  essere rifiutato anche con la merce a posto. L'Academy lo diceva già bene, il
+  glossario no.
+
+## Dieci termini che mancavano
+
+Un professionista nota ciò che non c'è. Il buco più grosso: il gioco **aveva** il
+meccanismo dell'opzione di prezzo dell'acquirente ma non lo chiamava mai
+**quotational period**, che per i metalli è centrale. Ora le formule di prezzo si
+chiamano *Monthly average QP* e *Buyer's QP option*, e il glossario è passato da 21
+a 31 voci con: quotational period, fattura provvisoria e definitiva, assay e weight
+franchise, polizza di carico, laytime, notice of readiness, washout, ciclo del
+capitale circolante, esposizione creditizia di controparte, cost of carry.
+
+## Sei incoerenze logistiche
+
+Merce, tonnellaggio e nave devono stare insieme, altrimenti chi lavora nel dry bulk
+se ne accorge in tre secondi.
+
+| Rotta | Prima | Ora | Perché |
+|---|---|---|---|
+| Pilbara–Shanghai | 55.000 t su Panamax | Supramax part cargo | Quel corridoio va in Capesize; 55.000 t su Panamax è mezza nave |
+| Gulf–Rotterdam soia | 25.000 t su Panamax | Handysize | Una Panamax di soia fa 60-66.000 t |
+| Zambia zinco | 1.600 t su Supramax | Containerised bulk | Una Supramax è da 50-60.000 dwt |
+| Indonesia nichel | 850 t su Supramax | Containerised | Idem: 850 t è un carico container |
+| Costa d'Avorio cacao | Container / reefer | Ventilated container | Il cacao non viaggia refrigerato, ma in container ventilato |
+| Argentina grano | Handysize | Handysize part cargo | 5.000 t su Handysize è un carico parziale, va detto |
+
+Le due sui concentrati le avevo introdotte io nella v45: avevo allineato le
+quantità al capitale dichiarato e lasciato le navi di prima.
+
+## Nuovo documento
+
+`WHAT-THIS-MODELS.md` — due pagine scritte per un lettore del settore, non per uno
+sviluppatore: cosa copre il modello lungo il ciclo del trade, il lato rischio, cosa
+è deliberatamente semplificato, e tre cose imparate costruendolo. È il documento da
+allegare quando mandi il link prima di un colloquio.
 
 ---
 
