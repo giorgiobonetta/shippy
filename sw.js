@@ -1,4 +1,4 @@
-const CACHE_NAME = 'world-of-trade-v60';
+const CACHE_NAME = 'world-of-trade-v60-landing';
 const ASSET_VERSION = '60.0.0';
 // v45 — le stringhe di versione qui erano ferme a 36.0.0 mentre index.html chiedeva
 // 44.0.0: le voci precaricate non venivano mai riutilizzate e mancavano quattro
@@ -87,7 +87,9 @@ self.addEventListener('fetch', event => {
         .catch(() => caches.match(event.request)
           .then(cached => cached
             // offline su un indirizzo mai visitato: si ripiega sul gioco
-            || (isNavigation ? caches.match('./index.html') : null))
+            || (isNavigation
+                  ? caches.match(/\/play|index\.html/.test(requestUrl.pathname) ? './index.html' : './landing.html')
+                  : null))
           .then(cached => cached || Response.error()))
     );
     return;

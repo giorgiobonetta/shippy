@@ -2,7 +2,7 @@
   "name": "World of Trade",
   "short_name": "World of Trade",
   "description": "Build a Geneva commodity trader into a global physical merchant house.",
-  "start_url": "./",
+  "start_url": "./play",
   "scope": "./",
   "display": "standalone",
   "orientation": "any",
